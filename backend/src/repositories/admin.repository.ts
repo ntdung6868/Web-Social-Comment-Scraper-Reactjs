@@ -1,0 +1,431 @@
+// ===========================================
+// Admin Repository
+// ===========================================
+// Data access layer for admin operations
+
+import { prisma } from "../config/database.js";
+import type { User, ScrapeHistory, Platform, ScrapeStatus, PlanType, PlanStatus, Prisma } from "@prisma/client";
+import type { AdminUserListItem, AdminUserDetail, AdminScrapeLog } from "../types/admin.types.js";
+import type { PaginatedResponse } from "../types/scraper.types.js";
+
+// ===========================================
+// Types
+// ===========================================
+
+export interface UserFilters {
+  search?: string;
+  planType?: PlanType;
+  planStatus?: PlanStatus;
+  isBanned?: boolean;
+  isAdmin?: boolean;
+}
+
+export interface UserPagination {
+  page: number;
+  limit: number;
+  sortBy?: "createdAt" | "username" | "email" | "scrapeCount";
+  sortOrder?: "asc" | "desc";
+}
+
+export interface ScrapeFilters {
+  userId?: number;
+  platform?: Platform;
+  status?: ScrapeStatus;
+  dateFrom?: Date;
+  dateTo?: Date;
+}
+
+export interface ScrapePagination {
+  page: number;
+  limit: number;
+  sortBy?: "createdAt" | "totalComments";
+  sortOrder?: "asc" | "desc";
+}
+
+// ===========================================
+// Admin Repository Class
+// ===========================================
+
+export class AdminRepository {
+  // ===========================================
+  // User Management
+  // ===========================================
+
+  /**
+   * Get paginated list of all users with scrape counts
+   */
+  async getUserList(filters: UserFilters, pagination: UserPagination): Promise<PaginatedResponse<AdminUserListItem>> {
+    const { page, limit, sortBy = "createdAt", sortOrder = "desc" } = pagination;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {};
+
+    if (filters.search) {
+      where.OR = [
+        { username: { contains: filters.search, mode: "insensitive" } },
+        { email: { contains: filters.search, mode: "insensitive" } },
+      ];
+    }
+    if (filters.planType) {
+      where.planType = filters.planType;
+    }
+    if (filters.planStatus) {
+      where.planStatus = filters.planStatus;
+    }
+    if (filters.isBanned !== undefined) {
+      where.isBanned = filters.isBanned;
+    }
+    if (filters.isAdmin !== undefined) {
+      where.isAdmin = filters.isAdmin;
+    }
+
+    // Handle sortBy for scrapeCount
+    let orderBy: Prisma.UserOrderByWithRelationInput;
+    if (sortBy === "scrapeCount") {
+      orderBy = {
+        scrapeHistories: {
+          _count: sortOrder,
+        },
+      };
+    } else {
+      orderBy = { [sortBy]: sortOrder };
+    }
+
+    const [users, totalItems] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          _count: {
+            select: { scrapeHistories: true },
+          },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data: users.map((user) => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        createdAt: user.createdAt,
+        isActive: user.isActive,
+        isAdmin: user.isAdmin,
+        planType: user.planType,
+        planStatus: user.planStatus,
+        trialUses: user.trialUses,
+        isBanned: user.isBanned,
+        scrapeCount: user._count.scrapeHistories,
+      })),
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  /**
+   * Get detailed user info for admin
+   */
+  async getUserDetail(userId: number): Promise<AdminUserDetail | null> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        _count: {
+          select: { scrapeHistories: true },
+        },
+      },
+    });
+
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      createdAt: user.createdAt,
+      isActive: user.isActive,
+      isAdmin: user.isAdmin,
+      planType: user.planType,
+      planStatus: user.planStatus,
+      trialUses: user.trialUses,
+      isBanned: user.isBanned,
+      scrapeCount: user._count.scrapeHistories,
+      banReason: user.banReason,
+      bannedAt: user.bannedAt,
+      subscriptionStart: user.subscriptionStart,
+      subscriptionEnd: user.subscriptionEnd,
+      lastPasswordChange: user.lastPasswordChange,
+      lastEmailChange: user.lastEmailChange,
+      proxyEnabled: user.proxyEnabled,
+      headlessMode: user.headlessMode,
+      hasTiktokCookie: !!user.tiktokCookieData,
+      hasFacebookCookie: !!user.facebookCookieData,
+    };
+  }
+
+  /**
+   * Update user (admin only fields)
+   */
+  async updateUser(
+    userId: number,
+    data: {
+      isActive?: boolean;
+      isAdmin?: boolean;
+      planType?: PlanType;
+      planStatus?: PlanStatus;
+      trialUses?: number;
+      subscriptionEnd?: Date | null;
+    },
+  ): Promise<User> {
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+  }
+
+  /**
+   * Ban a user
+   */
+  async banUser(userId: number, reason: string): Promise<User> {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        isBanned: true,
+        banReason: reason,
+        bannedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Unban a user
+   */
+  async unbanUser(userId: number): Promise<User> {
+    return prisma.user.update({
+      where: { id: userId },
+      data: {
+        isBanned: false,
+        banReason: null,
+        bannedAt: null,
+      },
+    });
+  }
+
+  /**
+   * Delete a user and all related data
+   */
+  async deleteUser(userId: number): Promise<void> {
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+  }
+
+  // ===========================================
+  // Scrape Log Management
+  // ===========================================
+
+  /**
+   * Get paginated scrape logs
+   */
+  async getScrapeLogList(
+    filters: ScrapeFilters,
+    pagination: ScrapePagination,
+  ): Promise<PaginatedResponse<AdminScrapeLog>> {
+    const { page, limit, sortBy = "createdAt", sortOrder = "desc" } = pagination;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ScrapeHistoryWhereInput = {};
+
+    if (filters.userId) {
+      where.userId = filters.userId;
+    }
+    if (filters.platform) {
+      where.platform = filters.platform;
+    }
+    if (filters.status) {
+      where.status = filters.status;
+    }
+    if (filters.dateFrom || filters.dateTo) {
+      where.createdAt = {};
+      if (filters.dateFrom) {
+        where.createdAt.gte = filters.dateFrom;
+      }
+      if (filters.dateTo) {
+        where.createdAt.lte = filters.dateTo;
+      }
+    }
+
+    const [logs, totalItems] = await Promise.all([
+      prisma.scrapeHistory.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          user: {
+            select: { username: true },
+          },
+        },
+      }),
+      prisma.scrapeHistory.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data: logs.map((log) => ({
+        id: log.id,
+        userId: log.userId,
+        username: log.user.username,
+        platform: log.platform,
+        url: log.url,
+        status: log.status,
+        totalComments: log.totalComments,
+        errorMessage: log.errorMessage,
+        createdAt: log.createdAt,
+      })),
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  // ===========================================
+  // Statistics
+  // ===========================================
+
+  /**
+   * Get admin dashboard statistics
+   */
+  async getDashboardStats(): Promise<{
+    users: {
+      total: number;
+      active: number;
+      banned: number;
+      newToday: number;
+      newThisWeek: number;
+    };
+    subscriptions: {
+      free: number;
+      pro: number;
+      expired: number;
+    };
+    scraping: {
+      totalJobs: number;
+      successfulJobs: number;
+      failedJobs: number;
+      totalComments: number;
+    };
+  }> {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 7);
+
+    const [
+      totalUsers,
+      activeUsers,
+      bannedUsers,
+      newToday,
+      newThisWeek,
+      freeUsers,
+      proUsers,
+      expiredUsers,
+      totalScrapes,
+      successfulScrapes,
+      failedScrapes,
+      commentsAggregate,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isActive: true, isBanned: false } }),
+      prisma.user.count({ where: { isBanned: true } }),
+      prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.user.count({ where: { createdAt: { gte: weekStart } } }),
+      prisma.user.count({ where: { planType: "FREE" } }),
+      prisma.user.count({ where: { planType: "PRO" } }),
+      prisma.user.count({ where: { planStatus: "EXPIRED" } }),
+      prisma.scrapeHistory.count(),
+      prisma.scrapeHistory.count({ where: { status: "SUCCESS" } }),
+      prisma.scrapeHistory.count({ where: { status: "FAILED" } }),
+      prisma.scrapeHistory.aggregate({ _sum: { totalComments: true } }),
+    ]);
+
+    return {
+      users: {
+        total: totalUsers,
+        active: activeUsers,
+        banned: bannedUsers,
+        newToday,
+        newThisWeek,
+      },
+      subscriptions: {
+        free: freeUsers,
+        pro: proUsers,
+        expired: expiredUsers,
+      },
+      scraping: {
+        totalJobs: totalScrapes,
+        successfulJobs: successfulScrapes,
+        failedJobs: failedScrapes,
+        totalComments: commentsAggregate._sum.totalComments ?? 0,
+      },
+    };
+  }
+
+  // ===========================================
+  // Global Settings
+  // ===========================================
+
+  /**
+   * Get all global settings
+   */
+  async getAllSettings(): Promise<Record<string, string | null>> {
+    const settings = await prisma.globalSettings.findMany();
+    return settings.reduce(
+      (acc, s) => {
+        acc[s.key] = s.value;
+        return acc;
+      },
+      {} as Record<string, string | null>,
+    );
+  }
+
+  /**
+   * Get setting by key
+   */
+  async getSetting(key: string): Promise<string | null> {
+    const setting = await prisma.globalSettings.findUnique({
+      where: { key },
+    });
+    return setting?.value ?? null;
+  }
+
+  /**
+   * Update or create setting
+   */
+  async setSetting(key: string, value: string | null, updatedBy: number): Promise<void> {
+    await prisma.globalSettings.upsert({
+      where: { key },
+      create: { key, value, updatedBy },
+      update: { value, updatedBy },
+    });
+  }
+}
+
+// Export singleton instance
+export const adminRepository = new AdminRepository();

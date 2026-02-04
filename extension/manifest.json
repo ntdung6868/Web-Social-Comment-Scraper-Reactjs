@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Social Cookie Grabber",
+  "description": "Lấy cookie TikTok & Facebook cho Crawl Comments",
+  "version": "2.1.0",
+
+  "permissions": ["cookies", "storage"],
+
+  "host_permissions": [
+    "https://*.tiktok.com/*",
+    "https://*.facebook.com/*",
+    "https://*.railway.app/*",
+    "http://localhost:*/*"
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Social Cookie Grabber"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://*.railway.app/*", "http://localhost:*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

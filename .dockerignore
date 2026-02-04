@@ -1,0 +1,65 @@
+# ===========================================
+# Docker Ignore - Loại bỏ files không cần thiết
+# ===========================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (sẽ mount từ host hoặc dùng docker-compose env)
+.env
+.env.local
+.env.*.local
+
+# Database (sẽ mount volume)
+instance/
+*.db
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# Test
+tests/
+test/
+pytest_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

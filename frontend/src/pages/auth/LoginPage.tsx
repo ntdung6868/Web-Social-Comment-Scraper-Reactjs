@@ -1,0 +1,208 @@
+import { useState } from "react";
+import { Link as RouterLink, useNavigate, useLocation } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Typography,
+  Link,
+  InputAdornment,
+  IconButton,
+  Checkbox,
+  FormControlLabel,
+  Alert,
+  alpha,
+} from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  Email as EmailIcon,
+  Lock as LockIcon,
+  Search as SearchIcon,
+} from "@mui/icons-material";
+import { useAuthStore } from "@/stores/auth.store";
+import { AxiosError } from "axios";
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+  rememberMe: z.boolean().optional(),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, isLoading } = useAuthStore();
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: false,
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    try {
+      setError(null);
+      await login(data.email, data.password, data.rememberMe);
+      navigate(from, { replace: true });
+    } catch (err) {
+      const axiosError = err as AxiosError<{ error: string }>;
+      setError(axiosError.response?.data?.error || "Login failed. Please try again.");
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "background.default",
+        p: 2,
+      }}
+    >
+      <Card
+        sx={{
+          width: "100%",
+          maxWidth: 440,
+          backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.8),
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <CardContent sx={{ p: 4 }}>
+          {/* Logo */}
+          <Box sx={{ textAlign: "center", mb: 4 }}>
+            <Box
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mb: 2,
+              }}
+            >
+              <SearchIcon sx={{ fontSize: 40, color: "primary.main", mr: 1 }} />
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  background: "linear-gradient(135deg, #5c6bc0 0%, #42a5f5 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                CrawlComments
+              </Typography>
+            </Box>
+            <Typography variant="body1" color="text.secondary">
+              Sign in to continue to your account
+            </Typography>
+          </Box>
+
+          {/* Error Alert */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <TextField
+              {...register("email")}
+              fullWidth
+              label="Email"
+              type="email"
+              error={!!errors.email}
+              helperText={errors.email?.message}
+              sx={{ mb: 2 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <EmailIcon color="action" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            <TextField
+              {...register("password")}
+              fullWidth
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              error={!!errors.password}
+              helperText={errors.password?.message}
+              sx={{ mb: 1 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon color="action" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 3,
+              }}
+            >
+              <FormControlLabel
+                control={<Checkbox {...register("rememberMe")} size="small" />}
+                label={
+                  <Typography variant="body2" color="text.secondary">
+                    Remember me
+                  </Typography>
+                }
+              />
+              <Link component={RouterLink} to="/forgot-password" variant="body2" sx={{ textDecoration: "none" }}>
+                Forgot password?
+              </Link>
+            </Box>
+
+            <Button type="submit" fullWidth variant="contained" size="large" disabled={isLoading} sx={{ mb: 3 }}>
+              {isLoading ? "Signing in..." : "Sign In"}
+            </Button>
+          </form>
+
+          {/* Register Link */}
+          <Typography variant="body2" align="center" color="text.secondary">
+            Don&apos;t have an account?{" "}
+            <Link component={RouterLink} to="/register" sx={{ textDecoration: "none", fontWeight: 600 }}>
+              Sign up
+            </Link>
+          </Typography>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" class="{{ 'dark' if theme == 'dark' else '' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{{ t.app_description }}">
+    <title>{% block title %}Crawl Comments{% endblock %}</title>
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            200: '#c7d2fe',
+                            300: '#a5b4fc',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Theme initialization - prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || '{{ theme }}';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+    
+    <!-- Sidebar state - inject CSS BEFORE body renders to prevent flash -->
+    <script>
+        (function() {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (isCollapsed) {
+                // Inject CSS to immediately set collapsed state
+                const style = document.createElement('style');
+                style.id = 'sidebar-collapsed-style';
+                style.textContent = `
+                    #sidebar { width: 5rem !important; }
+                    #mainContent { margin-left: 5rem !important; }
+                    #sidebar .sidebar-text { display: none !important; }
+                    #sidebar .nav-link { justify-content: center !important; padding-left: 0 !important; padding-right: 0 !important; }
+                    #sidebar #logoSection { padding: 1.5rem 0.75rem !important; }
+                    #sidebar #userSection { padding: 1.5rem 0.75rem !important; }
+                    #toggleIconCollapse { display: none !important; }
+                    #toggleIconExpand { display: block !important; }
+                `;
+                document.head.appendChild(style);
+            }
+        })();
+    </script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- CSRF Token cho AJAX requests -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
+    <!-- Translations for JavaScript -->
+    <script>
+        window.LANG = '{{ lang }}';
+        window.THEME = '{{ theme }}';
+        window.TRANSLATIONS = {
+            // Toast messages
+            toast_enter_url: '{{ t.toast_enter_url }}',
+            toast_invalid_url: '{{ t.toast_invalid_url }}',
+            toast_scrape_success: '{{ t.toast_scrape_success }}',
+            toast_error: '{{ t.toast_error }}',
+            toast_connection_error: '{{ t.toast_connection_error }}',
+            toast_confirm_delete: '{{ t.toast_confirm_delete }}',
+            toast_delete_success: '{{ t.toast_delete_success }}',
+            toast_copied: '{{ t.toast_copied }}',
+            toast_copy_failed: '{{ t.toast_copy_failed }}',
+            
+            // Scrape form
+            scraping: '{{ t.scraping }}',
+            start_scrape: '{{ t.start_scrape }}',
+            scraped: '{{ t.scraped }}',
+            completed: '{{ t.completed }}',
+            comments: '{{ t.comments }}',
+            
+            // Modal
+            loading_comments: '{{ t.loading_comments }}',
+            no_comments: '{{ t.no_comments }}',
+            
+            // General
+            error_occurred: '{{ t.error_occurred }}',
+            connection_error: '{{ t.connection_error }}',
+            
+            // Theme
+            theme_light: '{{ t.theme_light }}',
+            theme_dark: '{{ t.theme_dark }}'
+        };
+    </script>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-gray-50 dark:bg-slate-900 min-h-screen transition-colors duration-300">
+    <!-- Toast Container cho thông báo -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+    
+    <!-- Admin Contact Modal -->
+    <div id="admin-contact-modal" class="fixed inset-0 z-[100] hidden">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeAdminContactModal()"></div>
+        
+        <!-- Modal Content -->
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full transform transition-all scale-95 opacity-0" id="admin-modal-content">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-primary-500 to-primary-600 rounded-t-2xl px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold text-white flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                            Liên hệ Admin
+                        </h3>
+                        <button onclick="closeAdminContactModal()" class="text-white/80 hover:text-white transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Body -->
+                <div class="p-6 space-y-4">
+                    <p class="text-gray-600 dark:text-gray-300 text-center">
+                        Liên hệ Admin để được hỗ trợ nhanh chóng
+                    </p>
+                    
+                    <!-- Email -->
+                    <a href="mailto:ntdungdev73@gmail.com" 
+                       class="flex items-center p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors group">
+                        <div class="h-12 w-12 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Email</p>
+                            <p class="text-lg font-semibold text-blue-600 dark:text-blue-400 group-hover:underline">ntdungdev73@gmail.com</p>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                    </a>
+                    
+                    <!-- Phone -->
+                    <a href="tel:0373527362" 
+                       class="flex items-center p-4 bg-green-50 dark:bg-green-900/30 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors group">
+                        <div class="h-12 w-12 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                            </svg>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Số điện thoại</p>
+                            <p class="text-lg font-semibold text-green-600 dark:text-green-400 group-hover:underline">0373 527 362</p>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-400 group-hover:text-green-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                    </a>
+                </div>
+                
+                <!-- Footer -->
+                <div class="px-6 pb-6">
+                    <button onclick="closeAdminContactModal()" 
+                            class="w-full py-3 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors font-medium">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% block body %}
+    <!-- Nội dung chính -->
+    {% endblock %}
+    
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <!-- Admin Contact Modal Script -->
+    <script>
+        function openAdminContactModal() {
+            const modal = document.getElementById('admin-contact-modal');
+            const content = document.getElementById('admin-modal-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+        
+        function closeAdminContactModal() {
+            const modal = document.getElementById('admin-contact-modal');
+            const content = document.getElementById('admin-modal-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+        
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAdminContactModal();
+            }
+        });
+        
+        // Toggle password visibility
+        function togglePassword(inputId, button) {
+            const input = document.getElementById(inputId);
+            const eyeOpen = button.querySelector('.eye-open');
+            const eyeClosed = button.querySelector('.eye-closed');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeOpen.classList.add('hidden');
+                eyeClosed.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                eyeOpen.classList.remove('hidden');
+                eyeClosed.classList.add('hidden');
+            }
+        }
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
