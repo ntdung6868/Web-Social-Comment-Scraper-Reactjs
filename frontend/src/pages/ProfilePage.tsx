@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   Box,
   Card,
@@ -12,32 +12,34 @@ import {
   Button,
   Avatar,
   Divider,
-  Alert,
   Grid,
   Chip,
-  alpha,
+  InputAdornment,
 } from "@mui/material";
-import { Edit as EditIcon, Save as SaveIcon } from "@mui/icons-material";
+import {
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Lock as LockIcon,
+  Star as StarIcon,
+  CalendarToday as CalendarIcon,
+  VerifiedUser as SecurityIcon,
+} from "@mui/icons-material";
 import { userService } from "@/services/user.service";
 import { useAuthStore } from "@/stores/auth.store";
-import { queryKeys, queryClient } from "@/lib/query-client";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
 
+// 1. Sửa Schema: Username thay vì Name
 const profileSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  username: z.string().min(3, "Username must be at least 3 characters"),
 });
 
 const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain at least one uppercase letter, one lowercase letter, and one number",
-      ),
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -52,6 +54,11 @@ export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
 
+  // Logic hiển thị gói cước
+  const isPro = user?.planType === "PRO";
+  const planLabel = isPro ? "Pro Member" : "Free Member";
+  const planColor = isPro ? "primary" : "default";
+
   const {
     register: registerProfile,
     handleSubmit: handleProfileSubmit,
@@ -59,7 +66,7 @@ export default function ProfilePage() {
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: user?.name || "",
+      username: user?.username || "",
     },
   });
 
@@ -80,7 +87,8 @@ export default function ProfilePage() {
   const updateProfileMutation = useMutation({
     mutationFn: userService.updateProfile,
     onSuccess: (response) => {
-      updateUser(response.data);
+      // Backend trả về user object đã update
+      updateUser(response.data?.data || response.data);
       setIsEditing(false);
       toast.success("Profile updated successfully");
     },
@@ -90,8 +98,7 @@ export default function ProfilePage() {
   });
 
   const updatePasswordMutation = useMutation({
-    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
-      userService.updateProfile({ currentPassword, newPassword }),
+    mutationFn: ({ currentPassword, newPassword }: any) => userService.updateProfile({ currentPassword, newPassword }),
     onSuccess: () => {
       resetPassword();
       toast.success("Password changed successfully");
@@ -112,6 +119,8 @@ export default function ProfilePage() {
     });
   };
 
+  if (!user) return null;
+
   return (
     <Box>
       {/* Header */}
@@ -125,50 +134,80 @@ export default function ProfilePage() {
       </Box>
 
       <Grid container spacing={3}>
-        {/* Profile Info Card */}
+        {/* Left Column: Profile Card */}
         <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent sx={{ p: 3, textAlign: "center" }}>
+          <Card sx={{ height: "100%", textAlign: "center" }}>
+            <Box
+              sx={{
+                height: 120,
+                background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+              }}
+            />
+            <CardContent sx={{ mt: -6 }}>
               <Avatar
                 sx={{
                   width: 100,
                   height: 100,
+                  border: "4px solid #1e293b",
+                  bgcolor: "primary.main",
+                  fontSize: "2.5rem",
                   mx: "auto",
                   mb: 2,
-                  backgroundColor: "primary.main",
-                  fontSize: "2.5rem",
                 }}
               >
-                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                {user.username?.charAt(0).toUpperCase()}
               </Avatar>
-              <Typography variant="h6" fontWeight={600}>
-                {user?.name}
+
+              {/* HIỂN THỊ USERNAME THẬT */}
+              <Typography variant="h5" fontWeight={700}>
+                {user.username}
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                {user?.email}
+                {user.email}
               </Typography>
-              <Chip label={user?.subscriptionPlan || "FREE"} color="primary" sx={{ mt: 1 }} />
+
+              <Chip
+                icon={isPro ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
+                label={planLabel}
+                color={planColor}
+                variant={isPro ? "filled" : "outlined"}
+                sx={{ mt: 1, fontWeight: 600 }}
+              />
 
               <Divider sx={{ my: 3 }} />
 
-              <Box sx={{ textAlign: "left" }}>
-                <Typography variant="caption" color="text.secondary">
-                  Member Since
-                </Typography>
-                <Typography variant="body2" gutterBottom>
-                  {user?.createdAt ? format(new Date(user.createdAt), "MMMM dd, yyyy") : "-"}
-                </Typography>
+              <Box sx={{ textAlign: "left", px: 2 }}>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Member Since
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <CalendarIcon fontSize="small" color="action" />
+                    <Typography variant="body2">
+                      {user.createdAt ? format(new Date(user.createdAt), "MMMM dd, yyyy") : "-"}
+                    </Typography>
+                  </Box>
+                </Box>
 
-                <Typography variant="caption" color="text.secondary">
-                  Subscription Status
-                </Typography>
-                <Typography variant="body2">{user?.subscriptionStatus || "N/A"}</Typography>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Subscription Status
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <SecurityIcon fontSize="small" color={isPro ? "success" : "action"} />
+                    <Typography variant="body2" fontWeight={500} color={isPro ? "success.main" : "text.primary"}>
+                      {/* HIỂN THỊ TRẠNG THÁI GÓI CƯỚC THẬT */}
+                      {user.planStatus === "ACTIVE" || user.planStatus === "active" ? "Active" : "Inactive"} (
+                      {planLabel})
+                    </Typography>
+                  </Box>
+                </Box>
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Edit Profile Card */}
+        {/* Right Column: Edit Forms */}
         <Grid item xs={12} md={8}>
           <Card sx={{ mb: 3 }}>
             <CardContent sx={{ p: 3 }}>
@@ -194,30 +233,43 @@ export default function ProfilePage() {
 
               <form onSubmit={handleProfileSubmit(onProfileSubmit)}>
                 <TextField
-                  {...registerProfile("name")}
+                  {...registerProfile("username")}
                   fullWidth
-                  label="Full Name"
+                  label="Username"
                   disabled={!isEditing}
-                  error={!!profileErrors.name}
-                  helperText={profileErrors.name?.message}
+                  error={!!profileErrors.username}
+                  helperText={profileErrors.username?.message}
                   sx={{ mb: 2 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
 
                 <TextField
                   fullWidth
                   label="Email"
-                  value={user?.email || ""}
+                  value={user.email || ""}
                   disabled
                   helperText="Email cannot be changed"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EmailIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </form>
             </CardContent>
           </Card>
 
-          {/* Change Password Card */}
           <Card>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mb: 3 }}>
                 Change Password
               </Typography>
 
@@ -230,6 +282,13 @@ export default function ProfilePage() {
                   error={!!passwordErrors.currentPassword}
                   helperText={passwordErrors.currentPassword?.message}
                   sx={{ mb: 2 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
 
                 <TextField
@@ -240,6 +299,13 @@ export default function ProfilePage() {
                   error={!!passwordErrors.newPassword}
                   helperText={passwordErrors.newPassword?.message}
                   sx={{ mb: 2 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
 
                 <TextField
@@ -250,11 +316,20 @@ export default function ProfilePage() {
                   error={!!passwordErrors.confirmPassword}
                   helperText={passwordErrors.confirmPassword?.message}
                   sx={{ mb: 3 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
 
-                <Button type="submit" variant="contained" disabled={updatePasswordMutation.isPending}>
-                  {updatePasswordMutation.isPending ? "Changing..." : "Change Password"}
-                </Button>
+                <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button type="submit" variant="contained" disabled={updatePasswordMutation.isPending}>
+                    {updatePasswordMutation.isPending ? "Changing..." : "Change Password"}
+                  </Button>
+                </Box>
               </form>
             </CardContent>
           </Card>

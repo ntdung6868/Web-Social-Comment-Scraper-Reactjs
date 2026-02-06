@@ -1,3 +1,0 @@
-# Ignore Jinja2 templates - Prettier breaks the syntax
-app/templates/**/*.html
-*.html

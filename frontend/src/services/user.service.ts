@@ -3,8 +3,15 @@ import type { ApiResponse, User } from "@/types";
 
 export interface UpdateProfileData {
   name?: string;
+  username?: string;
   currentPassword?: string;
   newPassword?: string;
+
+  // Các trường Cookie (để update qua API profile)
+  tiktokCookieData?: any[] | null;
+  tiktokCookieStatus?: string;
+  facebookCookieData?: any[] | null;
+  facebookCookieStatus?: string;
 }
 
 export interface UserSettings {
@@ -20,6 +27,18 @@ export const userService = {
 
   // Update profile
   updateProfile: (data: UpdateProfileData) => apiRequest.patch<ApiResponse<User>>("/users/profile", data),
+
+  // --- MỚI: Hàm xử lý Upload/Xóa Cookie ---
+  updateCookies: (platform: "TIKTOK" | "FACEBOOK", cookies: any[] | null) => {
+    // Tự động map dữ liệu sang tên trường trong Database
+    const payload: UpdateProfileData = {
+      [platform === "TIKTOK" ? "tiktokCookieData" : "facebookCookieData"]: cookies,
+      [platform === "TIKTOK" ? "tiktokCookieStatus" : "facebookCookieStatus"]: cookies ? "active" : "missing",
+    };
+
+    return apiRequest.patch<ApiResponse<User>>("/users/profile", payload);
+  },
+  // ----------------------------------------
 
   // Get user settings
   getSettings: () => apiRequest.get<ApiResponse<UserSettings>>("/users/settings"),

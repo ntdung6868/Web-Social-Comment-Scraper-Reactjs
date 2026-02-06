@@ -54,10 +54,42 @@ export const userController = {
       return;
     }
 
-    const data = req.body as UpdateProfileInput;
-    const profile = await userService.updateProfile(req.user.userId, data);
+    // --- DEBUG LOG START ---
+    console.log("\n========== [DEBUG] UPDATE PROFILE REQUEST ==========");
+    console.log("1. User ID:", req.user.userId);
+    console.log("2. Content-Type:", req.headers["content-type"]);
 
-    sendSuccess(res, { user: profile }, "Profile updated successfully");
+    // Log các key nhận được trong body để xem có tiktokCookieData không
+    const bodyKeys = Object.keys(req.body);
+    console.log("3. Body Keys Received:", bodyKeys);
+
+    if (req.body.tiktokCookieData) {
+      console.log("✅ Found 'tiktokCookieData' in body");
+      console.log("   Type:", typeof req.body.tiktokCookieData);
+      console.log("   Is Array:", Array.isArray(req.body.tiktokCookieData));
+      console.log("   Length:", Array.isArray(req.body.tiktokCookieData) ? req.body.tiktokCookieData.length : "N/A");
+    } else if (bodyKeys.includes("tiktokCookieData")) {
+      console.log("⚠️ 'tiktokCookieData' key exists but value is falsy/null (Deleting cookies?)");
+    } else {
+      console.log("❌ 'tiktokCookieData' MISSING in body");
+    }
+
+    if (req.body.facebookCookieData) {
+      console.log("✅ Found 'facebookCookieData' in body");
+    }
+    console.log("====================================================\n");
+    // --- DEBUG LOG END ---
+
+    const data = req.body as UpdateProfileInput;
+
+    try {
+      const profile = await userService.updateProfile(req.user.userId, data);
+      console.log("✅ [DEBUG] userService.updateProfile executed successfully");
+      sendSuccess(res, { user: profile }, "Profile updated successfully");
+    } catch (error) {
+      console.error("🔥 [DEBUG] Error in userService.updateProfile:", error);
+      throw error; // Ném lỗi để middleware xử lý tiếp
+    }
   }),
 
   // ===========================================

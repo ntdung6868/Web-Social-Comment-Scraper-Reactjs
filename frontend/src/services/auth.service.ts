@@ -15,8 +15,14 @@ export const authService = {
   // Login
   login: (credentials: LoginCredentials) => apiRequest.post<ApiResponse<LoginResponse>>("/auth/login", credentials),
 
-  // Register
-  register: (data: RegisterData) => apiRequest.post<ApiResponse<LoginResponse>>("/auth/register", data),
+  // Register - CẬP NHẬT: Đảm bảo gửi đúng username và confirmPassword
+  register: (data: RegisterData & { confirmPassword?: string }) =>
+    apiRequest.post<ApiResponse<LoginResponse>>("/auth/register", {
+      username: data.username, // Backend cần username (không phải name)
+      email: data.email,
+      password: data.password,
+      confirmPassword: data.confirmPassword || data.password, // Backend bắt buộc trường này
+    }),
 
   // Logout
   logout: () => apiRequest.post<ApiResponse<null>>("/auth/logout"),
@@ -31,10 +37,11 @@ export const authService = {
   forgotPassword: (email: string) => apiRequest.post<ApiResponse<null>>("/auth/forgot-password", { email }),
 
   // Reset password
-  resetPassword: (token: string, password: string) =>
+  resetPassword: (token: string, password: string, confirmPassword?: string) =>
     apiRequest.post<ApiResponse<null>>("/auth/reset-password", {
       token,
       password,
+      confirmPassword: confirmPassword || password,
     }),
 
   // Verify email

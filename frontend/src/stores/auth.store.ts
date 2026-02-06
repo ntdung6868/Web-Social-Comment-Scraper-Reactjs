@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { User } from "@/types";
-import { authService } from '@/services/auth.service';
+import { authService } from "@/services/auth.service";
 
 interface AuthState {
   // State
@@ -15,7 +15,7 @@ interface AuthState {
   setUser: (user: User | null) => void;
   setAccessToken: (token: string | null) => void;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (username: string, email: string, password: string, confirmPassword?: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
@@ -46,16 +46,21 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password, rememberMe = false) => {
         set({ isLoading: true });
         try {
+          // --- SỬA LỖI QUAN TRỌNG TẠI ĐÂY ---
+          // Backend yêu cầu key là "username", map giá trị email vào đó
           const response = await authService.login({
-            email,
+            username: email,
             password,
             rememberMe,
-          });
-          const { user, tokens } = response.data;
+          } as any);
+
+          // Xử lý dữ liệu trả về linh hoạt (hỗ trợ bọc trong .data hoặc không)
+          const resData = response.data as any;
+          const data = resData.data || resData;
 
           set({
-            user,
-            accessToken: tokens.accessToken,
+            user: data.user,
+            accessToken: data.accessToken || data.tokens?.accessToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -65,19 +70,23 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (email, password, name) => {
+      register: async (username, email, password, confirmPassword) => {
         set({ isLoading: true });
         try {
           const response = await authService.register({
+            username,
             email,
             password,
-            name,
+            confirmPassword,
           });
-          const { user, tokens } = response.data;
+
+          // Xử lý dữ liệu trả về linh hoạt
+          const resData = response.data as any;
+          const data = resData.data || resData;
 
           set({
-            user,
-            accessToken: tokens.accessToken,
+            user: data.user,
+            accessToken: data.accessToken || data.tokens?.accessToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -112,8 +121,12 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const response = await authService.me();
+          const resData = response.data as any;
+          // Backend trả về { success: true, data: { user: ... } }
+          const userData = resData.data?.user || resData.user || resData;
+
           set({
-            user: response.data,
+            user: userData,
             isAuthenticated: true,
             isLoading: false,
             isInitialized: true,
@@ -122,11 +135,18 @@ export const useAuthStore = create<AuthState>()(
           // Token invalid, try refresh
           try {
             const refreshResponse = await authService.refresh();
-            set({ accessToken: refreshResponse.data.accessToken });
+            const refreshResData = refreshResponse.data as any;
+            const newAccessToken = refreshResData.data?.accessToken || refreshResData.accessToken;
 
+            set({ accessToken: newAccessToken });
+
+            // Gọi lại me() với token mới
             const meResponse = await authService.me();
+            const meResData = meResponse.data as any;
+            const userData = meResData.data?.user || meResData.user || meResData;
+
             set({
-              user: meResponse.data,
+              user: userData,
               isAuthenticated: true,
               isLoading: false,
               isInitialized: true,

@@ -23,6 +23,7 @@ import {
   Settings as SettingsIcon,
   Logout as LogoutIcon,
   Circle as CircleIcon,
+  Star as StarIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 import { useNotificationStore } from "@/stores/notification.store";
@@ -93,6 +94,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
     }
   };
 
+  // Logic hiển thị Plan
+  const isPro = user?.planType === "PRO";
+  const planLabel = isPro ? "Pro Plan" : "Free Plan";
+  const planColor = isPro ? "primary" : "default";
+
   return (
     <AppBar
       position="sticky"
@@ -119,7 +125,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
               display: { xs: "none", sm: "block" },
             }}
           >
-            {/* Can be dynamic based on current page */}
+            {/* Page title placeholder */}
           </Typography>
         </Box>
 
@@ -170,7 +176,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   fontWeight: 600,
                 }}
               >
-                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                {/* HIỂN THỊ KÝ TỰ ĐẦU CỦA USERNAME */}
+                {user?.username?.charAt(0)?.toUpperCase() || "U"}
               </Avatar>
             </IconButton>
           </Tooltip>
@@ -195,16 +202,21 @@ export default function Header({ onMenuClick }: HeaderProps) {
         >
           <Box sx={{ px: 2, py: 1.5 }}>
             <Typography variant="subtitle1" fontWeight={600}>
-              {user?.name || "User"}
+              {/* HIỂN THỊ USERNAME */}
+              {user?.username || "Guest"}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {user?.email}
             </Typography>
+
+            {/* HIỂN THỊ GÓI CƯỚC CHÍNH XÁC */}
             <Chip
-              label={user?.subscriptionPlan || "FREE"}
+              icon={isPro ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
+              label={planLabel}
               size="small"
-              color="primary"
-              sx={{ mt: 1, borderRadius: 1 }}
+              color={planColor}
+              variant={isPro ? "filled" : "outlined"}
+              sx={{ mt: 1, borderRadius: 1, fontWeight: 600 }}
             />
           </Box>
 

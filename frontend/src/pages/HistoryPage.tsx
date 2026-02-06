@@ -78,8 +78,14 @@ export default function HistoryPage() {
     return <LoadingSpinner message="Loading history..." />;
   }
 
-  const scrapes = data?.data ?? [];
-  const total = data?.pagination?.total ?? 0;
+  // --- SỬA LỖI TẠI ĐÂY ---
+  // API trả về: { success: true, data: { data: [...], pagination: {...} } }
+  // data (từ useQuery) = Response Body
+  // data.data = PaginatedResponse ({ data: Array, pagination: Object })
+  const historyResponse = data?.data as any;
+  const scrapes: ScrapeJob[] = historyResponse?.data ?? []; // Lấy mảng data bên trong
+  const total = historyResponse?.pagination?.total ?? 0;
+  // -----------------------
 
   return (
     <Box>

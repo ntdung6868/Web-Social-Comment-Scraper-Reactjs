@@ -61,7 +61,7 @@ export default function DashboardLayout() {
     }
   };
 
-  const drawerWidth = sidebarCollapsed ? COLLAPSED_DRAWER_WIDTH : DRAWER_WIDTH;
+  // Không cần biến drawerWidth ở đây nữa vì không dùng cho margin
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
@@ -83,8 +83,12 @@ export default function DashboardLayout() {
           display: "flex",
           flexDirection: "column",
           minHeight: "100vh",
-          ml: isMobile ? 0 : `${drawerWidth}px`,
-          transition: theme.transitions.create(["margin"], {
+          width: "100%", // Đảm bảo chiếm hết không gian còn lại
+
+          // --- ĐÃ XÓA DÒNG ml (Margin Left) GÂY LỖI ---
+          // ml: isMobile ? 0 : `${drawerWidth}px`,
+
+          transition: theme.transitions.create(["width", "margin"], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
           }),

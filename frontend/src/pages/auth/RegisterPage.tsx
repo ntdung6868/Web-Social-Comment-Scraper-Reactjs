@@ -27,9 +27,13 @@ import {
 import { useAuthStore } from "@/stores/auth.store";
 import { AxiosError } from "axios";
 
+// 1. Cập nhật Schema khớp với Backend (Username không dấu cách)
 const registerSchema = z
   .object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
+    username: z
+      .string()
+      .min(3, "Username must be at least 3 characters")
+      .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores (no spaces)"),
     email: z.string().email("Invalid email address"),
     password: z
       .string()
@@ -62,7 +66,7 @@ export default function RegisterPage() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      name: "",
+      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -72,11 +76,16 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setError(null);
-      await registerUser(data.email, data.password, data.name);
+      // 2. Gửi đúng Username và thêm confirmPassword
+      // Lưu ý: Bạn cần chắc chắn auth.store.ts đã cập nhật để nhận 4 tham số này
+      await registerUser(data.username, data.email, data.password, data.confirmPassword);
+
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      const axiosError = err as AxiosError<{ error: string }>;
-      setError(axiosError.response?.data?.error || "Registration failed. Please try again.");
+      const axiosError = err as AxiosError<{ error: { message: string } }>;
+      // Backend trả về format: { error: { code, message } }
+      const message = axiosError.response?.data?.error?.message || "Registration failed. Please try again.";
+      setError(message);
     }
   };
 
@@ -137,12 +146,14 @@ export default function RegisterPage() {
 
           {/* Register Form */}
           <form onSubmit={handleSubmit(onSubmit)}>
+            {/* 3. Đổi input từ "Name" sang "Username" */}
             <TextField
-              {...register("name")}
+              {...register("username")}
               fullWidth
-              label="Full Name"
-              error={!!errors.name}
-              helperText={errors.name?.message}
+              label="Username"
+              placeholder="e.g. johndoe123"
+              error={!!errors.username}
+              helperText={errors.username?.message}
               sx={{ mb: 2 }}
               InputProps={{
                 startAdornment: (

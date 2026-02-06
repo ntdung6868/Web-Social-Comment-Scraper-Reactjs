@@ -23,6 +23,13 @@ export const updateProfileSchema = z.object({
     .toLowerCase()
     .trim()
     .optional(),
+
+  // --- CÁC TRƯỜNG MỚI THÊM ĐỂ UPDATE COOKIE ---
+  tiktokCookieData: z.any().optional(), // Dùng any() để chấp nhận array hoặc null (khi xóa)
+  tiktokCookieStatus: z.string().optional(),
+  facebookCookieData: z.any().optional(),
+  facebookCookieStatus: z.string().optional(),
+  // --------------------------------------------
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

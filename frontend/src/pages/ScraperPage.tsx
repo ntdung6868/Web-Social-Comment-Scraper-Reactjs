@@ -114,7 +114,7 @@ export default function ScraperPage() {
               }}
             />
 
-            <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+            <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
               <TextField
                 {...register("maxComments", { valueAsNumber: true })}
                 type="number"

@@ -15,7 +15,7 @@ declare global {
 // Create Prisma client with logging in development
 const prismaClientSingleton = (): PrismaClient => {
   return new PrismaClient({
-    log: env.isDevelopment ? ["query", "info", "warn", "error"] : ["error"],
+    log: env.isDevelopment ? ["info", "warn", "error"] : ["error"],
     errorFormat: env.isDevelopment ? "pretty" : "minimal",
   });
 };

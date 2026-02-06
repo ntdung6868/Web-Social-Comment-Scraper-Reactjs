@@ -28,8 +28,9 @@ import {
 import { useAuthStore } from "@/stores/auth.store";
 import { AxiosError } from "axios";
 
+// Schema cho phép nhập Username hoặc Email
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "Username or Email is required"),
   password: z.string().min(1, "Password is required"),
   rememberMe: z.boolean().optional(),
 });
@@ -39,6 +40,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Chỉ lấy hàm login và isLoading, bỏ setUser (vì không còn mock)
   const { login, isLoading } = useAuthStore();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -65,8 +67,9 @@ export default function LoginPage() {
       await login(data.email, data.password, data.rememberMe);
       navigate(from, { replace: true });
     } catch (err) {
-      const axiosError = err as AxiosError<{ error: string }>;
-      setError(axiosError.response?.data?.error || "Login failed. Please try again.");
+      const axiosError = err as AxiosError<{ error: { message: string } }>;
+      const message = axiosError.response?.data?.error?.message || "Login failed. Please check your credentials.";
+      setError(message);
     }
   };
 
@@ -130,8 +133,7 @@ export default function LoginPage() {
             <TextField
               {...register("email")}
               fullWidth
-              label="Email"
-              type="email"
+              label="Username or Email"
               error={!!errors.email}
               helperText={errors.email?.message}
               sx={{ mb: 2 }}
