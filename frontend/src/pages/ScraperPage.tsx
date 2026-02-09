@@ -29,6 +29,7 @@ import {
 } from "@mui/icons-material";
 import { scraperService } from "@/services/scraper.service";
 import { useScrapeStore } from "@/stores/scrape.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { cancelScrape } from "@/lib/socket";
 import { useSocket } from "@/hooks/useSocket";
 import { queryClient, queryKeys } from "@/lib/query-client";
@@ -132,6 +133,8 @@ export default function ScraperPage() {
 
         // Refresh dashboard & history
         queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
+        // Refresh user info (updates trialUses counter on dashboard)
+        useAuthStore.getState().checkAuth();
       },
       [updateScrape, addLog, removeScrape],
     ),
@@ -143,6 +146,10 @@ export default function ScraperPage() {
 
         // Auto-remove from active after 8 seconds
         setTimeout(() => removeScrape(data.historyId), 8000);
+
+        // Refresh dashboard stats & user info
+        queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
+        useAuthStore.getState().checkAuth();
       },
       [updateScrape, addLog, removeScrape],
     ),
@@ -181,6 +188,8 @@ export default function ScraperPage() {
       setError(null);
 
       queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
+      // Refresh user info — trialUses decremented on job creation
+      useAuthStore.getState().checkAuth();
     },
     onError: (err: any) => {
       const errorMessage =

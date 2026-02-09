@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { User } from "@/types";
 import { authService } from "@/services/auth.service";
+import { queryClient } from "@/lib/query-client";
+import { disconnectSocket } from "@/lib/socket";
 
 interface AuthState {
   // State
@@ -95,6 +97,16 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
           });
           localStorage.removeItem("auth-storage");
+
+          // Clear all user-specific data from other stores
+          const { useScrapeStore } = await import("./scrape.store");
+          const { useNotificationStore } = await import("./notification.store");
+          useScrapeStore.getState().clearAllScrapes();
+          useNotificationStore.getState().clearNotifications();
+
+          // Reset all cached queries & disconnect socket
+          queryClient.clear();
+          disconnectSocket();
         }
       },
 
