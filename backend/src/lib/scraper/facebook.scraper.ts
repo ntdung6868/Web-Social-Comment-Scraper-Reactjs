@@ -511,52 +511,43 @@ export class FacebookScraper {
   private async burstScroll(container: ElementHandle | null, burstCount = 15, intervalMs = 60): Promise<boolean> {
     if (!this.page) return false;
 
+    // Python: if not container: return False — NO window fallback
+    if (!container) {
+      console.log("[Facebook] ⚡ Burst: no container, skip");
+      return false;
+    }
+
     try {
-      if (container) {
-        // Scroll inside container
-        const before = await container.evaluate((node) => {
-          const el = node as HTMLElement;
-          return { top: el.scrollTop, sh: el.scrollHeight, ch: el.clientHeight };
-        });
+      // Scroll inside container (Python: arguments[0].scrollTop += step)
+      const before = await container.evaluate((node) => {
+        const el = node as HTMLElement;
+        return { top: el.scrollTop, sh: el.scrollHeight, ch: el.clientHeight };
+      });
 
-        const step = Math.max(900, Math.floor(before.ch * 1.8));
+      const step = Math.max(900, Math.floor(before.ch * 1.8));
 
-        for (let i = 0; i < burstCount; i++) {
-          await container
-            .evaluate((node, s) => {
-              const el = node as HTMLElement;
-              el.scrollTop = el.scrollTop + s;
-            }, step)
-            .catch(() => {});
-          if (intervalMs > 0) {
-            await this.page!.waitForTimeout(intervalMs);
-          }
+      for (let i = 0; i < burstCount; i++) {
+        await container
+          .evaluate((node, s) => {
+            const el = node as HTMLElement;
+            el.scrollTop = el.scrollTop + s;
+          }, step)
+          .catch(() => {});
+        if (intervalMs > 0) {
+          await this.page!.waitForTimeout(intervalMs);
         }
-
-        const after = await container.evaluate((node) => {
-          const el = node as HTMLElement;
-          return { top: el.scrollTop, sh: el.scrollHeight };
-        });
-
-        const moved = after.top > before.top || after.sh > before.sh;
-        console.log(
-          `[Facebook] ⚡ Burst: moved=${moved} (top ${before.top}->${after.top}; sh ${before.sh}->${after.sh})`,
-        );
-        return moved;
-      } else {
-        // Fallback: scroll window
-        const beforeH = await this.page.evaluate(() => document.body.scrollHeight);
-        for (let i = 0; i < burstCount; i++) {
-          await this.page.evaluate(() => window.scrollBy(0, 900));
-          if (intervalMs > 0) {
-            await this.page.waitForTimeout(intervalMs);
-          }
-        }
-        const afterH = await this.page.evaluate(() => document.body.scrollHeight);
-        const moved = afterH > beforeH;
-        console.log(`[Facebook] ⚡ Window burst: moved=${moved} (h ${beforeH}->${afterH})`);
-        return moved;
       }
+
+      const after = await container.evaluate((node) => {
+        const el = node as HTMLElement;
+        return { top: el.scrollTop, sh: el.scrollHeight };
+      });
+
+      const moved = after.top > before.top || after.sh > before.sh;
+      console.log(
+        `[Facebook] ⚡ Burst: moved=${moved} (top ${before.top}->${after.top}; sh ${before.sh}->${after.sh})`,
+      );
+      return moved;
     } catch (error) {
       console.debug("[Facebook] Burst scroll error:", error);
       return false;
