@@ -241,7 +241,7 @@ export class TikTokScraper {
       "--disable-features=TranslateUI,VizDisplayCompositor",
       "--js-flags=--max-old-space-size=512",
       "--disable-software-rasterizer",
-      "--window-size=1920,1080",
+      "--window-size=500,900",
     ];
 
     // CRITICAL: When headless is requested, use full Chromium with --headless=new
@@ -271,10 +271,12 @@ export class TikTokScraper {
 
     const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
 
-    // Create context with 500px width (narrow viewport like Python reference's 420px)
+    // Create context WITHOUT viewport — use actual window size (like Python reference)
+    // Python: maximize_window() → set_window_rect(width=420)
+    // Playwright: viewport:null means page uses real window dimensions
     this.context = await this.browser.newContext({
       userAgent,
-      viewport: { width: 500, height: 900 },
+      viewport: null,
       locale: "vi-VN",
       timezoneId: "Asia/Ho_Chi_Minh",
     });
@@ -285,6 +287,9 @@ export class TikTokScraper {
     });
 
     this.page = await this.context.newPage();
+
+    // Resize window to 500px width via CDP (like Python: set_window_rect(width=420))
+    await this.resizeWindow(500, 900);
 
     // Set up API response interception (bonus data source)
     this.setupResponseInterception();
@@ -952,6 +957,25 @@ export class TikTokScraper {
       message,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Resize browser window via CDP (like Python: set_window_rect(width=420)).
+   * Playwright viewport only sets content area; CDP sets the actual window.
+   */
+  private async resizeWindow(width: number, height: number): Promise<void> {
+    if (!this.page) return;
+    try {
+      const cdp = await this.page.context().newCDPSession(this.page);
+      const { windowId } = await cdp.send("Browser.getWindowForTarget");
+      await cdp.send("Browser.setWindowBounds", {
+        windowId,
+        bounds: { left: 0, top: 0, width, height, windowState: "normal" },
+      });
+      console.log(`[TikTok] 📐 Window resized to ${width}x${height} via CDP`);
+    } catch (err) {
+      console.debug("[TikTok] CDP resize failed (headless?), relying on --window-size arg:", err);
+    }
   }
 
   private async cleanup(): Promise<void> {

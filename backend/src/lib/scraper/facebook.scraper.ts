@@ -199,7 +199,7 @@ export class FacebookScraper {
       "--disable-features=TranslateUI,VizDisplayCompositor",
       "--js-flags=--max-old-space-size=512",
       "--disable-software-rasterizer",
-      "--window-size=1920,1080",
+      "--window-size=500,900",
     ];
 
     if (this.config.headless) {
@@ -224,10 +224,12 @@ export class FacebookScraper {
 
     const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
 
-    // 500px width viewport (narrow like Python reference)
+    // Create context WITHOUT viewport — use actual window size (like Python reference)
+    // Python: maximize_window() → set_window_rect(width=420)
+    // Playwright: viewport:null means page uses real window dimensions
     this.context = await this.browser.newContext({
       userAgent,
-      viewport: { width: 500, height: 900 },
+      viewport: null,
       locale: "vi-VN",
       timezoneId: "Asia/Ho_Chi_Minh",
     });
@@ -238,6 +240,9 @@ export class FacebookScraper {
     });
 
     this.page = await this.context.newPage();
+
+    // Resize window to 500px width via CDP (like Python: set_window_rect(width=420))
+    await this.resizeWindow(500, 900);
   }
 
   // ===========================================
@@ -619,6 +624,63 @@ export class FacebookScraper {
   // Scroll to Load All Comments
   // ===========================================
 
+  /**
+   * Multi-approach scroll ported from Python _fb_scroll().
+   * Uses WheelEvent dispatch + direct scrollTop on article's scrollable ancestor.
+   * Called as a secondary scroll approach when burst scroll fails to advance.
+   */
+  private async fbMultiScroll(): Promise<void> {
+    if (!this.page) return;
+    try {
+      await this.page.evaluate(() => {
+        function findScrollable(el: Element | null): HTMLElement | null {
+          let node = el;
+          while (node) {
+            const htmlNode = node as HTMLElement;
+            if (htmlNode.scrollHeight > htmlNode.clientHeight + 20) {
+              return htmlNode;
+            }
+            node = node.parentElement;
+          }
+          return null;
+        }
+
+        function wheelScroll(el: HTMLElement | null, deltaY: number) {
+          if (!el) return;
+          try {
+            const evt = new WheelEvent("wheel", {
+              deltaY,
+              bubbles: true,
+              cancelable: true,
+            });
+            el.dispatchEvent(evt);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        function scrollEl(el: HTMLElement | null) {
+          if (!el) return;
+          try {
+            el.scrollTop = el.scrollTop + Math.max(600, el.clientHeight * 1.5);
+            wheelScroll(el, 1200);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // Find scrollable ancestor of first comment article
+        const commentItem = document.querySelector('div[role="article"]');
+        if (commentItem) {
+          const scrollable = findScrollable(commentItem);
+          scrollEl(scrollable);
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
   private async scrollToLoadComments(): Promise<void> {
     if (!this.page) return;
 
@@ -626,8 +688,11 @@ export class FacebookScraper {
     let noMoreScroll = 0;
     let containerCache: ElementHandle | null = null;
     let debugLogged = false;
+    let scrollRound = 0;
 
     while (this.isRunning && !this.abortController.signal.aborted) {
+      scrollRound++;
+
       // Log dialog info once
       if (!debugLogged) {
         try {
@@ -639,25 +704,35 @@ export class FacebookScraper {
         debugLogged = true;
       }
 
-      // Find/cache scroll container
-      if (!containerCache) {
+      // Find/cache scroll container (re-find every 5 rounds to handle stale refs)
+      if (!containerCache || scrollRound % 5 === 0) {
         containerCache = await this.findScrollContainer();
       } else {
-        // Verify cache is still valid
         const isValid = await containerCache.isVisible().catch(() => false);
         if (!isValid) {
           containerCache = await this.findScrollContainer();
         }
       }
 
+      // Primary: burst scroll (from Python _fb_scroll_burst)
       const canScroll = await this.burstScroll(containerCache, 15, 60);
 
       if (!canScroll) {
         noMoreScroll++;
-        console.log(`[Facebook] ⏳ Không có data mới, retry ${noMoreScroll}/3...`);
+        console.log(`[Facebook] ⏳ Không có data mới, retry ${noMoreScroll}/5...`);
 
-        // Trick: scroll up then down to trigger load (from Python reference)
-        if (noMoreScroll < 3 && containerCache) {
+        // Secondary: multi-approach scroll (from Python _fb_scroll)
+        // Uses WheelEvent dispatch + direct scrollTop on scrollable ancestor
+        await this.fbMultiScroll();
+        await this.page.waitForTimeout(300);
+
+        // Click "View more comments" buttons during scroll to reveal hidden comments
+        if (noMoreScroll <= 3) {
+          await this.clickViewMoreComments();
+        }
+
+        // Retry: scroll up then down to trigger lazy load (from Python reference)
+        if (noMoreScroll < 5 && containerCache) {
           await containerCache
             .evaluate((node) => {
               const el = node as HTMLElement;
@@ -672,6 +747,9 @@ export class FacebookScraper {
             })
             .catch(() => {});
           await this.page.waitForTimeout(1000);
+
+          // Also re-find container in case DOM changed after clicking "view more"
+          containerCache = await this.findScrollContainer();
         }
       } else {
         noMoreScroll = 0;
@@ -685,7 +763,7 @@ export class FacebookScraper {
       const progress = Math.min(75, 20 + (articleCount / (this.config.maxComments || 1000)) * 55);
       this.emitProgress("scrolling", progress, `Đang cuộn... Phát hiện ~${articleCount} mục`);
 
-      if (noMoreScroll >= 3) {
+      if (noMoreScroll >= 5) {
         console.log("[Facebook] 🛑 Đã cuộn tới cuối, bắt đầu quét comment...");
         break;
       }
@@ -928,6 +1006,25 @@ export class FacebookScraper {
       message,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Resize browser window via CDP (like Python: set_window_rect(width=420)).
+   * Playwright viewport only sets content area; CDP sets the actual window.
+   */
+  private async resizeWindow(width: number, height: number): Promise<void> {
+    if (!this.page) return;
+    try {
+      const cdp = await this.page.context().newCDPSession(this.page);
+      const { windowId } = await cdp.send("Browser.getWindowForTarget");
+      await cdp.send("Browser.setWindowBounds", {
+        windowId,
+        bounds: { left: 0, top: 0, width, height, windowState: "normal" },
+      });
+      console.log(`[Facebook] 📐 Window resized to ${width}x${height} via CDP`);
+    } catch (err) {
+      console.debug("[Facebook] CDP resize failed (headless?), relying on --window-size arg:", err);
+    }
   }
 
   private async cleanup(): Promise<void> {
