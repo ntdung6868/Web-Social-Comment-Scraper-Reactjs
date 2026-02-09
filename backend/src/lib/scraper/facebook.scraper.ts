@@ -263,6 +263,8 @@ export class FacebookScraper {
       // Clear existing cookies first (like Python: driver.delete_all_cookies())
       await this.context.clearCookies();
 
+      // Format cookies EXACTLY like Python reference: only name, value, domain, path, secure
+      // Python _apply_cookies only passes these 5 fields — simpler = fewer errors
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedCookies = cookieList
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -273,15 +275,7 @@ export class FacebookScraper {
           value: String(c.value),
           domain: String(c.domain || ".facebook.com"),
           path: String(c.path || "/"),
-          expires:
-            typeof c.expirationDate === "number"
-              ? c.expirationDate
-              : typeof c.expires === "number"
-                ? c.expires
-                : undefined,
-          httpOnly: Boolean(c.httpOnly),
           secure: Boolean(c.secure),
-          sameSite: FacebookScraper.normalizeSameSite(c.sameSite),
         }));
 
       if (formattedCookies.length > 0) {

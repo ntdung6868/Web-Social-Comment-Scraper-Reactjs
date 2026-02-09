@@ -310,9 +310,11 @@ export class TikTokScraper {
       const cookies = JSON.parse(this.config.cookies.data);
       const cookieList = Array.isArray(cookies) ? cookies : cookies.cookies || [];
 
-      // Clear existing cookies first (like Python reference: driver.delete_all_cookies())
+      // Clear existing cookies first (like Python: driver.delete_all_cookies())
       await this.context.clearCookies();
 
+      // Format cookies EXACTLY like Python reference: only name, value, domain, path, secure
+      // Python _apply_cookies only passes these 5 fields — simpler = fewer errors
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedCookies = cookieList
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -323,15 +325,7 @@ export class TikTokScraper {
           value: String(c.value),
           domain: String(c.domain || ".tiktok.com"),
           path: String(c.path || "/"),
-          expires:
-            typeof c.expirationDate === "number"
-              ? c.expirationDate
-              : typeof c.expires === "number"
-                ? c.expires
-                : undefined,
-          httpOnly: Boolean(c.httpOnly),
           secure: Boolean(c.secure),
-          sameSite: TikTokScraper.normalizeSameSite(c.sameSite),
         }));
 
       if (formattedCookies.length > 0) {
@@ -360,8 +354,10 @@ export class TikTokScraper {
     if (!this.page) throw new Error("Page not initialized");
 
     console.log("[TikTok] 🌍 Đang truy cập trang...");
+    // Python reference uses driver.get(url) + _random_sleep(2.5, 4.0)
+    // NOT networkidle (which can hang or timeout)
     await this.page.goto(url, {
-      waitUntil: "networkidle",
+      waitUntil: "load",
       timeout: 45000,
     });
     await this.randomSleep(2500, 4000);
