@@ -1,5 +1,5 @@
 // ===========================================
-// User Service
+// User Service (DEBUG VERSION - FULL)
 // ===========================================
 // Business logic for user management
 
@@ -68,8 +68,8 @@ function parseCookieCount(cookieData: string | null): number {
       return parsed.length;
     }
     if (typeof parsed === "object" && parsed !== null) {
-      if ("cookies" in parsed && Array.isArray(parsed.cookies)) {
-        return parsed.cookies.length;
+      if ("cookies" in parsed && Array.isArray((parsed as any).cookies)) {
+        return (parsed as any).cookies.length;
       }
       // Count object keys as cookies
       return Object.keys(parsed).length;
@@ -155,6 +155,11 @@ export class UserService {
       throw createError.notFound("User not found");
     }
 
+    // Debug log status
+    console.log(`[DEBUG SERVICE] User ${userId} Settings:`);
+    console.log(`- TikTok Cookie Present: ${!!user.tiktokCookieData}`);
+    console.log(`- Facebook Cookie Present: ${!!user.facebookCookieData}`);
+
     // Count proxies
     const proxyCount = user.proxyList ? user.proxyList.split("\n").filter((p) => p.trim()).length : 0;
 
@@ -224,6 +229,7 @@ export class UserService {
    * Upload cookie for a platform
    */
   async uploadCookie(userId: number, data: UploadCookieInput): Promise<CookieInfo> {
+    console.log(`[DEBUG SERVICE] Uploading cookie for user ${userId}, platform: ${data.platform}`);
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -234,7 +240,9 @@ export class UserService {
     let parsedCookies: unknown;
     try {
       parsedCookies = JSON.parse(data.cookieData);
+      console.log("[DEBUG SERVICE] JSON parsed successfully");
     } catch {
+      console.error("[DEBUG SERVICE] Invalid JSON format");
       throw createError.badRequest("Invalid cookie JSON format");
     }
 
@@ -243,14 +251,16 @@ export class UserService {
     if (Array.isArray(parsedCookies)) {
       cookieCount = parsedCookies.length;
     } else if (typeof parsedCookies === "object" && parsedCookies !== null) {
-      if ("cookies" in parsedCookies && Array.isArray((parsedCookies as { cookies: unknown[] }).cookies)) {
-        cookieCount = (parsedCookies as { cookies: unknown[] }).cookies.length;
+      if ("cookies" in parsedCookies && Array.isArray((parsedCookies as any).cookies)) {
+        cookieCount = (parsedCookies as any).cookies.length;
       } else {
         cookieCount = Object.keys(parsedCookies).length;
       }
     } else {
       throw createError.badRequest("Cookie data must be an array or object");
     }
+
+    console.log(`[DEBUG SERVICE] Cookie count: ${cookieCount}`);
 
     if (cookieCount === 0) {
       throw createError.badRequest("No cookies found in the provided data");
@@ -263,12 +273,14 @@ export class UserService {
         cookieFile: data.filename,
         userAgent: data.userAgent,
       });
+      console.log("[DEBUG SERVICE] Updated TikTok cookie in DB");
     } else {
       await userRepository.updateFacebookCookie(userId, {
         cookieData: data.cookieData,
         cookieFile: data.filename,
         userAgent: data.userAgent,
       });
+      console.log("[DEBUG SERVICE] Updated Facebook cookie in DB");
     }
 
     return this.getCookieInfo(userId, data.platform);
@@ -307,6 +319,7 @@ export class UserService {
    * Delete cookie for a platform
    */
   async deleteCookie(userId: number, platform: "tiktok" | "facebook"): Promise<void> {
+    console.log(`[DEBUG SERVICE] Deleting ${platform} cookie for user ${userId}`);
     if (platform === "tiktok") {
       await userRepository.deleteTiktokCookie(userId);
     } else {

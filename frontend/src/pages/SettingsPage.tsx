@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+// Bỏ import setUser từ auth store vì không cần update ngược lại store
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
 import {
@@ -30,7 +31,6 @@ import {
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 
-// Interface cho Props của TabPanel
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -54,23 +54,23 @@ const validateCookieDomain = (cookies: any[], platform: "TIKTOK" | "FACEBOOK"): 
 };
 
 export default function SettingsPage() {
-  const { user, updateUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [tabValue, setTabValue] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [loadingPlatform, setLoadingPlatform] = useState<"TIKTOK" | "FACEBOOK" | null>(null);
 
-  // State cục bộ để lưu thông tin hiển thị (Optimistic UI)
   const [cookieStats, setCookieStats] = useState<{
-    tiktok: { count: number; date: string; active: boolean };
-    facebook: { count: number; date: string; active: boolean };
+    tiktok: { count: number; date: string; active: boolean; filename: string };
+    facebook: { count: number; date: string; active: boolean; filename: string };
   }>({
-    tiktok: { count: 0, date: "", active: false },
-    facebook: { count: 0, date: "", active: false },
+    tiktok: { count: 0, date: "", active: false, filename: "" },
+    facebook: { count: 0, date: "", active: false, filename: "" },
   });
 
   const tiktokInputRef = useRef<HTMLInputElement>(null);
   const facebookInputRef = useRef<HTMLInputElement>(null);
 
+  // State lưu giá trị hiện tại (đang chỉnh sửa)
   const [settings, setSettings] = useState({
     headless: true,
     concurrency: 2,
@@ -78,34 +78,71 @@ export default function SettingsPage() {
     proxyList: "",
   });
 
-  // Đồng bộ User Store vào State cục bộ khi trang load
+  // State lưu giá trị gốc (để so sánh xem có thay đổi không)
+  const [originalSettings, setOriginalSettings] = useState({
+    headless: true,
+    concurrency: 2,
+    proxyEnabled: false,
+    proxyList: "",
+  });
+
+  // Kiểm tra xem có thay đổi gì không
+  const hasChanges = JSON.stringify(settings) !== JSON.stringify(originalSettings);
+
+  // Load Settings 1 lần duy nhất khi Mount
   useEffect(() => {
-    if (user) {
-      setCookieStats((prev) => ({
-        tiktok: {
-          active: user.tiktokCookieStatus === "active" || prev.tiktok.active,
-          count: Array.isArray(user.tiktokCookieData) ? user.tiktokCookieData.length : prev.tiktok.count,
-          date: new Date().toISOString().split("T")[0],
-        },
-        facebook: {
-          active: user.facebookCookieStatus === "active" || prev.facebook.active,
-          count: Array.isArray(user.facebookCookieData) ? user.facebookCookieData.length : prev.facebook.count,
-          date: new Date().toISOString().split("T")[0],
-        },
-      }));
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const res = await userService.getSettings();
+      // Handle cấu trúc response linh hoạt
+      const responseData = res.data as any;
+      const s = responseData.data?.settings || responseData.settings;
+
+      if (s) {
+        const loadedSettings = {
+          headless: s.headlessMode,
+          concurrency: 2,
+          proxyEnabled: s.proxyEnabled,
+          proxyList: s.proxyList || "",
+        };
+
+        setSettings(loadedSettings);
+        setOriginalSettings(loadedSettings); // Lưu bản gốc
+
+        // Cập nhật stats từ API chính xác
+        setCookieStats({
+          tiktok: {
+            active: s.hasTiktokCookie,
+            count: s.tiktokCookieCount,
+            date: new Date().toLocaleDateString(),
+            filename: s.tiktokCookieFile || "",
+          },
+          facebook: {
+            active: s.hasFacebookCookie,
+            count: s.facebookCookieCount,
+            date: new Date().toLocaleDateString(),
+            filename: s.facebookCookieFile || "",
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load settings", error);
     }
-  }, [user]);
+  };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  // --- XỬ LÝ UPLOAD COOKIE ---
+  // --- UPLOAD HANDLER ---
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, platform: "TIKTOK" | "FACEBOOK") => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    event.target.value = "";
+    event.target.value = ""; // Reset input
 
     if (!file.name.toLowerCase().endsWith(".json")) {
       toast.error("Invalid file format. Please upload a JSON file.");
@@ -118,15 +155,18 @@ export default function SettingsPage() {
     reader.onload = async (e) => {
       try {
         const jsonContent = e.target?.result as string;
+
+        // 1. Validate JSON
         let parsedData;
         try {
           parsedData = JSON.parse(jsonContent);
-        } catch {
-          toast.error("Failed to parse JSON.");
+        } catch (err) {
+          toast.error("Failed to parse JSON file.");
           setLoadingPlatform(null);
           return;
         }
 
+        // 2. Validate structure
         let cookies: any[] = [];
         if (Array.isArray(parsedData)) cookies = parsedData;
         else if (parsedData && Array.isArray(parsedData.cookies)) cookies = parsedData.cookies;
@@ -136,36 +176,45 @@ export default function SettingsPage() {
           return;
         }
 
+        // 3. Validate domain
         if (!validateCookieDomain(cookies, platform)) {
           toast.error(`Invalid cookies! Domain mismatch for ${platform}.`);
           setLoadingPlatform(null);
           return;
         }
 
-        // Gọi API
+        // 4. Send API
         try {
-          const response = await userService.updateCookies(platform, cookies);
+          const res = await userService.uploadCookie(platform, jsonContent, file.name);
 
-          // Cập nhật Store (nếu có data trả về)
-          const body = (response as any).data && (response as any).status ? (response as any).data : response;
-          const payload = body.data || body;
-          const updatedUser = payload.user || payload;
-          if (updatedUser) updateUser(updatedUser);
+          const responseData = res.data as any;
+          const newCookieInfo = responseData.data?.cookie || responseData.cookie;
 
-          // Cập nhật State cục bộ ngay lập tức để UI hiển thị luôn
+          if (!newCookieInfo) {
+            toast.error("Upload successful but failed to parse response.");
+            setLoadingPlatform(null);
+            return;
+          }
+
+          console.log("[DEBUG Frontend] Upload response:", newCookieInfo);
+
+          // 5. Update State Cục bộ (Quan trọng: Chỉ update platform đang thao tác)
           const key = platform === "TIKTOK" ? "tiktok" : "facebook";
+
           setCookieStats((prev) => ({
             ...prev,
             [key]: {
               active: true,
-              count: cookies.length,
-              date: new Date().toISOString().split("T")[0],
+              count: newCookieInfo.cookieCount,
+              date: new Date().toLocaleDateString(),
+              filename: newCookieInfo.filename || file.name,
             },
           }));
 
-          toast.success(`${platform === "TIKTOK" ? "TikTok" : "Facebook"} cookies updated successfully!`);
+          toast.success(`${platform === "TIKTOK" ? "TikTok" : "Facebook"} cookies uploaded!`);
         } catch (apiError: any) {
-          toast.error("Failed to update cookies on server.");
+          const msg = apiError.response?.data?.error?.message || apiError.message || "Upload failed";
+          toast.error(`Error: ${msg}`);
         }
       } catch (error) {
         toast.error("An unexpected error occurred.");
@@ -177,22 +226,20 @@ export default function SettingsPage() {
     reader.readAsText(file);
   };
 
-  // --- XỬ LÝ XÓA COOKIE ---
+  // --- CLEAR COOKIES ---
   const handleClearCookies = async (platform: "TIKTOK" | "FACEBOOK") => {
     if (!confirm(`Are you sure you want to clear ${platform === "TIKTOK" ? "TikTok" : "Facebook"} cookies?`)) return;
 
     setLoadingPlatform(platform);
     try {
-      const response = await userService.updateCookies(platform, null);
-      const body = (response as any).data || response;
-      const updatedUser = body.data?.user || body.data || body;
-      updateUser(updatedUser);
+      await userService.deleteCookie(platform);
 
-      // Reset state cục bộ
+      // Update UI trực tiếp (Chỉ reset platform tương ứng, giữ nguyên platform kia)
       const key = platform === "TIKTOK" ? "tiktok" : "facebook";
+
       setCookieStats((prev) => ({
-        ...prev,
-        [key]: { active: false, count: 0, date: "" },
+        ...prev, // Giữ lại state cũ (ví dụ: facebook vẫn active)
+        [key]: { active: false, count: 0, date: "", filename: "" }, // Chỉ reset tiktok
       }));
 
       toast.success("Cookies cleared successfully.");
@@ -203,16 +250,23 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await userService.updateProxies(settings.proxyList, "RANDOM");
+      await userService.toggleProxy(settings.proxyEnabled);
+      await userService.updateScraperSettings(settings.headless);
+
       toast.success("Settings saved successfully!");
-    }, 1000);
+      setOriginalSettings(settings); // Cập nhật lại bản gốc sau khi lưu thành công
+    } catch (error) {
+      toast.error("Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // --- COMPONENT HIỂN THỊ THÔNG TIN COOKIE ---
-  const renderCookieInfo = (stats: { count: number; date: string; active: boolean }) => {
+  const renderCookieInfo = (stats: { count: number; date: string; active: boolean; filename: string }) => {
     if (!stats.active) return null;
 
     return (
@@ -220,17 +274,30 @@ export default function SettingsPage() {
         sx={{
           mb: 3,
           p: 2,
-          bgcolor: "rgba(255, 152, 0, 0.08)", // Màu nền cam nhẹ
+          bgcolor: "rgba(76, 175, 80, 0.08)",
           borderRadius: 1,
-          border: "1px solid rgba(255, 152, 0, 0.2)",
+          border: "1px solid rgba(76, 175, 80, 0.2)",
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-          <CookieIcon sx={{ color: "#ed6c02", fontSize: 20 }} />
+          <CookieIcon sx={{ color: "#2e7d32", fontSize: 20 }} />
           <Typography variant="subtitle2" fontWeight={700} sx={{ color: "#fff" }}>
             {stats.count} cookies loaded
           </Typography>
         </Stack>
+        {stats.filename && (
+          <Typography
+            variant="caption"
+            sx={{
+              color: "rgba(255,255,255,0.8)",
+              pl: 3.5,
+              display: "block",
+              fontStyle: "italic",
+            }}
+          >
+            File: {stats.filename}
+          </Typography>
+        )}
         <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)", pl: 3.5, display: "block" }}>
           Last updated: {stats.date}
         </Typography>
@@ -309,6 +376,7 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, concurrency: Number(e.target.value) })}
                   size="small"
                   sx={{ maxWidth: 200 }}
+                  helperText="Controls how many scraping tabs run at the same time."
                 />
               </Grid>
             </Grid>
@@ -334,7 +402,6 @@ export default function SettingsPage() {
                       Upload cookies to access age-restricted content and improve stability.
                     </Typography>
 
-                    {/* HIỂN THỊ INFO BOX */}
                     {renderCookieInfo(cookieStats.tiktok)}
 
                     <Stack direction="row" spacing={2} alignItems="center">
@@ -384,7 +451,6 @@ export default function SettingsPage() {
                       Required for scraping Facebook comments.
                     </Typography>
 
-                    {/* HIỂN THỊ INFO BOX */}
                     {renderCookieInfo(cookieStats.facebook)}
 
                     <Stack direction="row" spacing={2} alignItems="center">
@@ -453,7 +519,17 @@ export default function SettingsPage() {
           </TabPanel>
 
           <Box sx={{ mt: 4, display: "flex", justifyContent: "flex-end" }}>
-            <Button variant="contained" size="large" startIcon={<SaveIcon />} onClick={handleSave} disabled={isSaving}>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<SaveIcon />}
+              onClick={handleSave}
+              disabled={isSaving || !hasChanges} // Disable nếu không có thay đổi
+              sx={{
+                opacity: hasChanges ? 1 : 0.5, // Giảm opacity nếu không có thay đổi
+                transition: "opacity 0.2s",
+              }}
+            >
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </Box>

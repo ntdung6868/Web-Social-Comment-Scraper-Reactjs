@@ -1,55 +1,65 @@
-import { apiRequest } from "./api";
-import type { ApiResponse, User } from "@/types";
+import api from "./api";
+import { User } from "@/types";
 
-export interface UpdateProfileData {
-  name?: string;
-  username?: string;
-  currentPassword?: string;
-  newPassword?: string;
-
-  // Các trường Cookie (để update qua API profile)
-  tiktokCookieData?: any[] | null;
-  tiktokCookieStatus?: string;
-  facebookCookieData?: any[] | null;
-  facebookCookieStatus?: string;
-}
-
-export interface UserSettings {
-  emailNotifications: boolean;
-  language: string;
-  timezone: string;
-}
-
-// User API service
 export const userService = {
-  // Get user profile
-  getProfile: () => apiRequest.get<ApiResponse<User>>("/users/profile"),
-
-  // Update profile
-  updateProfile: (data: UpdateProfileData) => apiRequest.patch<ApiResponse<User>>("/users/profile", data),
-
-  // --- MỚI: Hàm xử lý Upload/Xóa Cookie ---
-  updateCookies: (platform: "TIKTOK" | "FACEBOOK", cookies: any[] | null) => {
-    // Tự động map dữ liệu sang tên trường trong Database
-    const payload: UpdateProfileData = {
-      [platform === "TIKTOK" ? "tiktokCookieData" : "facebookCookieData"]: cookies,
-      [platform === "TIKTOK" ? "tiktokCookieStatus" : "facebookCookieStatus"]: cookies ? "active" : "missing",
-    };
-
-    return apiRequest.patch<ApiResponse<User>>("/users/profile", payload);
+  // Lấy thông tin user profile
+  getProfile: async () => {
+    return api.get<{ user: User }>("/users/profile");
   },
-  // ----------------------------------------
 
-  // Get user settings
-  getSettings: () => apiRequest.get<ApiResponse<UserSettings>>("/users/settings"),
+  // Cập nhật thông tin profile
+  updateProfile: async (data: Partial<User>) => {
+    return api.patch<{ user: User }>("/users/profile", data);
+  },
 
-  // Update settings
-  updateSettings: (settings: Partial<UserSettings>) =>
-    apiRequest.patch<ApiResponse<UserSettings>>("/users/settings", settings),
+  // Lấy toàn bộ settings
+  getSettings: async () => {
+    return api.get("/users/settings");
+  },
 
-  // Delete account
-  deleteAccount: (password: string) =>
-    apiRequest.delete<ApiResponse<null>>("/users/account", {
-      data: { password },
-    }),
+  // --- COOKIES (SỬA LẠI PHẦN NÀY) ---
+
+  /**
+   * Upload Cookie
+   * Backend yêu cầu: { platform: "tiktok"|"facebook", cookieData: string, filename: string }
+   */
+  uploadCookie: async (platform: "TIKTOK" | "FACEBOOK", cookieData: string, filename: string) => {
+    return api.post<{ cookie: any }>("/users/cookies", {
+      platform: platform.toLowerCase(), // Backend check "tiktok" hoặc "facebook" thường
+      cookieData, // Truyền chuỗi JSON string, không parse
+      filename,
+    });
+  },
+
+  /**
+   * Xóa Cookie
+   * Dùng method DELETE thay vì update null
+   */
+  deleteCookie: async (platform: "TIKTOK" | "FACEBOOK") => {
+    return api.delete(`/users/cookies/${platform.toLowerCase()}`);
+  },
+
+  /**
+   * Bật/Tắt Cookie
+   */
+  toggleCookie: async (platform: "TIKTOK" | "FACEBOOK", enabled: boolean) => {
+    return api.patch("/users/cookies/toggle", {
+      platform: platform.toLowerCase(),
+      enabled,
+    });
+  },
+
+  // --- PROXY ---
+
+  getProxies: async () => {
+    return api.get("/users/proxies");
+  },
+
+  updateProxies: async (proxyList: string, proxyRotation: string) => {
+    return api.put("/users/proxies", { proxyList, proxyRotation });
+  },
+
+  toggleProxy: async (enabled: boolean) => {
+    return api.patch("/users/proxies/toggle", { enabled });
+  },
 };

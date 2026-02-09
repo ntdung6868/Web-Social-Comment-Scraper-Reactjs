@@ -18,8 +18,8 @@ import {
 import { Search as SearchIcon, PlayArrow as PlayIcon } from "@mui/icons-material";
 import { scraperService } from "@/services/scraper.service";
 import { useScrapeStore } from "@/stores/scrape.store";
-import { subscribeToScrape } from '@/lib/socket';
-import { queryClient, queryKeys } from '@/lib/query-client';
+import { subscribeToScrape } from "@/lib/socket";
+import { queryClient, queryKeys } from "@/lib/query-client";
 import toast from "react-hot-toast";
 
 const scrapeSchema = z.object({
@@ -66,8 +66,17 @@ export default function ScraperPage() {
       // Invalidate dashboard to refresh stats
       queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
     },
-    onError: (err: Error & { response?: { data?: { error?: string } } }) => {
-      setError(err.response?.data?.error || "Failed to start scrape");
+    onError: (err: any) => {
+      // Backend trả về: { success: false, error: { code: "...", message: "...", details: ... } }
+      // Ta cần lấy error.message
+      const errorMessage =
+        err.response?.data?.error?.message || // Trường hợp lỗi có cấu trúc object
+        err.response?.data?.message || // Trường hợp lỗi message trực tiếp
+        err.message || // Trường hợp lỗi network/axios
+        "Failed to start scrape"; // Fallback
+
+      console.error("Scrape Error:", err); // Log để debug thêm nếu cần
+      setError(errorMessage);
     },
   });
 
