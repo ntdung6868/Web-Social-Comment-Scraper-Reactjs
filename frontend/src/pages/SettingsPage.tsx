@@ -185,7 +185,11 @@ export default function SettingsPage() {
         }
 
         try {
-          const res = await userService.uploadCookie(platform, jsonContent, file.name);
+          const res = await userService.uploadCookie(
+            platform.toLowerCase() as "tiktok" | "facebook",
+            jsonContent,
+            file.name,
+          );
           const responseData = res.data as any;
           const newCookieInfo = responseData.data?.cookie || responseData.cookie;
 
@@ -226,7 +230,7 @@ export default function SettingsPage() {
 
     setLoadingPlatform(platform);
     try {
-      await userService.deleteCookie(platform);
+      await userService.deleteCookie(platform.toLowerCase() as "tiktok" | "facebook");
       const key = platform === "TIKTOK" ? "tiktok" : "facebook";
       setCookieStats((prev) => ({
         ...prev,

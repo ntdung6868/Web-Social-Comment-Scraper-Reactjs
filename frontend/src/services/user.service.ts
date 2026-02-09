@@ -1,65 +1,58 @@
-import api from "./api";
-import { User } from "@/types";
+import { apiRequest } from "./api";
+import type { ApiResponse, User, UserSettings, CookieInfo, SubscriptionInfo, ProxyRotation } from "@/types";
 
 export const userService = {
-  // Lấy thông tin user profile
-  getProfile: async () => {
-    return api.get<{ user: User }>("/users/profile");
-  },
+  // Profile
+  getProfile: () => apiRequest.get<ApiResponse<{ user: User }>>("/users/profile"),
 
-  // Cập nhật thông tin profile
-  updateProfile: async (data: Partial<User>) => {
-    return api.patch<{ user: User }>("/users/profile", data);
-  },
+  updateProfile: (data: { username?: string; email?: string }) =>
+    apiRequest.patch<ApiResponse<{ user: User }>>("/users/profile", data),
 
-  // Lấy toàn bộ settings
-  getSettings: async () => {
-    return api.get("/users/settings");
-  },
+  // Settings
+  getSettings: () => apiRequest.get<ApiResponse<{ settings: UserSettings }>>("/users/settings"),
 
-  // --- COOKIES (SỬA LẠI PHẦN NÀY) ---
+  // Cookies
+  getCookieInfo: (platform: "tiktok" | "facebook") =>
+    apiRequest.get<ApiResponse<{ cookie: CookieInfo }>>(`/users/cookies/${platform}`),
 
-  /**
-   * Upload Cookie
-   * Backend yêu cầu: { platform: "tiktok"|"facebook", cookieData: string, filename: string }
-   */
-  uploadCookie: async (platform: "TIKTOK" | "FACEBOOK", cookieData: string, filename: string) => {
-    return api.post<{ cookie: any }>("/users/cookies", {
-      platform: platform.toLowerCase(), // Backend check "tiktok" hoặc "facebook" thường
-      cookieData, // Truyền chuỗi JSON string, không parse
+  uploadCookie: (platform: "tiktok" | "facebook", cookieData: string, filename: string, userAgent?: string) =>
+    apiRequest.post<ApiResponse<{ cookie: CookieInfo }>>("/users/cookies", {
+      platform,
+      cookieData,
       filename,
-    });
-  },
+      userAgent,
+    }),
 
-  /**
-   * Xóa Cookie
-   * Dùng method DELETE thay vì update null
-   */
-  deleteCookie: async (platform: "TIKTOK" | "FACEBOOK") => {
-    return api.delete(`/users/cookies/${platform.toLowerCase()}`);
-  },
-
-  /**
-   * Bật/Tắt Cookie
-   */
-  toggleCookie: async (platform: "TIKTOK" | "FACEBOOK", enabled: boolean) => {
-    return api.patch("/users/cookies/toggle", {
-      platform: platform.toLowerCase(),
+  toggleCookie: (platform: "tiktok" | "facebook", enabled: boolean) =>
+    apiRequest.patch<ApiResponse<{ cookie: CookieInfo }>>("/users/cookies/toggle", {
+      platform,
       enabled,
-    });
-  },
+    }),
 
-  // --- PROXY ---
+  deleteCookie: (platform: "tiktok" | "facebook") => apiRequest.delete<ApiResponse<null>>(`/users/cookies/${platform}`),
 
-  getProxies: async () => {
-    return api.get("/users/proxies");
-  },
+  // Proxy
+  getProxies: () =>
+    apiRequest.get<ApiResponse<{ proxies: string[]; rotation: string; enabled: boolean }>>("/users/proxies"),
 
-  updateProxies: async (proxyList: string, proxyRotation: string) => {
-    return api.put("/users/proxies", { proxyList, proxyRotation });
-  },
+  updateProxies: (proxyList: string, proxyRotation: ProxyRotation) =>
+    apiRequest.put<ApiResponse<{ proxyCount: number; proxyRotation: string; proxyEnabled: boolean }>>(
+      "/users/proxies",
+      {
+        proxyList,
+        proxyRotation,
+      },
+    ),
 
-  toggleProxy: async (enabled: boolean) => {
-    return api.patch("/users/proxies/toggle", { enabled });
-  },
+  toggleProxy: (enabled: boolean) =>
+    apiRequest.patch<ApiResponse<{ proxyEnabled: boolean }>>("/users/proxies/toggle", { enabled }),
+
+  deleteProxies: () => apiRequest.delete<ApiResponse<null>>("/users/proxies"),
+
+  // Scraper settings
+  updateScraperSettings: (headlessMode: boolean) =>
+    apiRequest.patch<ApiResponse<{ headlessMode: boolean }>>("/users/settings/scraper", { headlessMode }),
+
+  // Subscription
+  getSubscription: () => apiRequest.get<ApiResponse<{ subscription: SubscriptionInfo }>>("/users/subscription"),
 };

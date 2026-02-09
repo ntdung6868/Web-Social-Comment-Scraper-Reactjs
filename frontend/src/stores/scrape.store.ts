@@ -3,20 +3,20 @@ import type { ScrapeJob, ScrapeProgress } from "@/types";
 
 interface ScrapeState {
   // State
-  activeScrapes: Map<string, ScrapeJob>;
-  scrapeProgress: Map<string, ScrapeProgress>;
+  activeScrapes: Map<number, ScrapeJob>;
+  scrapeProgress: Map<number, ScrapeProgress>;
   isScrapingInProgress: boolean;
 
   // Actions
   addScrape: (scrape: ScrapeJob) => void;
-  updateScrape: (id: string, updates: Partial<ScrapeJob>) => void;
-  removeScrape: (id: string) => void;
+  updateScrape: (id: number, updates: Partial<ScrapeJob>) => void;
+  removeScrape: (id: number) => void;
   updateProgress: (progress: ScrapeProgress) => void;
-  clearProgress: (id: string) => void;
+  clearProgress: (id: number) => void;
   clearAllScrapes: () => void;
 }
 
-export const useScrapeStore = create<ScrapeState>((set, get) => ({
+export const useScrapeStore = create<ScrapeState>((set) => ({
   // Initial state
   activeScrapes: new Map(),
   scrapeProgress: new Map(),
@@ -42,9 +42,8 @@ export const useScrapeStore = create<ScrapeState>((set, get) => ({
       const newActiveScrapes = new Map(state.activeScrapes);
       newActiveScrapes.set(id, { ...scrape, ...updates });
 
-      // Check if all scrapes are completed
       const hasActive = Array.from(newActiveScrapes.values()).some(
-        (s) => s.status === "PENDING" || s.status === "PROCESSING",
+        (s) => s.status === "PENDING" || s.status === "RUNNING",
       );
 
       return {
@@ -62,7 +61,7 @@ export const useScrapeStore = create<ScrapeState>((set, get) => ({
       newScrapeProgress.delete(id);
 
       const hasActive = Array.from(newActiveScrapes.values()).some(
-        (s) => s.status === "PENDING" || s.status === "PROCESSING",
+        (s) => s.status === "PENDING" || s.status === "RUNNING",
       );
 
       return {
@@ -75,27 +74,22 @@ export const useScrapeStore = create<ScrapeState>((set, get) => ({
   updateProgress: (progress) =>
     set((state) => {
       const newScrapeProgress = new Map(state.scrapeProgress);
-      newScrapeProgress.set(progress.scrapeId, progress);
+      newScrapeProgress.set(progress.historyId, progress);
 
-      // Also update the scrape status if present
-      const scrape = state.activeScrapes.get(progress.scrapeId);
+      // Also update the scrape job if tracked
+      const scrape = state.activeScrapes.get(progress.historyId);
       if (scrape) {
         const newActiveScrapes = new Map(state.activeScrapes);
-        newActiveScrapes.set(progress.scrapeId, {
+        newActiveScrapes.set(progress.historyId, {
           ...scrape,
-          progress: progress.progress,
-          totalComments: progress.totalComments,
-          status: progress.status,
+          commentCount: progress.commentsFound,
+          status: "RUNNING",
         });
-
-        const hasActive = Array.from(newActiveScrapes.values()).some(
-          (s) => s.status === "PENDING" || s.status === "PROCESSING",
-        );
 
         return {
           activeScrapes: newActiveScrapes,
           scrapeProgress: newScrapeProgress,
-          isScrapingInProgress: hasActive,
+          isScrapingInProgress: true,
         };
       }
 

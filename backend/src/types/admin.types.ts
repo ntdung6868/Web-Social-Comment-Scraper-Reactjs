@@ -3,7 +3,7 @@
 // ===========================================
 // Type definitions for admin-related operations
 
-import type { PlanType, PlanStatus, Platform, ScrapeStatus } from "@prisma/client";
+import type { PlanType, PlanStatus, Platform, ScrapeStatus } from "./enums.js";
 
 /**
  * System health status

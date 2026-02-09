@@ -4,7 +4,8 @@
 // Data access layer for user management
 
 import { prisma } from "../config/database.js";
-import type { User, Prisma, CookieStatus, ProxyRotation } from "@prisma/client";
+import type { User, Prisma } from "@prisma/client";
+import type { CookieStatus, ProxyRotation } from "../types/enums.js";
 
 // ===========================================
 // Types

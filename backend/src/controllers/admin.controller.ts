@@ -70,7 +70,7 @@ export const adminController = {
    * Get user detail
    */
   getUserDetail: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,
@@ -88,7 +88,7 @@ export const adminController = {
    * Update user
    */
   updateUser: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,
@@ -116,7 +116,7 @@ export const adminController = {
       return;
     }
 
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,
@@ -136,7 +136,7 @@ export const adminController = {
    * Unban a user
    */
   unbanUser: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,
@@ -162,7 +162,7 @@ export const adminController = {
       return;
     }
 
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,
@@ -180,7 +180,7 @@ export const adminController = {
    * Reset user trial uses
    */
   resetTrialUses: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,
@@ -200,7 +200,7 @@ export const adminController = {
    * Grant Pro subscription
    */
   grantProSubscription: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.params.id!, 10);
     if (isNaN(userId)) {
       res.status(400).json({
         success: false,

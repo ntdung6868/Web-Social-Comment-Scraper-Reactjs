@@ -8,11 +8,7 @@ import ExcelJS from "exceljs";
 import { scraperService } from "../services/scraper.service.js";
 import { asyncHandler } from "../middlewares/error.middleware.js";
 import { sendSuccess, sendNoContent } from "../utils/response.js";
-import type {
-  ScrapeRequestInput,
-  HistoryListQueryInput,
-  ExportRequestInput,
-} from "../validators/scraper.validators.js";
+import type { ScrapeRequestInput, HistoryListQueryInput } from "../validators/scraper.validators.js";
 
 // ===========================================
 // Scraper Controller
@@ -59,7 +55,7 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id, 10);
+    const historyId = parseInt(req.params.id!, 10);
     if (isNaN(historyId)) {
       res.status(400).json({
         success: false,
@@ -108,7 +104,7 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id, 10);
+    const historyId = parseInt(req.params.id!, 10);
     if (isNaN(historyId)) {
       res.status(400).json({
         success: false,
@@ -134,7 +130,7 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id, 10);
+    const historyId = parseInt(req.params.id!, 10);
     if (isNaN(historyId)) {
       res.status(400).json({
         success: false,
@@ -192,7 +188,7 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id, 10);
+    const historyId = parseInt(req.params.id!, 10);
     if (isNaN(historyId)) {
       res.status(400).json({
         success: false,

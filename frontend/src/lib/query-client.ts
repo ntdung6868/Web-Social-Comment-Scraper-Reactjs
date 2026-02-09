@@ -33,7 +33,10 @@ export const queryKeys = {
   admin: {
     users: (params: any) => ["admin", "users", params],
     logs: (params: any) => ["admin", "logs", params],
+    scrapes: (params: any) => ["admin", "scrapes", params],
     stats: ["admin", "stats"],
+    health: () => ["admin", "health"],
+    dashboard: () => ["admin", "dashboard"],
   },
   settings: {
     all: ["settings"],

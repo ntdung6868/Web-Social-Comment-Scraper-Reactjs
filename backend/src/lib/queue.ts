@@ -7,19 +7,12 @@ import { EventEmitter } from "events";
 import type {
   ScrapeJobData,
   ScrapeJobResult,
-  JobStatus,
   QueueStats,
   JobInfo,
   InMemoryJob,
   QueueConfig,
 } from "../types/queue.types.js";
-import {
-  emitScrapeStarted,
-  emitScrapeProgress,
-  emitScrapeCompleted,
-  emitScrapeFailed,
-  emitQueuePosition,
-} from "./socket.js";
+import { emitScrapeProgress, emitScrapeFailed, emitQueuePosition } from "./socket.js";
 
 // ===========================================
 // Queue Configuration
@@ -242,6 +235,43 @@ class InMemoryQueue extends EventEmitter {
 
     // Periodic cleanup
     setInterval(() => this.clean(), 60000);
+
+    // Periodic zombie job detection (every 30s)
+    setInterval(() => this.detectZombieJobs(), 30000);
+  }
+
+  /**
+   * Detect and fail zombie jobs (active too long without completing)
+   */
+  private detectZombieJobs(): void {
+    const now = Date.now();
+    const zombieThreshold = this.config.jobTimeout + 30000; // jobTimeout + 30s grace
+
+    for (const [jobId, job] of this.jobs.entries()) {
+      if (job.status === "active" && job.startedAt && now - job.startedAt.getTime() > zombieThreshold) {
+        console.warn(
+          `[Queue] Zombie job detected: ${jobId} (active for ${Math.round((now - job.startedAt.getTime()) / 1000)}s)`,
+        );
+
+        // Mark as failed
+        job.status = "failed";
+        job.finishedAt = new Date();
+        job.failedReason = "Job timed out (zombie detection)";
+        this.activeJobs.delete(jobId);
+
+        // Emit failure
+        emitScrapeFailed(job.data.userId, {
+          historyId: job.data.historyId,
+          error: "Job timed out and was automatically cleaned up",
+          code: "ZOMBIE_TIMEOUT",
+          retryable: true,
+          timestamp: new Date(),
+        });
+
+        // Process next
+        this.tryProcess();
+      }
+    }
   }
 
   private async tryProcess(): Promise<void> {
@@ -260,14 +290,8 @@ class InMemoryQueue extends EventEmitter {
     job.status = "active";
     job.startedAt = new Date();
 
-    // Emit started event
-    emitScrapeStarted(job.data.userId, {
-      historyId: job.data.historyId,
-      url: job.data.url,
-      platform: job.data.platform,
-      message: "Scraping started...",
-      timestamp: new Date(),
-    });
+    // NOTE: scrape:started is emitted by the job processor (scraper.service.ts)
+    // to avoid duplicate events to the frontend.
 
     this.emit("active", job);
     console.log(`[Queue] Processing job ${jobId} for history ${job.data.historyId}`);
@@ -281,21 +305,21 @@ class InMemoryQueue extends EventEmitter {
       // Process with timeout
       const result = await Promise.race([this.processor(job), timeoutPromise]);
 
-      // Success
-      job.status = "completed";
-      job.finishedAt = new Date();
-      job.progress = 100;
-
-      emitScrapeCompleted(job.data.userId, {
-        historyId: job.data.historyId,
-        totalComments: result.totalComments,
-        duration: result.duration,
-        message: `Successfully scraped ${result.totalComments} comments`,
-        timestamp: new Date(),
-      });
-
-      this.emit("completed", job, result);
-      console.log(`[Queue] Job ${jobId} completed with ${result.totalComments} comments`);
+      // The processor catches its own errors and returns { success: false }.
+      // We must check result.success to set the correct queue status.
+      if (result.success) {
+        job.status = "completed";
+        job.finishedAt = new Date();
+        job.progress = 100;
+        this.emit("completed", job, result);
+        console.log(`[Queue] Job ${jobId} completed with ${result.totalComments} comments`);
+      } else {
+        job.status = "failed";
+        job.finishedAt = new Date();
+        job.failedReason = result.error || "Scraping failed";
+        this.emit("failed", job, new Error(job.failedReason));
+        console.log(`[Queue] Job ${jobId} failed: ${job.failedReason}`);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
@@ -418,6 +442,15 @@ export function getJobByHistoryId(historyId: number): JobInfo | null {
  */
 export async function cancelJob(jobId: string): Promise<boolean> {
   return scrapeQueue.cancel(jobId);
+}
+
+/**
+ * Cancel job by history ID (used by socket cancel handler)
+ */
+export async function cancelJobByHistoryId(historyId: number): Promise<boolean> {
+  const job = scrapeQueue.getJobByHistoryId(historyId);
+  if (!job) return false;
+  return scrapeQueue.cancel(job.id);
 }
 
 /**

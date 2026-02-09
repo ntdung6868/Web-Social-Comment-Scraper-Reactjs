@@ -5,7 +5,7 @@
 
 import crypto from "crypto";
 import { prisma } from "../config/database.js";
-import type { User, RefreshToken, Prisma } from "@prisma/client";
+import type { User, RefreshToken } from "@prisma/client";
 
 // ===========================================
 // Types

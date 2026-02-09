@@ -3,7 +3,7 @@
 // ===========================================
 // Strict TypeScript definitions for Scraper-related data
 
-import type { Platform, ScrapeStatus } from "@prisma/client";
+import type { Platform, ScrapeStatus } from "./enums.js";
 
 /**
  * Scrape request payload

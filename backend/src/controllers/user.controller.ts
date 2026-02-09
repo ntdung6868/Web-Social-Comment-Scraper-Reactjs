@@ -1,5 +1,5 @@
 // ===========================================
-// User Controller (DEBUG VERSION - FULL)
+// User Controller
 // ===========================================
 // HTTP request handlers for user management
 
@@ -54,33 +54,10 @@ export const userController = {
       return;
     }
 
-    // --- DEBUG LOG START ---
-    console.log("\n========== [DEBUG] UPDATE PROFILE REQUEST ==========");
-    console.log("1. User ID:", req.user.userId);
-    console.log("2. Content-Type:", req.headers["content-type"]);
-
-    const bodyKeys = Object.keys(req.body);
-    console.log("3. Body Keys Received:", bodyKeys);
-
-    if (req.body.tiktokCookieData) {
-      console.log("✅ Found 'tiktokCookieData' in body");
-      console.log("   Type:", typeof req.body.tiktokCookieData);
-      console.log("   Length:", req.body.tiktokCookieData.length);
-    } else {
-      console.log("❌ 'tiktokCookieData' MISSING or Empty in body");
-    }
-    console.log("====================================================\n");
-    // --- DEBUG LOG END ---
-
     const data = req.body as UpdateProfileInput;
 
-    try {
-      const profile = await userService.updateProfile(req.user.userId, data);
-      sendSuccess(res, { user: profile }, "Profile updated successfully");
-    } catch (error) {
-      console.error("🔥 [DEBUG] Error in userService.updateProfile:", error);
-      throw error;
-    }
+    const profile = await userService.updateProfile(req.user.userId, data);
+    sendSuccess(res, { user: profile }, "Profile updated successfully");
   }),
 
   // ===========================================
@@ -101,7 +78,6 @@ export const userController = {
     }
 
     const settings = await userService.getSettings(req.user.userId);
-    console.log(`[DEBUG] Settings retrieved for user ${req.user.userId}`);
     sendSuccess(res, { settings });
   }),
 
@@ -141,9 +117,7 @@ export const userController = {
    * Upload cookie for a platform
    */
   uploadCookie: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    console.log("\n========== [DEBUG] UPLOAD COOKIE REQUEST ==========");
     if (!req.user) {
-      console.log("❌ Unauthorized request");
       res.status(401).json({
         success: false,
         error: { code: "UNAUTHORIZED", message: "Authentication required" },
@@ -151,32 +125,9 @@ export const userController = {
       return;
     }
 
-    console.log(`1. User ID: ${req.user.userId}`);
-    console.log(`2. Request Body Keys:`, Object.keys(req.body));
-    console.log(`3. Platform: ${req.body.platform}`);
-    console.log(`4. Filename: ${req.body.filename}`);
-
-    if (req.body.cookieData) {
-      console.log(`5. CookieData Type: ${typeof req.body.cookieData}`);
-      console.log(`5. CookieData Length: ${req.body.cookieData.length}`);
-    } else {
-      console.log("❌ CookieData is MISSING or NULL");
-    }
-
-    if (typeof req.body.cookieData !== "string") {
-      console.error("❌ CookieData is NOT a string. Received:", typeof req.body.cookieData);
-    }
-
     const data = req.body as UploadCookieInput;
-
-    try {
-      const cookieInfo = await userService.uploadCookie(req.user.userId, data);
-      console.log("✅ Cookie upload successful:", cookieInfo);
-      sendSuccess(res, { cookie: cookieInfo }, `${data.platform} cookie uploaded successfully`);
-    } catch (e) {
-      console.error("🔥 Error in userService.uploadCookie:", e);
-      throw e;
-    }
+    const cookieInfo = await userService.uploadCookie(req.user.userId, data);
+    sendSuccess(res, { cookie: cookieInfo }, `${data.platform} cookie uploaded successfully`);
   }),
 
   /**
@@ -204,7 +155,6 @@ export const userController = {
    * Delete cookie for a platform
    */
   deleteCookie: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    console.log("[DEBUG] Delete Cookie Request");
     if (!req.user) {
       res.status(401).json({
         success: false,
@@ -223,7 +173,6 @@ export const userController = {
       return;
     }
 
-    console.log(`Deleting cookie for ${platform} - User ${req.user.userId}`);
     await userService.deleteCookie(req.user.userId, platform);
     sendSuccess(res, null, `${platform} cookie deleted successfully`);
   }),

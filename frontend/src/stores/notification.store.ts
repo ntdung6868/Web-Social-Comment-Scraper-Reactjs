@@ -16,7 +16,7 @@ interface NotificationState {
   setSystemHealth: (health: SystemHealth) => void;
 }
 
-export const useNotificationStore = create<NotificationState>((set, get) => ({
+export const useNotificationStore = create<NotificationState>((set) => ({
   // Initial state
   notifications: [],
   unreadCount: 0,

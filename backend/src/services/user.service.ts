@@ -1,12 +1,13 @@
 // ===========================================
-// User Service (DEBUG VERSION - FULL)
+// User Service
 // ===========================================
 // Business logic for user management
 
 import { userRepository } from "../repositories/user.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
 import { env } from "../config/env.js";
-import type { User, CookieStatus } from "@prisma/client";
+import type { User } from "@prisma/client";
+import type { CookieStatus, PlanType, PlanStatus, ProxyRotation } from "../types/enums.js";
 import type { UserPublic, UserSettings, SubscriptionInfo } from "../types/user.types.js";
 import type {
   UpdateProfileInput,
@@ -45,8 +46,8 @@ function toPublicUser(user: User): UserPublic {
     createdAt: user.createdAt,
     isActive: user.isActive,
     isAdmin: user.isAdmin,
-    planType: user.planType,
-    planStatus: user.planStatus,
+    planType: user.planType as PlanType,
+    planStatus: user.planStatus as PlanStatus,
     trialUses: user.trialUses,
     maxTrialUses: user.maxTrialUses,
     subscriptionStart: user.subscriptionStart,
@@ -155,11 +156,6 @@ export class UserService {
       throw createError.notFound("User not found");
     }
 
-    // Debug log status
-    console.log(`[DEBUG SERVICE] User ${userId} Settings:`);
-    console.log(`- TikTok Cookie Present: ${!!user.tiktokCookieData}`);
-    console.log(`- Facebook Cookie Present: ${!!user.facebookCookieData}`);
-
     // Count proxies
     const proxyCount = user.proxyList ? user.proxyList.split("\n").filter((p) => p.trim()).length : 0;
 
@@ -179,7 +175,7 @@ export class UserService {
       // Proxy
       proxyEnabled: user.proxyEnabled,
       proxyCount,
-      proxyRotation: user.proxyRotation,
+      proxyRotation: user.proxyRotation as ProxyRotation,
 
       // Scraper
       headlessMode: user.headlessMode,
@@ -208,7 +204,7 @@ export class UserService {
         cookieCount: parseCookieCount(user.tiktokCookieData),
         userAgent: user.tiktokCookieUserAgent,
         lastValidated: user.tiktokCookieValidAt,
-        status: user.tiktokCookieStatus,
+        status: user.tiktokCookieStatus as CookieStatus,
         isEnabled: user.useTiktokCookie,
       };
     }
@@ -220,7 +216,7 @@ export class UserService {
       cookieCount: parseCookieCount(user.facebookCookieData),
       userAgent: user.facebookCookieUserAgent,
       lastValidated: user.facebookCookieValidAt,
-      status: user.facebookCookieStatus,
+      status: user.facebookCookieStatus as CookieStatus,
       isEnabled: user.useFacebookCookie,
     };
   }
@@ -229,7 +225,6 @@ export class UserService {
    * Upload cookie for a platform
    */
   async uploadCookie(userId: number, data: UploadCookieInput): Promise<CookieInfo> {
-    console.log(`[DEBUG SERVICE] Uploading cookie for user ${userId}, platform: ${data.platform}`);
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -240,9 +235,7 @@ export class UserService {
     let parsedCookies: unknown;
     try {
       parsedCookies = JSON.parse(data.cookieData);
-      console.log("[DEBUG SERVICE] JSON parsed successfully");
     } catch {
-      console.error("[DEBUG SERVICE] Invalid JSON format");
       throw createError.badRequest("Invalid cookie JSON format");
     }
 
@@ -260,8 +253,6 @@ export class UserService {
       throw createError.badRequest("Cookie data must be an array or object");
     }
 
-    console.log(`[DEBUG SERVICE] Cookie count: ${cookieCount}`);
-
     if (cookieCount === 0) {
       throw createError.badRequest("No cookies found in the provided data");
     }
@@ -273,14 +264,12 @@ export class UserService {
         cookieFile: data.filename,
         userAgent: data.userAgent,
       });
-      console.log("[DEBUG SERVICE] Updated TikTok cookie in DB");
     } else {
       await userRepository.updateFacebookCookie(userId, {
         cookieData: data.cookieData,
         cookieFile: data.filename,
         userAgent: data.userAgent,
       });
-      console.log("[DEBUG SERVICE] Updated Facebook cookie in DB");
     }
 
     return this.getCookieInfo(userId, data.platform);
@@ -319,7 +308,6 @@ export class UserService {
    * Delete cookie for a platform
    */
   async deleteCookie(userId: number, platform: "tiktok" | "facebook"): Promise<void> {
-    console.log(`[DEBUG SERVICE] Deleting ${platform} cookie for user ${userId}`);
     if (platform === "tiktok") {
       await userRepository.deleteTiktokCookie(userId);
     } else {
@@ -452,8 +440,8 @@ export class UserService {
     const downloadLimit = await userRepository.getDownloadLimit(userId);
 
     return {
-      planType: user.planType,
-      planStatus: user.planStatus,
+      planType: user.planType as PlanType,
+      planStatus: user.planStatus as PlanStatus,
       trialUses: user.trialUses,
       maxTrialUses: user.maxTrialUses,
       subscriptionStart: user.subscriptionStart,

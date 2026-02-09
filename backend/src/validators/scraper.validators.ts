@@ -11,16 +11,12 @@ import { z } from "zod";
 
 const TIKTOK_URL_PATTERNS = [
   /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/,
+  /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/photo\/\d+/,
   /^https?:\/\/(vm|vt)\.tiktok\.com\/[\w]+/,
   /^https?:\/\/(www\.)?tiktok\.com\/t\/[\w]+/,
 ];
 
-const FACEBOOK_URL_PATTERNS = [
-  /^https?:\/\/(www\.)?facebook\.com\/[\w.-]+\/posts\//,
-  /^https?:\/\/(www\.)?facebook\.com\/[\w.-]+\/videos\//,
-  /^https?:\/\/(www\.)?facebook\.com\/watch\//,
-  /^https?:\/\/(www\.)?fb\.watch\//,
-];
+const FACEBOOK_URL_PATTERNS = [/^https?:\/\/(www\.|m\.|web\.)?facebook\.com\//, /^https?:\/\/(www\.)?fb\.watch\//];
 
 // ===========================================
 // Scrape Request Schema

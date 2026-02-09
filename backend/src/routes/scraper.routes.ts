@@ -6,8 +6,9 @@
 import { Router } from "express";
 import { scraperController } from "../controllers/scraper.controller.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
+import { scrapeLimiter } from "../middlewares/rateLimit.middleware.js";
 import { zodValidate } from "../validators/zod.middleware.js";
-import { scrapeRequestSchema, historyListQuerySchema, historyIdParamSchema } from "../validators/scraper.validators.js";
+import { scrapeRequestSchema, historyListQuerySchema } from "../validators/scraper.validators.js";
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.use(authenticate);
  * POST /api/scraper/start
  * Start a new scrape job
  */
-router.post("/start", zodValidate(scrapeRequestSchema), scraperController.startScrape);
+router.post("/start", scrapeLimiter, zodValidate(scrapeRequestSchema), scraperController.startScrape);
 
 /**
  * GET /api/scraper/status/:id

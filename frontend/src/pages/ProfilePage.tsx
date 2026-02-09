@@ -30,6 +30,7 @@ import { userService } from "@/services/user.service";
 import { useAuthStore } from "@/stores/auth.store";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
+import { authService } from "@/services/auth.service";
 
 // 1. Sửa Schema: Username thay vì Name
 const profileSchema = z.object({
@@ -88,7 +89,7 @@ export default function ProfilePage() {
     mutationFn: userService.updateProfile,
     onSuccess: (response) => {
       // Backend trả về user object đã update
-      updateUser(response.data?.data || response.data);
+      updateUser(response.data?.user || (response as any).user);
       setIsEditing(false);
       toast.success("Profile updated successfully");
     },
@@ -98,7 +99,15 @@ export default function ProfilePage() {
   });
 
   const updatePasswordMutation = useMutation({
-    mutationFn: ({ currentPassword, newPassword }: any) => userService.updateProfile({ currentPassword, newPassword }),
+    mutationFn: ({
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    }: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+    }) => authService.changePassword(currentPassword, newPassword, confirmPassword),
     onSuccess: () => {
       resetPassword();
       toast.success("Password changed successfully");
@@ -116,6 +125,7 @@ export default function ProfilePage() {
     updatePasswordMutation.mutate({
       currentPassword: data.currentPassword,
       newPassword: data.newPassword,
+      confirmPassword: data.confirmPassword,
     });
   };
 
@@ -197,8 +207,7 @@ export default function ProfilePage() {
                     <SecurityIcon fontSize="small" color={isPro ? "success" : "action"} />
                     <Typography variant="body2" fontWeight={500} color={isPro ? "success.main" : "text.primary"}>
                       {/* HIỂN THỊ TRẠNG THÁI GÓI CƯỚC THẬT */}
-                      {user.planStatus === "ACTIVE" || user.planStatus === "active" ? "Active" : "Inactive"} (
-                      {planLabel})
+                      {user.planStatus === "ACTIVE" ? "Active" : "Inactive"} ({planLabel})
                     </Typography>
                   </Box>
                 </Box>

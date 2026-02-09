@@ -33,7 +33,7 @@ import {
 } from "@mui/icons-material";
 import { format } from "date-fns";
 import { apiRequest } from "@/services/api";
-import { queryKeys, queryClient } from "@/lib/query-client";
+import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
 import toast from "react-hot-toast";
 import type { User } from "@/types";
@@ -51,8 +51,10 @@ export default function UserManagementPage() {
     queryFn: () =>
       apiRequest.get<{
         success: boolean;
-        data: User[];
-        pagination: { page: number; limit: number; total: number };
+        data: {
+          data: User[];
+          pagination: { currentPage: number; totalPages: number; totalItems: number };
+        };
       }>(
         `/admin/users?page=${page + 1}&limit=${rowsPerPage}${searchQuery ? `&search=${searchQuery}` : ""}${roleFilter ? `&role=${roleFilter}` : ""}`,
       ),
@@ -98,13 +100,13 @@ export default function UserManagementPage() {
 
     switch (actionType) {
       case "ban":
-        banMutation.mutate(selectedUser.id);
+        banMutation.mutate(String(selectedUser.id));
         break;
       case "unban":
-        unbanMutation.mutate(selectedUser.id);
+        unbanMutation.mutate(String(selectedUser.id));
         break;
       case "pro":
-        grantProMutation.mutate(selectedUser.id);
+        grantProMutation.mutate(String(selectedUser.id));
         break;
     }
   };
@@ -113,8 +115,8 @@ export default function UserManagementPage() {
     return <LoadingSpinner message="Loading users..." />;
   }
 
-  const users = data?.data ?? [];
-  const total = data?.pagination?.total ?? 0;
+  const users = data?.data?.data ?? [];
+  const total = data?.data?.pagination?.totalItems ?? 0;
 
   return (
     <Box>
@@ -195,7 +197,7 @@ export default function UserManagementPage() {
                     <TableRow key={user.id} hover>
                       <TableCell>
                         <Typography variant="body2" fontWeight={500}>
-                          {user.name}
+                          {user.username}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {user.email}
@@ -203,24 +205,24 @@ export default function UserManagementPage() {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={user.role}
+                          label={user.isAdmin ? "Admin" : "User"}
                           size="small"
-                          color={user.role === "ADMIN" ? "primary" : "default"}
+                          color={user.isAdmin ? "primary" : "default"}
                           variant="outlined"
                         />
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={user.subscriptionPlan}
+                          label={user.planType}
                           size="small"
-                          color={user.subscriptionPlan === "PRO" ? "success" : "default"}
+                          color={user.planType === "PRO" ? "success" : "default"}
                         />
                       </TableCell>
                       <TableCell>
                         {user.isBanned ? (
                           <Chip label="Banned" size="small" color="error" />
                         ) : (
-                          <Chip label={user.subscriptionStatus} size="small" color="success" variant="outlined" />
+                          <Chip label={user.planStatus} size="small" color="success" variant="outlined" />
                         )}
                       </TableCell>
                       <TableCell>{format(new Date(user.createdAt), "MMM dd, yyyy")}</TableCell>
@@ -252,7 +254,7 @@ export default function UserManagementPage() {
                             </IconButton>
                           </Tooltip>
                         )}
-                        {user.subscriptionPlan !== "PRO" && (
+                        {user.planType !== "PRO" && (
                           <Tooltip title="Grant Pro">
                             <IconButton
                               size="small"
@@ -299,10 +301,10 @@ export default function UserManagementPage() {
         <DialogContent>
           <Alert severity={actionType === "ban" ? "warning" : "info"} sx={{ mt: 1 }}>
             {actionType === "ban" &&
-              `Are you sure you want to ban ${selectedUser?.name}? They will no longer be able to access the platform.`}
+              `Are you sure you want to ban ${selectedUser?.username}? They will no longer be able to access the platform.`}
             {actionType === "unban" &&
-              `Are you sure you want to unban ${selectedUser?.name}? They will regain access to the platform.`}
-            {actionType === "pro" && `Are you sure you want to grant Pro subscription to ${selectedUser?.name}?`}
+              `Are you sure you want to unban ${selectedUser?.username}? They will regain access to the platform.`}
+            {actionType === "pro" && `Are you sure you want to grant Pro subscription to ${selectedUser?.username}?`}
           </Alert>
         </DialogContent>
         <DialogActions>

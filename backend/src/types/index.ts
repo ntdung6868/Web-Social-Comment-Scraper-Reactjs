@@ -3,6 +3,7 @@
 // ===========================================
 // Re-export all type definitions
 
+export * from "./enums.js";
 export * from "./user.types.js";
 export * from "./auth.types.js";
 export * from "./scraper.types.js";

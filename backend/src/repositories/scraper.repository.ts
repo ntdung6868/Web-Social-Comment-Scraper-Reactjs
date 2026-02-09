@@ -4,7 +4,8 @@
 // Data access layer for scraping operations
 
 import { prisma } from "../config/database.js";
-import type { ScrapeHistory, Comment, Platform, ScrapeStatus, Prisma } from "@prisma/client";
+import type { ScrapeHistory, Comment, Prisma } from "@prisma/client";
+import type { Platform, ScrapeStatus } from "../types/enums.js";
 import type { ScrapedComment, PaginatedResponse, ScrapeHistoryItem } from "../types/scraper.types.js";
 
 // ===========================================
@@ -150,10 +151,10 @@ export class ScraperRepository {
       data: items.map((item) => ({
         id: item.id,
         userId: item.userId,
-        platform: item.platform,
+        platform: item.platform as Platform,
         url: item.url,
         totalComments: item.totalComments,
-        status: item.status,
+        status: item.status as ScrapeStatus,
         errorMessage: item.errorMessage,
         createdAt: item.createdAt,
         commentCount: item._count.comments,
@@ -207,7 +208,6 @@ export class ScraperRepository {
         timestamp: comment.timestamp?.substring(0, 100) ?? null,
         likes: comment.likes,
       })),
-      skipDuplicates: true,
     });
 
     // Update history comment count

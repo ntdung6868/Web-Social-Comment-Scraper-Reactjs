@@ -3,7 +3,6 @@
 // ===========================================
 // Type definitions for real-time communication
 
-import type { Server as HttpServer } from "http";
 import type { Server as SocketServer, Socket } from "socket.io";
 
 /**
@@ -76,7 +75,7 @@ export interface ScrapeStartedEvent {
 
 export interface ScrapeProgressEvent {
   historyId: number;
-  phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving";
+  phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving" | "error";
   progress: number; // 0-100
   commentsFound: number;
   message: string;

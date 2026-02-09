@@ -3,7 +3,7 @@
 // ===========================================
 // Strict TypeScript definitions for User-related data
 
-import type { PlanType, PlanStatus, ProxyRotation } from "@prisma/client";
+import type { PlanType, PlanStatus, ProxyRotation } from "./enums.js";
 
 /**
  * User data returned to frontend (excludes sensitive fields)

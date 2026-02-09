@@ -3,7 +3,7 @@
 // ===========================================
 // Initial data for development
 
-import { PrismaClient, PlanType, PlanStatus } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -22,8 +22,8 @@ async function main() {
       email: "admin@example.com",
       passwordHash: adminPassword,
       isAdmin: true,
-      planType: PlanType.PRO,
-      planStatus: PlanStatus.ACTIVE,
+      planType: "PRO",
+      planStatus: "ACTIVE",
       trialUses: 999,
       maxTrialUses: 999,
     },
@@ -42,8 +42,8 @@ async function main() {
       email: "test@example.com",
       passwordHash: testPassword,
       isAdmin: false,
-      planType: PlanType.FREE,
-      planStatus: PlanStatus.ACTIVE,
+      planType: "FREE",
+      planStatus: "ACTIVE",
       trialUses: 3,
       maxTrialUses: 3,
     },

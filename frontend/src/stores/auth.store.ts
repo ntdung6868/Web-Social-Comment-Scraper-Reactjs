@@ -14,8 +14,8 @@ interface AuthState {
   // Actions
   setUser: (user: User | null) => void;
   setAccessToken: (token: string | null) => void;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (username: string, email: string, password: string, confirmPassword?: string) => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
+  register: (username: string, email: string, password: string, confirmPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
@@ -43,23 +43,15 @@ export const useAuthStore = create<AuthState>()(
           accessToken: token,
         }),
 
-      login: async (email, password, rememberMe = false) => {
+      login: async (username, password, rememberMe = false) => {
         set({ isLoading: true });
         try {
-          // Backend yêu cầu field là "username", ta map email vào đó
-          const response = await authService.login({
-            username: email,
-            password,
-            rememberMe,
-          } as any);
-
-          // Xử lý dữ liệu trả về: hỗ trợ cả bọc trong .data hoặc không
-          const resData = response.data as any;
-          const data = resData.data || resData;
+          // apiRequest unwraps axios .data, so response is ApiResponse<AuthDataResponse>
+          const response = await authService.login({ username, password, rememberMe });
 
           set({
-            user: data.user,
-            accessToken: data.accessToken || data.tokens?.accessToken,
+            user: response.data!.user,
+            accessToken: response.data!.accessToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -79,12 +71,9 @@ export const useAuthStore = create<AuthState>()(
             confirmPassword,
           });
 
-          const resData = response.data as any;
-          const data = resData.data || resData;
-
           set({
-            user: data.user,
-            accessToken: data.accessToken || data.tokens?.accessToken,
+            user: response.data!.user,
+            accessToken: response.data!.accessToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -98,9 +87,8 @@ export const useAuthStore = create<AuthState>()(
         try {
           await authService.logout();
         } catch {
-          // Bỏ qua lỗi logout nếu server lỗi
+          // Ignore logout errors if server is unreachable
         } finally {
-          // Xóa sạch state và localStorage
           set({
             user: null,
             accessToken: null,
@@ -113,7 +101,6 @@ export const useAuthStore = create<AuthState>()(
       checkAuth: async () => {
         const { accessToken } = get();
 
-        // Nếu không có token -> Coi như chưa đăng nhập -> End
         if (!accessToken) {
           set({
             isInitialized: true,
@@ -125,24 +112,17 @@ export const useAuthStore = create<AuthState>()(
 
         set({ isLoading: true });
         try {
-          // Gọi API lấy thông tin user.
-          // Nếu token hết hạn, api.ts sẽ tự động Refresh -> Retry request này.
-          // Nên ở đây ta không cần logic refresh thủ công nữa.
+          // If token expired, api.ts interceptor will auto-refresh then retry
           const response = await authService.me();
 
-          const resData = response.data as any;
-          const userData = resData.data?.user || resData.user || resData;
-
           set({
-            user: userData,
+            user: response.data!.user,
             isAuthenticated: true,
             isLoading: false,
             isInitialized: true,
           });
-        } catch (error) {
-          // Nếu API trả về lỗi (nghĩa là cả Refresh Token cũng thất bại)
-          // Thì logout user
-          console.error("Check auth failed:", error);
+        } catch {
+          // Refresh also failed — force logout
           set({
             user: null,
             accessToken: null,
@@ -162,7 +142,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "auth-storage",
       storage: createJSONStorage(() => localStorage),
-      // Chỉ persist accessToken, user info sẽ fetch lại khi reload để đảm bảo tươi mới
+      // Only persist accessToken; user info is re-fetched on reload
       partialize: (state) => ({
         accessToken: state.accessToken,
       }),

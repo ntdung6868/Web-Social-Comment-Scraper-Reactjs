@@ -7,6 +7,7 @@ import { Server as HttpServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import { verifyAccessToken } from "../utils/token.js";
 import { env } from "../config/env.js";
+import { cancelJobByHistoryId } from "../lib/queue.js";
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -117,10 +118,29 @@ export function initializeSocket(httpServer: HttpServer): SocketServer {
     });
 
     // Cancel scrape request
-    socket.on("scrape:cancel", (historyId) => {
-      // Will be handled by queue service
+    socket.on("scrape:cancel", async (historyId) => {
       console.log(`[Socket] User ${userId} requested cancel for scrape ${historyId}`);
-      // Emit to queue service via internal event
+
+      const cancelled = await cancelJobByHistoryId(historyId);
+
+      if (cancelled) {
+        // Notify the user
+        socket.emit("system:notification", {
+          type: "info",
+          title: "Scrape Cancelled",
+          message: `Scrape #${historyId} has been cancelled`,
+          timestamp: new Date(),
+        });
+      } else {
+        socket.emit("system:notification", {
+          type: "warning",
+          title: "Cannot Cancel",
+          message: `Scrape #${historyId} is already running or completed and cannot be cancelled`,
+          timestamp: new Date(),
+        });
+      }
+
+      // Also notify admin
       io?.to("admin").emit("system:notification", {
         type: "info",
         title: "Scrape Cancelled",
@@ -170,11 +190,8 @@ export function getSocketServer(): SocketServer | null {
 export function emitScrapeStarted(userId: number, event: ScrapeStartedEvent): void {
   if (!io) return;
 
-  // Emit to user's room
-  io.to(`user:${userId}`).emit("scrape:started", event);
-
-  // Emit to scrape room
-  io.to(`scrape:${event.historyId}`).emit("scrape:started", event);
+  // Chained .to() deduplicates — a socket in both rooms receives the event only once
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:started", event);
 
   console.log(`[Socket] Emitted scrape:started for history ${event.historyId}`);
 }
@@ -185,11 +202,7 @@ export function emitScrapeStarted(userId: number, event: ScrapeStartedEvent): vo
 export function emitScrapeProgress(userId: number, event: ScrapeProgressEvent): void {
   if (!io) return;
 
-  // Emit to user's room
-  io.to(`user:${userId}`).emit("scrape:progress", event);
-
-  // Emit to scrape room
-  io.to(`scrape:${event.historyId}`).emit("scrape:progress", event);
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:progress", event);
 }
 
 /**
@@ -198,8 +211,7 @@ export function emitScrapeProgress(userId: number, event: ScrapeProgressEvent): 
 export function emitScrapeCompleted(userId: number, event: ScrapeCompletedEvent): void {
   if (!io) return;
 
-  io.to(`user:${userId}`).emit("scrape:completed", event);
-  io.to(`scrape:${event.historyId}`).emit("scrape:completed", event);
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:completed", event);
 
   console.log(`[Socket] Emitted scrape:completed for history ${event.historyId}`);
 }
@@ -210,8 +222,7 @@ export function emitScrapeCompleted(userId: number, event: ScrapeCompletedEvent)
 export function emitScrapeFailed(userId: number, event: ScrapeFailedEvent): void {
   if (!io) return;
 
-  io.to(`user:${userId}`).emit("scrape:failed", event);
-  io.to(`scrape:${event.historyId}`).emit("scrape:failed", event);
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:failed", event);
 
   console.log(`[Socket] Emitted scrape:failed for history ${event.historyId}`);
 }
