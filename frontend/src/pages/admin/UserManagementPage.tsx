@@ -37,8 +37,8 @@ import {
   Star as ProIcon,
   Delete as DeleteIcon,
   RestartAlt as ResetIcon,
-  AdminPanelSettings as AdminIcon,
   Person as PersonIcon,
+  Warning as WarningIcon,
 } from "@mui/icons-material";
 import { format } from "date-fns";
 import { apiRequest } from "@/services/api";
@@ -50,7 +50,7 @@ import type { User } from "@/types";
 // ── Types for admin user detail ──────────────────
 interface AdminUserDetail extends User {
   scrapeCount?: number;
-  lastLogin?: string | null;
+  distinctIpCount?: number;
   proxyEnabled?: boolean;
   headlessMode?: boolean;
   hasTiktokCookie?: boolean;
@@ -351,12 +351,25 @@ export default function UserManagementPage() {
                         {user.isBanned ? (
                           <Chip label="Banned" size="small" color="error" />
                         ) : (
-                          <Chip label={user.planStatus} size="small" color="success" variant="outlined" />
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Chip label={user.planStatus} size="small" color="success" variant="outlined" />
+                            {(user as unknown as { distinctIpCount?: number }).distinctIpCount !== undefined &&
+                              (user as unknown as { distinctIpCount: number }).distinctIpCount > 3 && (
+                                <Chip
+                                  icon={<WarningIcon />}
+                                  label={`${(user as unknown as { distinctIpCount: number }).distinctIpCount} IPs`}
+                                  size="small"
+                                  color="warning"
+                                  variant="filled"
+                                  sx={{ fontWeight: 600 }}
+                                />
+                              )}
+                          </Stack>
                         )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {user.trialUses} / {user.maxTrialUses}
+                          {user.trialUses} / {(user as unknown as { maxTrialUses?: number }).maxTrialUses ?? 3}
                         </Typography>
                       </TableCell>
                       <TableCell>{format(new Date(user.createdAt), "MMM dd, yyyy")}</TableCell>
@@ -418,7 +431,7 @@ export default function UserManagementPage() {
               {/* Status Chips */}
               <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
                 <Chip
-                  icon={detailUser.isAdmin ? <AdminIcon /> : <PersonIcon />}
+                  icon={<PersonIcon />}
                   label={detailUser.isAdmin ? "Admin" : "User"}
                   size="small"
                   color={detailUser.isAdmin ? "primary" : "default"}
@@ -430,6 +443,16 @@ export default function UserManagementPage() {
                   color={detailUser.planType === "PRO" ? "success" : "default"}
                 />
                 {detailUser.isBanned && <Chip label="Banned" size="small" color="error" />}
+                {detailUser.distinctIpCount !== undefined && detailUser.distinctIpCount > 3 && (
+                  <Chip
+                    icon={<WarningIcon />}
+                    label={`${detailUser.distinctIpCount} IPs detected`}
+                    size="small"
+                    color="warning"
+                    variant="filled"
+                    sx={{ fontWeight: 600 }}
+                  />
+                )}
               </Stack>
 
               {/* Info Section */}
@@ -447,7 +470,7 @@ export default function UserManagementPage() {
                   chip={<Chip label={detailUser.planStatus} size="small" color="info" variant="outlined" />}
                 />
                 <Divider />
-                <InfoRow label="Trial Uses" value={`${detailUser.trialUses} / ${detailUser.maxTrialUses}`} />
+                <InfoRow label="Trial Uses" value={`${detailUser.trialUses} / ${detailUser.maxTrialUses ?? 3}`} />
                 <Divider />
                 <InfoRow
                   label="Subscription End"
@@ -459,11 +482,22 @@ export default function UserManagementPage() {
                 />
                 <Divider />
                 <InfoRow label="Joined" value={format(new Date(detailUser.createdAt), "MMM dd, yyyy HH:mm")} />
-                <Divider />
-                <InfoRow
-                  label="Last Login"
-                  value={detailUser.lastLogin ? format(new Date(detailUser.lastLogin), "MMM dd, yyyy HH:mm") : "—"}
-                />
+                {detailUser.distinctIpCount !== undefined && (
+                  <>
+                    <Divider />
+                    <InfoRow
+                      label="Distinct IPs"
+                      chip={
+                        <Chip
+                          label={detailUser.distinctIpCount}
+                          size="small"
+                          color={detailUser.distinctIpCount > 3 ? "warning" : "default"}
+                          variant={detailUser.distinctIpCount > 3 ? "filled" : "outlined"}
+                        />
+                      }
+                    />
+                  </>
+                )}
                 {detailUser.scrapeCount !== undefined && (
                   <>
                     <Divider />
@@ -483,31 +517,10 @@ export default function UserManagementPage() {
                 )}
               </Box>
 
-              {/* Quick Toggle: Admin Role */}
               <Typography variant="subtitle2" sx={{ mb: 1.5, mt: 1 }}>
                 Quick Actions
               </Typography>
               <Grid container spacing={1.5}>
-                {/* Toggle Admin */}
-                <Grid item xs={6}>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    size="small"
-                    startIcon={<AdminIcon />}
-                    color={detailUser.isAdmin ? "warning" : "primary"}
-                    onClick={() =>
-                      updateUserMutation.mutate({
-                        userId: detailUser.id,
-                        data: { isAdmin: !detailUser.isAdmin },
-                      })
-                    }
-                    disabled={updateUserMutation.isPending}
-                  >
-                    {detailUser.isAdmin ? "Remove Admin" : "Make Admin"}
-                  </Button>
-                </Grid>
-
                 {/* Ban / Unban */}
                 <Grid item xs={6}>
                   {detailUser.isBanned ? (

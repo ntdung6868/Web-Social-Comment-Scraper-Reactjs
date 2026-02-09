@@ -105,6 +105,22 @@ export class AdminRepository {
       prisma.user.count({ where }),
     ]);
 
+    // Get distinct IP counts for these users
+    const userIds = users.map((u) => u.id);
+    let ipCountMap: Record<number, number> = {};
+    if (userIds.length > 0) {
+      const ipCounts = await prisma.$queryRawUnsafe<{ user_id: number; ip_count: number }[]>(
+        `SELECT user_id, COUNT(DISTINCT ip_address) as ip_count FROM refresh_tokens WHERE user_id IN (${userIds.join(",")}) AND ip_address IS NOT NULL GROUP BY user_id`,
+      );
+      ipCountMap = ipCounts.reduce(
+        (acc, row) => {
+          acc[row.user_id] = Number(row.ip_count);
+          return acc;
+        },
+        {} as Record<number, number>,
+      );
+    }
+
     const totalPages = Math.ceil(totalItems / limit);
 
     return {
@@ -118,8 +134,10 @@ export class AdminRepository {
         planType: user.planType as PlanType,
         planStatus: user.planStatus as PlanStatus,
         trialUses: user.trialUses,
+        maxTrialUses: user.maxTrialUses,
         isBanned: user.isBanned,
         scrapeCount: user._count.scrapeHistories,
+        distinctIpCount: ipCountMap[user.id] ?? 0,
       })),
       pagination: {
         currentPage: page,
@@ -136,14 +154,19 @@ export class AdminRepository {
    * Get detailed user info for admin
    */
   async getUserDetail(userId: number): Promise<AdminUserDetail | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        _count: {
-          select: { scrapeHistories: true },
+    const [user, ipResult] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          _count: {
+            select: { scrapeHistories: true },
+          },
         },
-      },
-    });
+      }),
+      prisma.$queryRaw<
+        { ip_count: number }[]
+      >`SELECT COUNT(DISTINCT ip_address) as ip_count FROM refresh_tokens WHERE user_id = ${userId} AND ip_address IS NOT NULL`,
+    ]);
 
     if (!user) return null;
 
@@ -157,8 +180,10 @@ export class AdminRepository {
       planType: user.planType as PlanType,
       planStatus: user.planStatus as PlanStatus,
       trialUses: user.trialUses,
+      maxTrialUses: user.maxTrialUses,
       isBanned: user.isBanned,
       scrapeCount: user._count.scrapeHistories,
+      distinctIpCount: Number(ipResult[0]?.ip_count ?? 0),
       banReason: user.banReason,
       bannedAt: user.bannedAt,
       subscriptionStart: user.subscriptionStart,

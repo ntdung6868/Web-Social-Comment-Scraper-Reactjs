@@ -82,9 +82,10 @@ export interface AdminUserListItem {
   planType: PlanType;
   planStatus: PlanStatus;
   trialUses: number;
+  maxTrialUses: number;
   isBanned: boolean;
-  lastLogin?: Date;
   scrapeCount: number;
+  distinctIpCount: number;
 }
 
 /**
