@@ -305,16 +305,21 @@ class InMemoryQueue extends EventEmitter {
       // Process with timeout
       const result = await Promise.race([this.processor(job), timeoutPromise]);
 
-      // Success
-      job.status = "completed";
-      job.finishedAt = new Date();
-      job.progress = 100;
-
-      // NOTE: scrape:completed is emitted by the job processor (scraper.service.ts)
-      // to avoid duplicate events. We only update internal state here.
-
-      this.emit("completed", job, result);
-      console.log(`[Queue] Job ${jobId} completed with ${result.totalComments} comments`);
+      // The processor catches its own errors and returns { success: false }.
+      // We must check result.success to set the correct queue status.
+      if (result.success) {
+        job.status = "completed";
+        job.finishedAt = new Date();
+        job.progress = 100;
+        this.emit("completed", job, result);
+        console.log(`[Queue] Job ${jobId} completed with ${result.totalComments} comments`);
+      } else {
+        job.status = "failed";
+        job.finishedAt = new Date();
+        job.failedReason = result.error || "Scraping failed";
+        this.emit("failed", job, new Error(job.failedReason));
+        console.log(`[Queue] Job ${jobId} failed: ${job.failedReason}`);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 

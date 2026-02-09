@@ -190,11 +190,8 @@ export function getSocketServer(): SocketServer | null {
 export function emitScrapeStarted(userId: number, event: ScrapeStartedEvent): void {
   if (!io) return;
 
-  // Emit to user's room
-  io.to(`user:${userId}`).emit("scrape:started", event);
-
-  // Emit to scrape room
-  io.to(`scrape:${event.historyId}`).emit("scrape:started", event);
+  // Chained .to() deduplicates — a socket in both rooms receives the event only once
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:started", event);
 
   console.log(`[Socket] Emitted scrape:started for history ${event.historyId}`);
 }
@@ -205,11 +202,7 @@ export function emitScrapeStarted(userId: number, event: ScrapeStartedEvent): vo
 export function emitScrapeProgress(userId: number, event: ScrapeProgressEvent): void {
   if (!io) return;
 
-  // Emit to user's room
-  io.to(`user:${userId}`).emit("scrape:progress", event);
-
-  // Emit to scrape room
-  io.to(`scrape:${event.historyId}`).emit("scrape:progress", event);
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:progress", event);
 }
 
 /**
@@ -218,8 +211,7 @@ export function emitScrapeProgress(userId: number, event: ScrapeProgressEvent): 
 export function emitScrapeCompleted(userId: number, event: ScrapeCompletedEvent): void {
   if (!io) return;
 
-  io.to(`user:${userId}`).emit("scrape:completed", event);
-  io.to(`scrape:${event.historyId}`).emit("scrape:completed", event);
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:completed", event);
 
   console.log(`[Socket] Emitted scrape:completed for history ${event.historyId}`);
 }
@@ -230,8 +222,7 @@ export function emitScrapeCompleted(userId: number, event: ScrapeCompletedEvent)
 export function emitScrapeFailed(userId: number, event: ScrapeFailedEvent): void {
   if (!io) return;
 
-  io.to(`user:${userId}`).emit("scrape:failed", event);
-  io.to(`scrape:${event.historyId}`).emit("scrape:failed", event);
+  io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:failed", event);
 
   console.log(`[Socket] Emitted scrape:failed for history ${event.historyId}`);
 }

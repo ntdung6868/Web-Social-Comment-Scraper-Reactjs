@@ -29,7 +29,7 @@ import {
 } from "@mui/icons-material";
 import { scraperService } from "@/services/scraper.service";
 import { useScrapeStore } from "@/stores/scrape.store";
-import { subscribeToScrape, cancelScrape } from "@/lib/socket";
+import { cancelScrape } from "@/lib/socket";
 import { useSocket } from "@/hooks/useSocket";
 import { queryClient, queryKeys } from "@/lib/query-client";
 import toast from "react-hot-toast";
@@ -167,7 +167,9 @@ export default function ScraperPage() {
     mutationFn: scraperService.startScrape,
     onSuccess: (response) => {
       const { historyId, queuePosition } = response.data!;
-      subscribeToScrape(historyId);
+      // NOTE: Don't call subscribeToScrape here — useSocket(undefined) already
+      // listens on the user room which receives all events for this user.
+      // Subscribing to the scrape room would cause duplicate events.
 
       addLog("info", `📨 Scrape job submitted — ID: ${historyId}, Queue Position: ${queuePosition}`);
       toast.success(`Scrape started! Position in queue: ${queuePosition}`);
