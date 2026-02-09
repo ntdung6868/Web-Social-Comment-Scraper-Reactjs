@@ -150,7 +150,7 @@ export default function HistoryDetailPage() {
                   <TableRow key={comment.id} hover>
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>
-                        @{comment.username}
+                        {comment.username}
                       </Typography>
                     </TableCell>
                     <TableCell>

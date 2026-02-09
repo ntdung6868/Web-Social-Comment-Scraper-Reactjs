@@ -1,18 +1,53 @@
 import { useQuery } from "@tanstack/react-query";
-import { Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip } from "@mui/material";
+import { Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip, Stack } from "@mui/material";
 import {
   People as PeopleIcon,
+  PersonAdd as PersonAddIcon,
+  Block as BanIcon,
   Speed as SpeedIcon,
   Storage as StorageIcon,
   CloudQueue as QueueIcon,
-  CheckCircle as HealthyIcon,
-  Warning as DegradedIcon,
-  Error as UnhealthyIcon,
+  CheckCircle as SuccessIcon,
+  Error as FailedIcon,
+  Comment as CommentIcon,
+  Schedule as UptimeIcon,
+  WorkspacePremium as ProIcon,
+  PlayArrow as ActiveIcon,
 } from "@mui/icons-material";
 import { apiRequest } from "@/services/api";
 import { queryKeys } from "@/lib/query-client";
 import type { SystemHealth } from "@/types";
 
+// ── Types ────────────────────────────────────────
+interface AdminDashboardStats {
+  users: {
+    total: number;
+    active: number;
+    banned: number;
+    newToday: number;
+    newThisWeek: number;
+  };
+  subscriptions: {
+    free: number;
+    pro: number;
+    expired: number;
+  };
+  scraping: {
+    totalJobs: number;
+    successfulJobs: number;
+    failedJobs: number;
+    activeJobs: number;
+    queuedJobs: number;
+    totalComments: number;
+  };
+  system: {
+    uptime: number;
+    memoryUsage: number;
+    cpuUsage: number;
+  };
+}
+
+// ── Stat Card ────────────────────────────────────
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -27,80 +62,87 @@ function StatCard({ title, value, subtitle, icon, color, loading }: StatCardProp
     <Card
       sx={{
         height: "100%",
-        background: `linear-gradient(135deg, ${alpha(color, 0.15)} 0%, ${alpha(color, 0.05)} 100%)`,
-        border: `1px solid ${alpha(color, 0.2)}`,
+        background: `linear-gradient(135deg, ${alpha(color, 0.12)} 0%, ${alpha(color, 0.03)} 100%)`,
+        border: `1px solid ${alpha(color, 0.15)}`,
+        transition: "transform 0.2s, box-shadow 0.2s",
+        "&:hover": {
+          transform: "translateY(-2px)",
+          boxShadow: `0 4px 20px ${alpha(color, 0.15)}`,
+        },
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+      <CardContent sx={{ p: 2.5 }}>
         <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body2" color="text.secondary" noWrap>
               {title}
             </Typography>
             {loading ? (
-              <Skeleton width={80} height={40} />
+              <Skeleton width={60} height={36} />
             ) : (
-              <Typography variant="h4" fontWeight={700} sx={{ color }}>
-                {value}
+              <Typography variant="h4" fontWeight={700} sx={{ color, mt: 0.5 }}>
+                {typeof value === "number" ? value.toLocaleString() : value}
               </Typography>
             )}
             {subtitle && (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
                 {subtitle}
               </Typography>
             )}
           </Box>
-          <Box
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              backgroundColor: alpha(color, 0.1),
-            }}
-          >
-            {icon}
-          </Box>
+          <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: alpha(color, 0.1), flexShrink: 0 }}>{icon}</Box>
         </Box>
       </CardContent>
     </Card>
   );
 }
 
+// ── Section Header ───────────────────────────────
+function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2.5 }}>
+      {icon}
+      <Typography variant="h6" fontWeight={600}>
+        {title}
+      </Typography>
+    </Box>
+  );
+}
+
+// ── Format Duration ──────────────────────────────
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+// ── Main Component ───────────────────────────────
 export default function AdminDashboardPage() {
-  const { data: healthData, isLoading: _healthLoading } = useQuery({
+  const { data: healthData, isLoading: healthLoading } = useQuery({
     queryKey: queryKeys.admin.health(),
     queryFn: () => apiRequest.get<{ success: boolean; data: SystemHealth }>("/admin/health"),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboardData, isLoading: dashLoading } = useQuery({
     queryKey: queryKeys.admin.dashboard(),
-    queryFn: () => apiRequest.get<{ success: boolean; data: any }>("/admin/dashboard"),
+    queryFn: () => apiRequest.get<{ success: boolean; data: AdminDashboardStats }>("/admin/dashboard"),
+    refetchInterval: 60000,
   });
 
   const health = healthData?.data;
-  const dashboard = dashboardData?.data;
+  const stats = dashboardData?.data;
+  const loading = dashLoading;
 
-  const getHealthIcon = (status?: string) => {
-    switch (status) {
-      case "healthy":
-        return <HealthyIcon sx={{ color: "success.main", fontSize: 40 }} />;
-      case "degraded":
-        return <DegradedIcon sx={{ color: "warning.main", fontSize: 40 }} />;
-      default:
-        return <UnhealthyIcon sx={{ color: "error.main", fontSize: 40 }} />;
-    }
-  };
+  const healthColor = health?.status === "healthy" ? "#66bb6a" : health?.status === "degraded" ? "#ffa726" : "#f44336";
 
-  const getHealthColor = (status?: string) => {
-    switch (status) {
-      case "healthy":
-        return "#66bb6a";
-      case "degraded":
-        return "#ffa726";
-      default:
-        return "#f44336";
-    }
-  };
+  const successRate =
+    stats && stats.scraping.totalJobs > 0
+      ? Math.round((stats.scraping.successfulJobs / stats.scraping.totalJobs) * 100)
+      : 0;
 
   return (
     <Box>
@@ -110,107 +152,269 @@ export default function AdminDashboardPage() {
           Admin Dashboard
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          System monitoring and management
+          System overview and monitoring
         </Typography>
       </Box>
 
-      {/* System Health Card */}
+      {/* ── System Health ── */}
       <Card sx={{ mb: 4 }}>
         <CardContent sx={{ p: 3 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 3, mb: 3 }}>
-            {getHealthIcon(health?.status)}
-            <Box>
-              <Typography variant="h5" fontWeight={600}>
-                System Status:{" "}
-                <Typography component="span" sx={{ color: getHealthColor(health?.status), fontWeight: 700 }}>
-                  {health?.status?.toUpperCase() || "UNKNOWN"}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 2,
+              mb: 3,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Box
+                sx={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: "50%",
+                  backgroundColor: healthColor,
+                  boxShadow: `0 0 8px ${healthColor}`,
+                }}
+              />
+              <Typography variant="h6" fontWeight={600}>
+                System{" "}
+                <Typography component="span" sx={{ color: healthColor, fontWeight: 700 }}>
+                  {health?.status?.toUpperCase() || "CHECKING..."}
                 </Typography>
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Database: {health?.services?.database?.status || "unknown"} | Uptime:{" "}
-                {health?.uptime
-                  ? `${Math.floor(health.uptime / 3600)}h ${Math.floor((health.uptime % 3600) / 60)}m`
-                  : "N/A"}
-              </Typography>
             </Box>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Chip
+                icon={<StorageIcon />}
+                label={`DB: ${health?.services?.database?.status || "..."}`}
+                color={health?.services?.database?.status === "up" ? "success" : "error"}
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                icon={<QueueIcon />}
+                label={`Redis: ${health?.services?.redis?.status || "..."}`}
+                color={health?.services?.redis?.status === "up" ? "success" : "error"}
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                icon={<SpeedIcon />}
+                label={`Scraper: ${health?.services?.scraper?.status || "..."}`}
+                color={health?.services?.scraper?.status === "up" ? "success" : "error"}
+                size="small"
+                variant="outlined"
+              />
+            </Stack>
           </Box>
 
-          {/* Memory Usage */}
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-              <Typography variant="body2">Memory Usage</Typography>
-              <Typography variant="body2" fontWeight={600}>
-                {health?.memory?.percentage?.toFixed(1) || 0}%
+          <Grid container spacing={3}>
+            {/* Memory */}
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Memory Usage
               </Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={health?.memory?.percentage || 0}
-              sx={{ height: 8, borderRadius: 4 }}
-            />
-          </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                <Typography variant="h6" fontWeight={600}>
+                  {healthLoading ? "..." : `${health?.memory?.percentage?.toFixed(1) || 0}%`}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  ({healthLoading ? "..." : `${((health?.memory?.used || 0) / 1024 / 1024).toFixed(0)} MB`})
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={health?.memory?.percentage || 0}
+                color={
+                  (health?.memory?.percentage || 0) > 90
+                    ? "error"
+                    : (health?.memory?.percentage || 0) > 70
+                      ? "warning"
+                      : "primary"
+                }
+                sx={{ height: 6, borderRadius: 3 }}
+              />
+            </Grid>
 
-          {/* Service Status */}
-          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-            <Chip
-              icon={<StorageIcon />}
-              label={`Database: ${health?.services?.database?.status || "unknown"}`}
-              color={health?.services?.database?.status === "up" ? "success" : "error"}
-              variant="outlined"
-            />
-            <Chip
-              icon={<QueueIcon />}
-              label={`Redis: ${health?.services?.redis?.status || "unknown"}`}
-              color={health?.services?.redis?.status === "up" ? "success" : "error"}
-              variant="outlined"
-            />
-            <Chip
-              icon={<SpeedIcon />}
-              label={`Scraper: ${health?.services?.scraper?.status || "unknown"}`}
-              color={health?.services?.scraper?.status === "up" ? "success" : "error"}
-              variant="outlined"
-            />
-          </Box>
+            {/* CPU */}
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                CPU Load
+              </Typography>
+              <Typography variant="h6" fontWeight={600}>
+                {healthLoading ? "..." : `${stats?.system?.cpuUsage ?? 0}%`}
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={Math.min(stats?.system?.cpuUsage ?? 0, 100)}
+                color={
+                  (stats?.system?.cpuUsage ?? 0) > 90
+                    ? "error"
+                    : (stats?.system?.cpuUsage ?? 0) > 70
+                      ? "warning"
+                      : "primary"
+                }
+                sx={{ height: 6, borderRadius: 3 }}
+              />
+            </Grid>
+
+            {/* Uptime */}
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Uptime
+              </Typography>
+              <Typography variant="h6" fontWeight={600}>
+                {healthLoading ? "..." : formatUptime(health?.uptime || 0)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Since last restart
+              </Typography>
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
-      <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={3}>
+      {/* ── Users Section ── */}
+      <SectionHeader title="Users" icon={<PeopleIcon color="primary" />} />
+      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+        <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
             title="Total Users"
-            value={dashboard?.totalUsers ?? 0}
+            value={stats?.users?.total ?? 0}
             icon={<PeopleIcon sx={{ color: "#5c6bc0" }} />}
             color="#5c6bc0"
-            loading={dashboardLoading}
+            loading={loading}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="Active Users"
-            value={dashboard?.activeUsers ?? 0}
-            subtitle="Last 24 hours"
-            icon={<PeopleIcon sx={{ color: "#66bb6a" }} />}
+            title="Active"
+            value={stats?.users?.active ?? 0}
+            icon={<SuccessIcon sx={{ color: "#66bb6a" }} />}
             color="#66bb6a"
-            loading={dashboardLoading}
+            loading={loading}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="Total Scrapes"
-            value={dashboard?.totalScrapes ?? 0}
-            icon={<StorageIcon sx={{ color: "#42a5f5" }} />}
+            title="Banned"
+            value={stats?.users?.banned ?? 0}
+            icon={<BanIcon sx={{ color: "#ef5350" }} />}
+            color="#ef5350"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2.4}>
+          <StatCard
+            title="New Today"
+            value={stats?.users?.newToday ?? 0}
+            icon={<PersonAddIcon sx={{ color: "#42a5f5" }} />}
             color="#42a5f5"
-            loading={dashboardLoading}
+            loading={loading}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="Scrapes Today"
-            value={dashboard?.scrapesToday ?? 0}
-            icon={<SpeedIcon sx={{ color: "#ffa726" }} />}
+            title="This Week"
+            value={stats?.users?.newThisWeek ?? 0}
+            icon={<PersonAddIcon sx={{ color: "#ab47bc" }} />}
+            color="#ab47bc"
+            loading={loading}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── Subscriptions Section ── */}
+      <SectionHeader title="Subscriptions" icon={<ProIcon color="primary" />} />
+      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            title="Free Plan"
+            value={stats?.subscriptions?.free ?? 0}
+            icon={<PeopleIcon sx={{ color: "#78909c" }} />}
+            color="#78909c"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            title="Pro Plan"
+            value={stats?.subscriptions?.pro ?? 0}
+            icon={<ProIcon sx={{ color: "#ffa726" }} />}
             color="#ffa726"
-            loading={dashboardLoading}
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            title="Expired"
+            value={stats?.subscriptions?.expired ?? 0}
+            icon={<UptimeIcon sx={{ color: "#ef5350" }} />}
+            color="#ef5350"
+            loading={loading}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── Scraping Section ── */}
+      <SectionHeader title="Scraping" icon={<CommentIcon color="primary" />} />
+      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="Total Jobs"
+            value={stats?.scraping?.totalJobs ?? 0}
+            icon={<StorageIcon sx={{ color: "#5c6bc0" }} />}
+            color="#5c6bc0"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="Successful"
+            value={stats?.scraping?.successfulJobs ?? 0}
+            subtitle={`${successRate}% rate`}
+            icon={<SuccessIcon sx={{ color: "#66bb6a" }} />}
+            color="#66bb6a"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="Failed"
+            value={stats?.scraping?.failedJobs ?? 0}
+            icon={<FailedIcon sx={{ color: "#ef5350" }} />}
+            color="#ef5350"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="Active"
+            value={stats?.scraping?.activeJobs ?? 0}
+            icon={<ActiveIcon sx={{ color: "#42a5f5" }} />}
+            color="#42a5f5"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="In Queue"
+            value={stats?.scraping?.queuedJobs ?? 0}
+            icon={<QueueIcon sx={{ color: "#ffa726" }} />}
+            color="#ffa726"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="Comments"
+            value={stats?.scraping?.totalComments ?? 0}
+            icon={<CommentIcon sx={{ color: "#ab47bc" }} />}
+            color="#ab47bc"
+            loading={loading}
           />
         </Grid>
       </Grid>

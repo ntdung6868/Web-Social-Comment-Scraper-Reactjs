@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
   Card,
@@ -18,14 +18,16 @@ import {
   TextField,
   MenuItem,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from "@mui/material";
-import {
-  Visibility as ViewIcon,
-  Delete as DeleteIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-} from "@mui/icons-material";
+import { Delete as DeleteIcon, Search as SearchIcon, FilterList as FilterIcon } from "@mui/icons-material";
 import { format } from "date-fns";
+import toast from "react-hot-toast";
 import { scraperService } from "@/services/scraper.service";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
@@ -33,17 +35,19 @@ import type { ScrapeJob, ScrapeStatus, Platform } from "@/types";
 
 const statusColors: Record<string, "default" | "primary" | "success" | "error" | "warning"> = {
   PENDING: "default",
-  PROCESSING: "primary",
-  COMPLETED: "success",
+  RUNNING: "primary",
+  SUCCESS: "success",
   FAILED: "error",
 };
 
 export default function HistoryPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [platformFilter, setPlatformFilter] = useState<string>("");
+  const [deleteTarget, setDeleteTarget] = useState<ScrapeJob | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.history.list({
@@ -59,6 +63,7 @@ export default function HistoryPage() {
         status: (statusFilter || undefined) as ScrapeStatus | undefined,
         platform: (platformFilter || undefined) as Platform | undefined,
       }),
+    placeholderData: (prev) => prev, // Keep previous data while fetching next page
   });
 
   const handleChangePage = (_: unknown, newPage: number) => {
@@ -74,18 +79,40 @@ export default function HistoryPage() {
     navigate(`/history/${id}`);
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number | string) => scraperService.deleteHistory(id),
+    onSuccess: () => {
+      toast.success("Scrape history deleted");
+      setDeleteTarget(null);
+      // Invalidate all history queries + dashboard
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
+    },
+    onError: () => {
+      toast.error("Failed to delete. Please try again.");
+    },
+  });
+
+  const handleDelete = (e: React.MouseEvent, scrape: ScrapeJob) => {
+    e.stopPropagation(); // Don't navigate when clicking delete
+    setDeleteTarget(scrape);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget.id);
+    }
+  };
+
   if (isLoading) {
     return <LoadingSpinner message="Loading history..." />;
   }
 
-  // --- SỬA LỖI TẠI ĐÂY ---
-  // API trả về: { success: true, data: { data: [...], pagination: {...} } }
-  // data (từ useQuery) = Response Body
-  // data.data = PaginatedResponse ({ data: Array, pagination: Object })
+  // API response: { success: true, data: { data: [...], pagination: { totalItems, ... } } }
+  // apiRequest unwraps axios .data, so useQuery data = { success, data: { data, pagination } }
   const historyResponse = data?.data as any;
-  const scrapes: ScrapeJob[] = historyResponse?.data ?? []; // Lấy mảng data bên trong
-  const total = historyResponse?.pagination?.total ?? 0;
-  // -----------------------
+  const scrapes: ScrapeJob[] = historyResponse?.data ?? [];
+  const total = historyResponse?.pagination?.totalItems ?? 0;
 
   return (
     <Box>
@@ -122,8 +149,8 @@ export default function HistoryPage() {
           >
             <MenuItem value="">All Statuses</MenuItem>
             <MenuItem value="PENDING">Pending</MenuItem>
-            <MenuItem value="PROCESSING">Processing</MenuItem>
-            <MenuItem value="COMPLETED">Completed</MenuItem>
+            <MenuItem value="RUNNING">Running</MenuItem>
+            <MenuItem value="SUCCESS">Success</MenuItem>
             <MenuItem value="FAILED">Failed</MenuItem>
           </TextField>
 
@@ -169,7 +196,12 @@ export default function HistoryPage() {
                 </TableHead>
                 <TableBody>
                   {scrapes.map((scrape: ScrapeJob) => (
-                    <TableRow key={scrape.id} hover>
+                    <TableRow
+                      key={scrape.id}
+                      hover
+                      onClick={() => handleViewDetail(scrape.id)}
+                      sx={{ cursor: "pointer" }}
+                    >
                       <TableCell>
                         <Typography
                           variant="body2"
@@ -192,13 +224,8 @@ export default function HistoryPage() {
                       <TableCell align="right">{scrape.totalComments.toLocaleString()}</TableCell>
                       <TableCell>{format(new Date(scrape.createdAt), "MMM dd, yyyy HH:mm")}</TableCell>
                       <TableCell align="center">
-                        <Tooltip title="View Details">
-                          <IconButton size="small" onClick={() => handleViewDetail(scrape.id)}>
-                            <ViewIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
                         <Tooltip title="Delete">
-                          <IconButton size="small" color="error">
+                          <IconButton size="small" color="error" onClick={(e) => handleDelete(e, scrape)}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -221,6 +248,25 @@ export default function HistoryPage() {
           </>
         )}
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Scrape History</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this scrape? This will permanently remove all associated comments and cannot
+            be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={confirmDelete} color="error" variant="contained" disabled={deleteMutation.isPending}>
+            {deleteMutation.isPending ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
