@@ -3,14 +3,15 @@
 // ===========================================
 // Business logic for authentication
 
-import { authRepository, hashToken } from "../repositories/auth.repository.js";
+import { authRepository } from "../repositories/auth.repository.js";
 import { hashPassword, comparePassword, validatePasswordStrength } from "../utils/password.js";
-import { generateAccessToken, generateResetToken, getRefreshTokenExpiry, verifyRefreshToken } from "../utils/token.js";
+import { generateAccessToken, generateResetToken, getRefreshTokenExpiry } from "../utils/token.js";
 import { createError } from "../middlewares/error.middleware.js";
 import { env } from "../config/env.js";
 import type { User } from "@prisma/client";
 import type { TokenPair, AuthResponse } from "../types/auth.types.js";
 import type { UserPublic } from "../types/user.types.js";
+import type { PlanType, PlanStatus } from "../types/enums.js";
 import type {
   LoginInput,
   RegisterInput,
@@ -42,8 +43,8 @@ function toPublicUser(user: User): UserPublic {
     createdAt: user.createdAt,
     isActive: user.isActive,
     isAdmin: user.isAdmin,
-    planType: user.planType,
-    planStatus: user.planStatus,
+    planType: user.planType as PlanType,
+    planStatus: user.planStatus as PlanStatus,
     trialUses: user.trialUses,
     maxTrialUses: user.maxTrialUses,
     subscriptionStart: user.subscriptionStart,
@@ -166,7 +167,7 @@ export class AuthService {
   /**
    * Refresh access token
    */
-  async refreshToken(refreshToken: string, meta?: RequestMeta): Promise<{ accessToken: string; expiresIn: number }> {
+  async refreshToken(refreshToken: string, _meta?: RequestMeta): Promise<{ accessToken: string; expiresIn: number }> {
     // Find token in database
     const tokenRecord = await authRepository.findRefreshTokenWithUser(refreshToken);
 

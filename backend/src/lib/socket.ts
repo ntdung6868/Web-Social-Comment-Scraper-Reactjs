@@ -7,6 +7,7 @@ import { Server as HttpServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import { verifyAccessToken } from "../utils/token.js";
 import { env } from "../config/env.js";
+import { cancelJobByHistoryId } from "../lib/queue.js";
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -117,10 +118,29 @@ export function initializeSocket(httpServer: HttpServer): SocketServer {
     });
 
     // Cancel scrape request
-    socket.on("scrape:cancel", (historyId) => {
-      // Will be handled by queue service
+    socket.on("scrape:cancel", async (historyId) => {
       console.log(`[Socket] User ${userId} requested cancel for scrape ${historyId}`);
-      // Emit to queue service via internal event
+
+      const cancelled = await cancelJobByHistoryId(historyId);
+
+      if (cancelled) {
+        // Notify the user
+        socket.emit("system:notification", {
+          type: "info",
+          title: "Scrape Cancelled",
+          message: `Scrape #${historyId} has been cancelled`,
+          timestamp: new Date(),
+        });
+      } else {
+        socket.emit("system:notification", {
+          type: "warning",
+          title: "Cannot Cancel",
+          message: `Scrape #${historyId} is already running or completed and cannot be cancelled`,
+          timestamp: new Date(),
+        });
+      }
+
+      // Also notify admin
       io?.to("admin").emit("system:notification", {
         type: "info",
         title: "Scrape Cancelled",

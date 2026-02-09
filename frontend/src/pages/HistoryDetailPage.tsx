@@ -13,20 +13,20 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  alpha,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon, Download as DownloadIcon, ThumbUp as ThumbUpIcon } from "@mui/icons-material";
 import { format } from "date-fns";
 import { scraperService } from "@/services/scraper.service";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, ErrorMessage } from "@/components/common";
+import type { Comment } from "@/types";
 
 export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.scraper.detail(id!),
+    queryKey: queryKeys.history.detail(id!),
     queryFn: () => scraperService.getHistoryDetail(id!),
     enabled: !!id,
   });
@@ -61,7 +61,8 @@ export default function HistoryDetailPage() {
     );
   }
 
-  const { scrape, comments } = data.data;
+  const scrape = data.data!;
+  const comments = scrape.comments;
 
   return (
     <Box>
@@ -82,7 +83,7 @@ export default function HistoryDetailPage() {
                 {scrape.url}
               </Typography>
             </Box>
-            <Chip label={scrape.status} color={scrape.status === "COMPLETED" ? "success" : "default"} />
+            <Chip label={scrape.status} color={scrape.status === "SUCCESS" ? "success" : "default"} />
           </Box>
 
           <Box sx={{ display: "flex", gap: 4, flexWrap: "wrap", mb: 3 }}>
@@ -110,16 +111,6 @@ export default function HistoryDetailPage() {
                 {format(new Date(scrape.createdAt), "MMM dd, yyyy HH:mm")}
               </Typography>
             </Box>
-            {scrape.completedAt && (
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Completed
-                </Typography>
-                <Typography variant="body1" fontWeight={500}>
-                  {format(new Date(scrape.completedAt), "MMM dd, yyyy HH:mm")}
-                </Typography>
-              </Box>
-            )}
           </Box>
 
           {/* Export Buttons */}
@@ -155,7 +146,7 @@ export default function HistoryDetailPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {comments.map((comment) => (
+                {comments.map((comment: Comment) => (
                   <TableRow key={comment.id} hover>
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>

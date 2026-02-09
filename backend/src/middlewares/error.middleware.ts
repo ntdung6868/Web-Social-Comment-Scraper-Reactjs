@@ -75,7 +75,7 @@ export const errorHandler: ErrorRequestHandler = (
       error: {
         code: err.code,
         message: err.message,
-        ...(err.details && { details: err.details }),
+        ...(err.details ? { details: err.details } : {}),
       },
     });
     return;
@@ -83,7 +83,7 @@ export const errorHandler: ErrorRequestHandler = (
 
   // Handle Prisma errors
   if (err.name === "PrismaClientKnownRequestError") {
-    const prismaError = err as { code: string; meta?: { target?: string[] } };
+    const prismaError = err as unknown as { code: string; meta?: { target?: string[] } };
 
     if (prismaError.code === "P2002") {
       // Unique constraint violation

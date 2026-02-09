@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -42,8 +41,10 @@ export default function SystemLogsPage() {
     queryFn: () =>
       apiRequest.get<{
         success: boolean;
-        data: (ScrapeJob & { user?: { email: string; name: string } })[];
-        pagination: { page: number; limit: number; total: number };
+        data: {
+          data: (ScrapeJob & { user?: { email: string; name: string }; startedAt?: string; completedAt?: string })[];
+          pagination: { currentPage: number; totalPages: number; totalItems: number };
+        };
       }>(`/admin/scrapes?page=${page + 1}&limit=${rowsPerPage}${statusFilter ? `&status=${statusFilter}` : ""}`),
   });
 
@@ -51,8 +52,8 @@ export default function SystemLogsPage() {
     return <LoadingSpinner message="Loading logs..." />;
   }
 
-  const scrapes = data?.data ?? [];
-  const total = data?.pagination?.total ?? 0;
+  const scrapes = data?.data?.data ?? [];
+  const total = data?.data?.pagination?.totalItems ?? 0;
 
   return (
     <Box>
@@ -126,7 +127,7 @@ export default function SystemLogsPage() {
                     <TableRow key={scrape.id} hover>
                       <TableCell>
                         <Typography variant="caption" fontFamily="monospace">
-                          {scrape.id.slice(0, 8)}...
+                          {String(scrape.id)}
                         </Typography>
                       </TableCell>
                       <TableCell>

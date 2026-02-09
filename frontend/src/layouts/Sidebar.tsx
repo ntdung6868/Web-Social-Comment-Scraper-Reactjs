@@ -63,7 +63,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const isAdmin = user?.isAdmin || user?.role === "ADMIN";
+  const isAdmin = user?.isAdmin ?? false;
   const currentWidth = collapsed ? collapsedWidth : drawerWidth;
 
   const filteredNavItems = useMemo(() => {

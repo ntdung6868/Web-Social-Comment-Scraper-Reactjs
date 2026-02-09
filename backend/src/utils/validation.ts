@@ -3,7 +3,7 @@
 // ===========================================
 // Validate and parse TikTok/Facebook URLs
 
-import { Platform } from "@prisma/client";
+import type { Platform } from "../types/enums.js";
 import type { UrlValidationResult } from "../types/scraper.types.js";
 
 // TikTok URL patterns
@@ -47,14 +47,14 @@ export function detectPlatform(url: string): Platform | null {
   // Check TikTok
   for (const pattern of TIKTOK_PATTERNS) {
     if (pattern.test(url)) {
-      return Platform.TIKTOK;
+      return "TIKTOK";
     }
   }
 
   // Check Facebook
   for (const pattern of FACEBOOK_PATTERNS) {
     if (pattern.test(url)) {
-      return Platform.FACEBOOK;
+      return "FACEBOOK";
     }
   }
 

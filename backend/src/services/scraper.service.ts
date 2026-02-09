@@ -3,7 +3,7 @@
 // ===========================================
 // Business logic for scraping operations
 
-import type { Platform, ScrapeStatus } from "@prisma/client";
+import type { Platform, ScrapeStatus, ProxyRotation } from "../types/enums.js";
 import { scraperRepository } from "../repositories/scraper.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
@@ -81,8 +81,17 @@ export class ScraperService {
     // Get proxy if enabled
     let proxy: string | null = null;
     if (user.proxyEnabled && user.proxyList) {
-      proxyManager.setProxies(user.proxyList, user.proxyRotation);
+      proxyManager.setProxies(user.proxyList, user.proxyRotation as ProxyRotation | undefined);
       proxy = proxyManager.getNext();
+    }
+
+    // Cap maxComments for FREE plan (avoid wasting resources)
+    const FREE_PLAN_MAX_COMMENTS = 100;
+    let effectiveMaxComments = data.maxComments;
+    if (user.planType === "FREE" && effectiveMaxComments) {
+      effectiveMaxComments = Math.min(effectiveMaxComments, FREE_PLAN_MAX_COMMENTS);
+    } else if (user.planType === "FREE") {
+      effectiveMaxComments = FREE_PLAN_MAX_COMMENTS;
     }
 
     // Create history record
@@ -104,7 +113,7 @@ export class ScraperService {
       },
       proxy,
       headless: user.headlessMode,
-      maxComments: data.maxComments,
+      maxComments: effectiveMaxComments,
     };
 
     const jobId = await addScrapeJob(jobData);
@@ -148,10 +157,10 @@ export class ScraperService {
       history: {
         id: history.id,
         userId: history.userId,
-        platform: history.platform,
+        platform: history.platform as Platform,
         url: history.url,
         totalComments: history.totalComments,
-        status: history.status,
+        status: history.status as ScrapeStatus,
         errorMessage: history.errorMessage,
         createdAt: history.createdAt,
         commentCount: history.totalComments,
@@ -203,10 +212,10 @@ export class ScraperService {
     return {
       id: history.id,
       userId: history.userId,
-      platform: history.platform,
+      platform: history.platform as Platform,
       url: history.url,
       totalComments: history.totalComments,
-      status: history.status,
+      status: history.status as ScrapeStatus,
       errorMessage: history.errorMessage,
       createdAt: history.createdAt,
       comments: history.comments.map((c) => ({
@@ -255,10 +264,10 @@ export class ScraperService {
     return scrapes.map((s) => ({
       id: s.id,
       userId: s.userId,
-      platform: s.platform,
+      platform: s.platform as Platform,
       url: s.url,
       totalComments: s.totalComments,
-      status: s.status,
+      status: s.status as ScrapeStatus,
       errorMessage: s.errorMessage,
       createdAt: s.createdAt,
       commentCount: s.totalComments,
@@ -302,7 +311,7 @@ export class ScraperService {
     return {
       history: {
         url: history.url,
-        platform: history.platform,
+        platform: history.platform as Platform,
         createdAt: history.createdAt,
       },
       comments: comments.map((c) => ({

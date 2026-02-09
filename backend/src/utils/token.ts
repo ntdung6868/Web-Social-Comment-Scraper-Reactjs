@@ -39,7 +39,7 @@ function parseDuration(duration: string): number {
  */
 export function generateAccessToken(payload: AccessTokenPayload): string {
   const options: SignOptions = {
-    expiresIn: env.jwt.accessExpiresIn,
+    expiresIn: env.jwt.accessExpiresIn as string & SignOptions["expiresIn"],
     algorithm: "HS256",
   };
 
@@ -53,7 +53,7 @@ export function generateAccessToken(payload: AccessTokenPayload): string {
  */
 export function generateRefreshToken(payload: RefreshTokenPayload): string {
   const options: SignOptions = {
-    expiresIn: env.jwt.refreshExpiresIn,
+    expiresIn: env.jwt.refreshExpiresIn as string & SignOptions["expiresIn"],
     algorithm: "HS256",
   };
 

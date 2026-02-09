@@ -6,7 +6,7 @@
 import type { Request, Response } from "express";
 import { authService } from "../services/auth.service.js";
 import { asyncHandler } from "../middlewares/error.middleware.js";
-import { sendSuccess, sendCreated, sendNoContent } from "../utils/response.js";
+import { sendSuccess, sendCreated } from "../utils/response.js";
 import type {
   LoginInput,
   RegisterInput,

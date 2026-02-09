@@ -1,5 +1,15 @@
 import { apiRequest } from "./api";
-import type { ApiResponse, PaginatedResponse, ScrapeJob, Comment, DashboardStats } from "@/types";
+import api from "./api";
+import type {
+  ApiResponse,
+  ScrapeJob,
+  Comment,
+  DashboardStats,
+  PaginatedResponse,
+  JobInfo,
+  Platform,
+  ScrapeStatus,
+} from "@/types";
 
 export interface StartScrapeData {
   url: string;
@@ -7,67 +17,64 @@ export interface StartScrapeData {
 }
 
 export interface StartScrapeResponse {
-  scrape: ScrapeJob;
-  position: number;
+  historyId: number;
+  jobId: string;
+  queuePosition: number;
 }
 
 export interface HistoryFilters {
   page?: number;
   limit?: number;
-  status?: string;
-  platform?: string;
-  dateFrom?: string;
-  dateTo?: string;
+  status?: ScrapeStatus;
+  platform?: Platform;
+  sortBy?: "createdAt" | "totalComments";
+  sortOrder?: "asc" | "desc";
 }
 
-export interface ScrapeDetailResponse {
-  scrape: ScrapeJob;
+export interface ScrapeStatusResponse {
+  history: ScrapeJob;
+  job: JobInfo | null;
+}
+
+export interface ScrapeHistoryDetail {
+  id: number;
+  userId: number;
+  platform: Platform;
+  url: string;
+  totalComments: number;
+  status: ScrapeStatus;
+  errorMessage: string | null;
+  createdAt: string;
   comments: Comment[];
 }
 
-// Scraper API service
 export const scraperService = {
-  // Start a new scrape job
   startScrape: (data: StartScrapeData) => apiRequest.post<ApiResponse<StartScrapeResponse>>("/scraper/start", data),
 
-  // Get scrape job status
-  getJobStatus: (id: string) => apiRequest.get<ApiResponse<ScrapeJob>>(`/scraper/status/${id}`),
+  getJobStatus: (id: number | string) => apiRequest.get<ApiResponse<ScrapeStatusResponse>>(`/scraper/status/${id}`),
 
-  // Get dashboard stats
   getDashboard: () => apiRequest.get<ApiResponse<DashboardStats>>("/scraper/dashboard"),
 
-  // Get scrape history with pagination
   getHistory: (filters?: HistoryFilters) => {
     const params = new URLSearchParams();
     if (filters?.page) params.append("page", String(filters.page));
     if (filters?.limit) params.append("limit", String(filters.limit));
     if (filters?.status) params.append("status", filters.status);
     if (filters?.platform) params.append("platform", filters.platform);
-    if (filters?.dateFrom) params.append("dateFrom", filters.dateFrom);
-    if (filters?.dateTo) params.append("dateTo", filters.dateTo);
+    if (filters?.sortBy) params.append("sortBy", filters.sortBy);
+    if (filters?.sortOrder) params.append("sortOrder", filters.sortOrder);
 
-    return apiRequest.get<PaginatedResponse<ScrapeJob>>(`/scraper/history?${params.toString()}`);
+    return apiRequest.get<ApiResponse<PaginatedResponse<ScrapeJob>>>(`/scraper/history?${params.toString()}`);
   },
 
-  // Get scrape detail with comments
-  getHistoryDetail: (id: string, page = 1, limit = 50) =>
-    apiRequest.get<
-      ApiResponse<ScrapeDetailResponse> & {
-        pagination: {
-          page: number;
-          limit: number;
-          total: number;
-          totalPages: number;
-        };
-      }
-    >(`/scraper/history/${id}?page=${page}&limit=${limit}`),
+  getHistoryDetail: (id: number | string) => apiRequest.get<ApiResponse<ScrapeHistoryDetail>>(`/scraper/history/${id}`),
 
-  // Delete scrape history
-  deleteHistory: (id: string) => apiRequest.delete<ApiResponse<null>>(`/scraper/history/${id}`),
+  deleteHistory: (id: number | string) => apiRequest.delete<void>(`/scraper/history/${id}`),
 
-  // Export comments
-  exportComments: (id: string, format: "xlsx" | "csv" | "json" = "xlsx") =>
-    apiRequest.get<Blob>(`/scraper/export/${id}?format=${format}`, {
+  exportComments: async (id: number | string, format: "xlsx" | "csv" | "json" = "xlsx") => {
+    const response = await api.get(`/scraper/export/${id}?format=${format}`, {
       responseType: "blob",
-    }),
+    });
+    return response.data;
+  },
 };

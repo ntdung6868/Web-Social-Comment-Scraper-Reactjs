@@ -4,7 +4,8 @@
 // Data access layer for admin operations
 
 import { prisma } from "../config/database.js";
-import type { User, ScrapeHistory, Platform, ScrapeStatus, PlanType, PlanStatus, Prisma } from "@prisma/client";
+import type { User, Prisma } from "@prisma/client";
+import type { Platform, ScrapeStatus, PlanType, PlanStatus } from "../types/enums.js";
 import type { AdminUserListItem, AdminUserDetail, AdminScrapeLog } from "../types/admin.types.js";
 import type { PaginatedResponse } from "../types/scraper.types.js";
 
@@ -61,10 +62,8 @@ export class AdminRepository {
     const where: Prisma.UserWhereInput = {};
 
     if (filters.search) {
-      where.OR = [
-        { username: { contains: filters.search, mode: "insensitive" } },
-        { email: { contains: filters.search, mode: "insensitive" } },
-      ];
+      // SQLite LIKE is case-insensitive by default for ASCII
+      where.OR = [{ username: { contains: filters.search } }, { email: { contains: filters.search } }];
     }
     if (filters.planType) {
       where.planType = filters.planType;
@@ -116,8 +115,8 @@ export class AdminRepository {
         createdAt: user.createdAt,
         isActive: user.isActive,
         isAdmin: user.isAdmin,
-        planType: user.planType,
-        planStatus: user.planStatus,
+        planType: user.planType as PlanType,
+        planStatus: user.planStatus as PlanStatus,
         trialUses: user.trialUses,
         isBanned: user.isBanned,
         scrapeCount: user._count.scrapeHistories,
@@ -155,8 +154,8 @@ export class AdminRepository {
       createdAt: user.createdAt,
       isActive: user.isActive,
       isAdmin: user.isAdmin,
-      planType: user.planType,
-      planStatus: user.planStatus,
+      planType: user.planType as PlanType,
+      planStatus: user.planStatus as PlanStatus,
       trialUses: user.trialUses,
       isBanned: user.isBanned,
       scrapeCount: user._count.scrapeHistories,
@@ -287,9 +286,9 @@ export class AdminRepository {
         id: log.id,
         userId: log.userId,
         username: log.user.username,
-        platform: log.platform,
+        platform: log.platform as Platform,
         url: log.url,
-        status: log.status,
+        status: log.status as ScrapeStatus,
         totalComments: log.totalComments,
         errorMessage: log.errorMessage,
         createdAt: log.createdAt,

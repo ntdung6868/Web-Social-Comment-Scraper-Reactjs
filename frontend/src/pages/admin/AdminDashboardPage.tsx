@@ -66,7 +66,7 @@ function StatCard({ title, value, subtitle, icon, color, loading }: StatCardProp
 }
 
 export default function AdminDashboardPage() {
-  const { data: healthData, isLoading: healthLoading } = useQuery({
+  const { data: healthData, isLoading: _healthLoading } = useQuery({
     queryKey: queryKeys.admin.health(),
     queryFn: () => apiRequest.get<{ success: boolean; data: SystemHealth }>("/admin/health"),
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -127,7 +127,7 @@ export default function AdminDashboardPage() {
                 </Typography>
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Database: {health?.database || "unknown"} | Uptime:{" "}
+                Database: {health?.services?.database?.status || "unknown"} | Uptime:{" "}
                 {health?.uptime
                   ? `${Math.floor(health.uptime / 3600)}h ${Math.floor((health.uptime % 3600) / 60)}m`
                   : "N/A"}
@@ -150,25 +150,24 @@ export default function AdminDashboardPage() {
             />
           </Box>
 
-          {/* Queue Stats */}
+          {/* Service Status */}
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-            <Chip icon={<QueueIcon />} label={`Waiting: ${health?.queue?.waiting || 0}`} variant="outlined" />
             <Chip
-              icon={<QueueIcon />}
-              label={`Active: ${health?.queue?.active || 0}`}
-              color="primary"
+              icon={<StorageIcon />}
+              label={`Database: ${health?.services?.database?.status || "unknown"}`}
+              color={health?.services?.database?.status === "up" ? "success" : "error"}
               variant="outlined"
             />
             <Chip
               icon={<QueueIcon />}
-              label={`Completed: ${health?.queue?.completed || 0}`}
-              color="success"
+              label={`Redis: ${health?.services?.redis?.status || "unknown"}`}
+              color={health?.services?.redis?.status === "up" ? "success" : "error"}
               variant="outlined"
             />
             <Chip
-              icon={<QueueIcon />}
-              label={`Failed: ${health?.queue?.failed || 0}`}
-              color="error"
+              icon={<SpeedIcon />}
+              label={`Scraper: ${health?.services?.scraper?.status || "unknown"}`}
+              color={health?.services?.scraper?.status === "up" ? "success" : "error"}
               variant="outlined"
             />
           </Box>

@@ -13,22 +13,22 @@ export default function DashboardLayout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const location = useLocation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, accessToken } = useAuthStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Initialize socket on mount
   useEffect(() => {
-    if (isAuthenticated) {
-      initializeSocket();
+    if (isAuthenticated && accessToken) {
+      initializeSocket(accessToken);
       connectSocket();
 
       return () => {
         disconnectSocket();
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, accessToken]);
 
   // Close sidebar on mobile when route changes
   useEffect(() => {

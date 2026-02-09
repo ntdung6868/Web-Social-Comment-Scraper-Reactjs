@@ -29,7 +29,7 @@ import { format } from "date-fns";
 import { scraperService } from "@/services/scraper.service";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
-import type { ScrapeJob } from "@/types";
+import type { ScrapeJob, ScrapeStatus, Platform } from "@/types";
 
 const statusColors: Record<string, "default" | "primary" | "success" | "error" | "warning"> = {
   PENDING: "default",
@@ -46,7 +46,7 @@ export default function HistoryPage() {
   const [platformFilter, setPlatformFilter] = useState<string>("");
 
   const { data, isLoading } = useQuery({
-    queryKey: queryKeys.scraper.history({
+    queryKey: queryKeys.history.list({
       page: page + 1,
       limit: rowsPerPage,
       status: statusFilter || undefined,
@@ -56,8 +56,8 @@ export default function HistoryPage() {
       scraperService.getHistory({
         page: page + 1,
         limit: rowsPerPage,
-        status: statusFilter || undefined,
-        platform: platformFilter || undefined,
+        status: (statusFilter || undefined) as ScrapeStatus | undefined,
+        platform: (platformFilter || undefined) as Platform | undefined,
       }),
   });
 
@@ -70,7 +70,7 @@ export default function HistoryPage() {
     setPage(0);
   };
 
-  const handleViewDetail = (id: string) => {
+  const handleViewDetail = (id: string | number) => {
     navigate(`/history/${id}`);
   };
 

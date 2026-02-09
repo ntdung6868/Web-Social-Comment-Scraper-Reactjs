@@ -3,7 +3,7 @@
 // ===========================================
 // Type definitions for job queue system
 
-import type { Platform } from "@prisma/client";
+import type { Platform } from "./enums.js";
 
 /**
  * Scrape job data for queue

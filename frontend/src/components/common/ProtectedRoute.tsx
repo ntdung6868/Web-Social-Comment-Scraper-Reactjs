@@ -33,7 +33,7 @@ export default function ProtectedRoute({ adminOnly = false }: ProtectedRouteProp
   }
 
   // Check admin access
-  if (adminOnly && user?.role !== "ADMIN") {
+  if (adminOnly && !user?.isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 

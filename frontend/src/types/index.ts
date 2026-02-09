@@ -1,130 +1,254 @@
-// User types
+// ===========================================
+// Enum-like Types (match backend enums.ts)
+// ===========================================
+
+export type Platform = "TIKTOK" | "FACEBOOK";
+export type PlanType = "FREE" | "PRO";
+export type PlanStatus = "ACTIVE" | "EXPIRED" | "CANCELLED";
+export type ScrapeStatus = "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+export type ProxyRotation = "RANDOM" | "SEQUENTIAL";
+export type CookieStatus = "UNKNOWN" | "VALID" | "INVALID" | "EXPIRED";
+
+// ===========================================
+// User Types (matches backend UserPublic)
+// ===========================================
+
 export interface User {
-  id: string;
+  id: number;
+  username: string;
   email: string;
-  name: string;
-  role: "USER" | "ADMIN";
-  subscriptionPlan: "FREE" | "PRO" | "ENTERPRISE";
-  subscriptionStatus: "TRIAL" | "ACTIVE" | "CANCELLED" | "EXPIRED";
-  isBanned: boolean;
-  trialEndsAt: string | null;
-  subscriptionEndsAt: string | null;
   createdAt: string;
-  updatedAt: string;
+  isActive: boolean;
+  isAdmin: boolean;
+  planType: PlanType;
+  planStatus: PlanStatus;
+  trialUses: number;
+  maxTrialUses: number;
+  subscriptionStart: string | null;
+  subscriptionEnd: string | null;
+  isBanned: boolean;
+  banReason: string | null;
 }
 
-// Auth types
+// ===========================================
+// Auth Types
+// ===========================================
+
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
+  expiresIn: number;
 }
 
 export interface LoginCredentials {
-  email: string;
+  username: string; // can be username or email
   password: string;
   rememberMe?: boolean;
 }
 
 export interface RegisterData {
+  username: string;
   email: string;
   password: string;
-  name: string;
+  confirmPassword: string;
 }
 
 export interface AuthResponse {
   success: boolean;
   data: {
     user: User;
-    tokens: AuthTokens;
+    accessToken: string;
+    expiresIn: number;
   };
 }
 
-// Scraper types
+// ===========================================
+// User Settings Types
+// ===========================================
+
+export interface UserSettings {
+  tiktokCookieFile: string | null;
+  hasTiktokCookie: boolean;
+  useTiktokCookie: boolean;
+  tiktokCookieCount: number;
+  facebookCookieFile: string | null;
+  hasFacebookCookie: boolean;
+  useFacebookCookie: boolean;
+  facebookCookieCount: number;
+  proxyEnabled: boolean;
+  proxyCount: number;
+  proxyRotation: ProxyRotation;
+  headlessMode: boolean;
+}
+
+export interface CookieInfo {
+  platform: "tiktok" | "facebook";
+  hasCookie: boolean;
+  filename: string | null;
+  cookieCount: number;
+  userAgent: string | null;
+  lastValidated: string | null;
+  status: CookieStatus;
+  isEnabled: boolean;
+}
+
+export interface SubscriptionInfo {
+  planType: PlanType;
+  planStatus: PlanStatus;
+  trialUses: number;
+  maxTrialUses: number;
+  subscriptionStart: string | null;
+  subscriptionEnd: string | null;
+  canScrape: boolean;
+  message: string;
+  downloadLimit: number | null;
+}
+
+// ===========================================
+// Scraper Types (matches backend)
+// ===========================================
+
 export interface ScrapeJob {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
+  platform: Platform;
   url: string;
-  platform: "TIKTOK" | "FACEBOOK";
-  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
   totalComments: number;
-  progress: number;
+  status: ScrapeStatus;
   errorMessage: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
   createdAt: string;
+  commentCount?: number;
 }
 
 export interface Comment {
-  id: string;
-  scrapeId: string;
+  id: number;
   username: string;
   content: string;
   timestamp: string | null;
   likes: number;
-  replies: number;
-  createdAt: string;
+  scrapedAt?: string;
+}
+
+// ===========================================
+// Socket Event Types (matches backend socket.types.ts)
+// ===========================================
+
+export interface ScrapeStartedEvent {
+  historyId: number;
+  url: string;
+  platform: string;
+  message: string;
+  timestamp: string;
 }
 
 export interface ScrapeProgress {
-  scrapeId: string;
+  historyId: number;
+  phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving";
   progress: number;
-  totalComments: number;
-  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-  message?: string;
+  commentsFound: number;
+  message: string;
+  timestamp: string;
 }
 
-// API Response types
-export interface ApiResponse<T> {
+export interface ScrapeCompletedEvent {
+  historyId: number;
+  totalComments: number;
+  duration: number;
+  message: string;
+  timestamp: string;
+}
+
+export interface ScrapeFailedEvent {
+  historyId: number;
+  error: string;
+  code: string;
+  retryable: boolean;
+  timestamp: string;
+}
+
+export interface QueuePositionEvent {
+  historyId: number;
+  position: number;
+  estimatedWait: number;
+}
+
+// ===========================================
+// Dashboard Stats Types
+// ===========================================
+
+export interface DashboardStats {
+  stats: {
+    totalScrapes: number;
+    totalComments: number;
+    successScrapes: number;
+    failedScrapes: number;
+  };
+  recentScrapes: ScrapeJob[];
+}
+
+// ===========================================
+// API Response Types
+// ===========================================
+
+export interface ApiResponse<T = unknown> {
   success: boolean;
-  data: T;
+  data?: T;
   message?: string;
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
 }
 
 export interface PaginatedResponse<T> {
-  success: boolean;
   data: T[];
   pagination: {
-    page: number;
-    limit: number;
-    total: number;
+    currentPage: number;
     totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
   };
 }
 
 export interface ApiError {
   success: false;
-  error: string;
-  details?: Record<string, string[]>;
+  error: {
+    code: string;
+    message: string;
+  };
 }
 
-// System Health types
+// ===========================================
+// System Health Types
+// ===========================================
+
 export interface SystemHealth {
   status: "healthy" | "degraded" | "unhealthy";
+  timestamp: string;
   uptime: number;
-  database: "connected" | "disconnected";
-  queue: {
-    waiting: number;
-    active: number;
-    completed: number;
-    failed: number;
+  services: {
+    database: { status: "up" | "down" | "unknown"; latency?: number };
+    redis: { status: "up" | "down" | "unknown" };
+    scraper: { status: "up" | "down" | "unknown" };
   };
   memory: {
     used: number;
     total: number;
     percentage: number;
   };
+  cpu: {
+    percentage: number;
+    loadAverage: number[];
+  };
 }
 
-// Dashboard Stats types
-export interface DashboardStats {
-  totalScrapes: number;
-  completedToday: number;
-  totalComments: number;
-  successRate: number;
-  averageTime: number;
-}
+// ===========================================
+// Notification Types
+// ===========================================
 
-// Notification types
 export interface Notification {
   id: string;
   type: "info" | "success" | "warning" | "error";
@@ -132,4 +256,19 @@ export interface Notification {
   message: string;
   timestamp: Date;
   read: boolean;
+}
+
+// ===========================================
+// Job Info Types
+// ===========================================
+
+export interface JobInfo {
+  id: string;
+  historyId: number;
+  status: "waiting" | "active" | "completed" | "failed" | "delayed" | "paused";
+  progress: number;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  failedReason?: string;
 }

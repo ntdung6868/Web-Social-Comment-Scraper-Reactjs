@@ -1,42 +1,36 @@
 import { apiRequest } from "./api";
-import type { ApiResponse, User, AuthTokens, LoginCredentials, RegisterData } from "@/types";
+import type { ApiResponse, User, LoginCredentials, RegisterData } from "@/types";
 
-export interface LoginResponse {
+export interface AuthDataResponse {
   user: User;
-  tokens: AuthTokens;
+  accessToken: string;
+  expiresIn: number;
 }
 
 export interface RefreshResponse {
   accessToken: string;
+  expiresIn: number;
 }
 
-// Auth API service
 export const authService = {
-  // Login
-  login: (credentials: LoginCredentials) => apiRequest.post<ApiResponse<LoginResponse>>("/auth/login", credentials),
+  login: (credentials: LoginCredentials) => apiRequest.post<ApiResponse<AuthDataResponse>>("/auth/login", credentials),
 
-  // Register - CẬP NHẬT: Đảm bảo gửi đúng username và confirmPassword
-  register: (data: RegisterData & { confirmPassword?: string }) =>
-    apiRequest.post<ApiResponse<LoginResponse>>("/auth/register", {
-      username: data.username, // Backend cần username (không phải name)
+  register: (data: RegisterData) =>
+    apiRequest.post<ApiResponse<AuthDataResponse>>("/auth/register", {
+      username: data.username,
       email: data.email,
       password: data.password,
-      confirmPassword: data.confirmPassword || data.password, // Backend bắt buộc trường này
+      confirmPassword: data.confirmPassword,
     }),
 
-  // Logout
   logout: () => apiRequest.post<ApiResponse<null>>("/auth/logout"),
 
-  // Refresh token
   refresh: () => apiRequest.post<ApiResponse<RefreshResponse>>("/auth/refresh"),
 
-  // Get current user
-  me: () => apiRequest.get<ApiResponse<User>>("/auth/me"),
+  me: () => apiRequest.get<ApiResponse<{ user: User }>>("/auth/me"),
 
-  // Forgot password
   forgotPassword: (email: string) => apiRequest.post<ApiResponse<null>>("/auth/forgot-password", { email }),
 
-  // Reset password
   resetPassword: (token: string, password: string, confirmPassword?: string) =>
     apiRequest.post<ApiResponse<null>>("/auth/reset-password", {
       token,
@@ -44,6 +38,25 @@ export const authService = {
       confirmPassword: confirmPassword || password,
     }),
 
-  // Verify email
-  verifyEmail: (token: string) => apiRequest.post<ApiResponse<null>>("/auth/verify-email", { token }),
+  changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) =>
+    apiRequest.post<ApiResponse<null>>("/auth/change-password", {
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    }),
+
+  getSessions: () =>
+    apiRequest.get<
+      ApiResponse<{
+        sessions: Array<{
+          id: number;
+          deviceInfo: string | null;
+          ipAddress: string | null;
+          createdAt: string;
+          expiresAt: string;
+        }>;
+      }>
+    >("/auth/sessions"),
+
+  logoutAll: () => apiRequest.post<ApiResponse<{ revokedSessions: number }>>("/auth/logout-all"),
 };

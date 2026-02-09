@@ -46,8 +46,6 @@ export class AdminService {
 
     // Memory usage
     const memUsage = process.memoryUsage();
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
 
     // CPU usage
     const cpuLoad = os.loadavg();
@@ -82,7 +80,7 @@ export class AdminService {
         percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
       },
       cpu: {
-        percentage: Math.round(cpuLoad[0] * 100) / 100,
+        percentage: Math.round((cpuLoad[0] ?? 0) * 100) / 100,
         loadAverage: cpuLoad,
       },
     };
@@ -106,7 +104,7 @@ export class AdminService {
       system: {
         uptime: process.uptime(),
         memoryUsage: Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100),
-        cpuUsage: Math.round(os.loadavg()[0] * 100) / 100,
+        cpuUsage: Math.round((os.loadavg()[0] ?? 0) * 100) / 100,
       },
     };
   }

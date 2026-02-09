@@ -3,7 +3,6 @@
 // ===========================================
 // Type definitions for real-time communication
 
-import type { Server as HttpServer } from "http";
 import type { Server as SocketServer, Socket } from "socket.io";
 
 /**
