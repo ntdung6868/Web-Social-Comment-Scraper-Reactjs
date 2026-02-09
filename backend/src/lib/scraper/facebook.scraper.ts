@@ -115,10 +115,7 @@ export class FacebookScraper {
         await this.page.waitForTimeout(1000);
       }
 
-      // Click "View more comments" buttons
-      await this.clickViewMoreComments();
-
-      // Scroll to load all comments (burst scroll like Python reference)
+      // Scroll to load all comments — burst scroll only, no clicking (like Python reference)
       await this.scrollToLoadComments();
 
       this.emitProgress("extracting", 80, "Đang trích xuất bình luận...");
@@ -199,7 +196,7 @@ export class FacebookScraper {
       "--disable-features=TranslateUI,VizDisplayCompositor",
       "--js-flags=--max-old-space-size=512",
       "--disable-software-rasterizer",
-      "--window-size=500,900",
+      "--window-size=500,1000",
     ];
 
     if (this.config.headless) {
@@ -241,8 +238,8 @@ export class FacebookScraper {
 
     this.page = await this.context.newPage();
 
-    // Resize window to 500px width via CDP (like Python: set_window_rect(width=420))
-    await this.resizeWindow(500, 900);
+    // Resize window to 500x1000 via CDP (like Python: set_window_rect)
+    await this.resizeWindow(500, 1000);
   }
 
   // ===========================================
@@ -567,132 +564,20 @@ export class FacebookScraper {
   }
 
   // ===========================================
-  // Click View More Comments (ported from Python _click_view_more_comments)
-  // ===========================================
-
-  private async clickViewMoreComments(): Promise<number> {
-    if (!this.page) return 0;
-
-    let clicked = 0;
-    try {
-      const viewMoreTexts = [
-        "Xem thêm bình luận",
-        "View more comments",
-        "Xem thêm phản hồi",
-        "View more replies",
-        "bình luận trước",
-        "previous comments",
-        "phản hồi",
-        "replies",
-      ];
-
-      for (const text of viewMoreTexts) {
-        try {
-          const buttons = this.page.locator(`span:has-text("${text}")`);
-          const count = await buttons.count();
-          const maxClicks = Math.min(count, 3); // Max 3 clicks per type
-
-          for (let i = 0; i < maxClicks; i++) {
-            try {
-              const btn = buttons.nth(i);
-              if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
-                await btn.click({ force: true, timeout: 1000 }).catch(() => {});
-                clicked++;
-                await this.page.waitForTimeout(300);
-              }
-            } catch {
-              continue;
-            }
-          }
-        } catch {
-          continue;
-        }
-      }
-
-      if (clicked > 0) {
-        console.log(`[Facebook] 📌 Đã click ${clicked} nút 'Xem thêm'`);
-        await this.page.waitForTimeout(500);
-      }
-    } catch (error) {
-      console.debug("[Facebook] Click view more error:", error);
-    }
-
-    return clicked;
-  }
-
-  // ===========================================
   // Scroll to Load All Comments
   // ===========================================
-
-  /**
-   * Multi-approach scroll ported from Python _fb_scroll().
-   * Uses WheelEvent dispatch + direct scrollTop on article's scrollable ancestor.
-   * Called as a secondary scroll approach when burst scroll fails to advance.
-   */
-  private async fbMultiScroll(): Promise<void> {
-    if (!this.page) return;
-    try {
-      await this.page.evaluate(() => {
-        function findScrollable(el: Element | null): HTMLElement | null {
-          let node = el;
-          while (node) {
-            const htmlNode = node as HTMLElement;
-            if (htmlNode.scrollHeight > htmlNode.clientHeight + 20) {
-              return htmlNode;
-            }
-            node = node.parentElement;
-          }
-          return null;
-        }
-
-        function wheelScroll(el: HTMLElement | null, deltaY: number) {
-          if (!el) return;
-          try {
-            const evt = new WheelEvent("wheel", {
-              deltaY,
-              bubbles: true,
-              cancelable: true,
-            });
-            el.dispatchEvent(evt);
-          } catch {
-            /* ignore */
-          }
-        }
-
-        function scrollEl(el: HTMLElement | null) {
-          if (!el) return;
-          try {
-            el.scrollTop = el.scrollTop + Math.max(600, el.clientHeight * 1.5);
-            wheelScroll(el, 1200);
-          } catch {
-            /* ignore */
-          }
-        }
-
-        // Find scrollable ancestor of first comment article
-        const commentItem = document.querySelector('div[role="article"]');
-        if (commentItem) {
-          const scrollable = findScrollable(commentItem);
-          scrollEl(scrollable);
-        }
-      });
-    } catch {
-      /* ignore */
-    }
-  }
 
   private async scrollToLoadComments(): Promise<void> {
     if (!this.page) return;
 
-    console.log("[Facebook] 📜 Đang cuộn đến cuối...");
+    // Matches Python: "Đang cuộn đến cuối (không click 'Xem thêm')..."
+    // Only burst scroll + scroll up/down retry. No clicking.
+    console.log("[Facebook] 📜 Đang cuộn đến cuối (không click 'Xem thêm')...");
     let noMoreScroll = 0;
     let containerCache: ElementHandle | null = null;
     let debugLogged = false;
-    let scrollRound = 0;
 
     while (this.isRunning && !this.abortController.signal.aborted) {
-      scrollRound++;
-
       // Log dialog info once
       if (!debugLogged) {
         try {
@@ -704,8 +589,8 @@ export class FacebookScraper {
         debugLogged = true;
       }
 
-      // Find/cache scroll container (re-find every 5 rounds to handle stale refs)
-      if (!containerCache || scrollRound % 5 === 0) {
+      // Find/cache scroll container
+      if (!containerCache) {
         containerCache = await this.findScrollContainer();
       } else {
         const isValid = await containerCache.isVisible().catch(() => false);
@@ -714,25 +599,15 @@ export class FacebookScraper {
         }
       }
 
-      // Primary: burst scroll (from Python _fb_scroll_burst)
+      // Burst scroll (from Python _fb_scroll_burst)
       const canScroll = await this.burstScroll(containerCache, 15, 60);
 
       if (!canScroll) {
         noMoreScroll++;
-        console.log(`[Facebook] ⏳ Không có data mới, retry ${noMoreScroll}/5...`);
+        console.log(`[Facebook] ⏳ Không có data mới, retry ${noMoreScroll}/3...`);
 
-        // Secondary: multi-approach scroll (from Python _fb_scroll)
-        // Uses WheelEvent dispatch + direct scrollTop on scrollable ancestor
-        await this.fbMultiScroll();
-        await this.page.waitForTimeout(300);
-
-        // Click "View more comments" buttons during scroll to reveal hidden comments
-        if (noMoreScroll <= 3) {
-          await this.clickViewMoreComments();
-        }
-
-        // Retry: scroll up then down to trigger lazy load (from Python reference)
-        if (noMoreScroll < 5 && containerCache) {
+        // Scroll up then down to trigger lazy load (from Python reference)
+        if (noMoreScroll < 3 && containerCache) {
           await containerCache
             .evaluate((node) => {
               const el = node as HTMLElement;
@@ -747,9 +622,6 @@ export class FacebookScraper {
             })
             .catch(() => {});
           await this.page.waitForTimeout(1000);
-
-          // Also re-find container in case DOM changed after clicking "view more"
-          containerCache = await this.findScrollContainer();
         }
       } else {
         noMoreScroll = 0;
@@ -763,7 +635,7 @@ export class FacebookScraper {
       const progress = Math.min(75, 20 + (articleCount / (this.config.maxComments || 1000)) * 55);
       this.emitProgress("scrolling", progress, `Đang cuộn... Phát hiện ~${articleCount} mục`);
 
-      if (noMoreScroll >= 5) {
+      if (noMoreScroll >= 3) {
         console.log("[Facebook] 🛑 Đã cuộn tới cuối, bắt đầu quét comment...");
         break;
       }

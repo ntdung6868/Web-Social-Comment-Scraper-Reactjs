@@ -241,7 +241,7 @@ export class TikTokScraper {
       "--disable-features=TranslateUI,VizDisplayCompositor",
       "--js-flags=--max-old-space-size=512",
       "--disable-software-rasterizer",
-      "--window-size=500,900",
+      "--window-size=500,1000",
     ];
 
     // CRITICAL: When headless is requested, use full Chromium with --headless=new
@@ -288,8 +288,8 @@ export class TikTokScraper {
 
     this.page = await this.context.newPage();
 
-    // Resize window to 500px width via CDP (like Python: set_window_rect(width=420))
-    await this.resizeWindow(500, 900);
+    // Resize window to 500x1000 via CDP (like Python: set_window_rect)
+    await this.resizeWindow(500, 1000);
 
     // Set up API response interception (bonus data source)
     this.setupResponseInterception();
