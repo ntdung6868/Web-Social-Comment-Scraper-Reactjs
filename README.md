@@ -54,14 +54,14 @@ web-scraper/
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer        | Technology                                                        |
+| ------------ | ----------------------------------------------------------------- |
 | **Frontend** | React 18, Vite, MUI v5, TanStack Query, Zustand, Socket.io-client |
-| **Backend** | Node.js, Express, TypeScript (strict), Prisma ORM |
-| **Database** | SQLite (file-based, zero-config) |
-| **Scraping** | Playwright (Chromium), DOM extraction, API interception |
-| **Auth** | JWT (Access + Refresh tokens), bcrypt |
-| **Realtime** | Socket.io |
+| **Backend**  | Node.js, Express, TypeScript (strict), Prisma ORM                 |
+| **Database** | SQLite (file-based, zero-config)                                  |
+| **Scraping** | Playwright (Chromium), DOM extraction, API interception           |
+| **Auth**     | JWT (Access + Refresh tokens), bcrypt                             |
+| **Realtime** | Socket.io                                                         |
 
 ## 🚀 Cài đặt
 
@@ -131,23 +131,24 @@ npm run dev            # http://localhost:5173
 
 ## 📖 API Overview
 
-| Method | Endpoint | Mô tả |
-|--------|----------|--------|
-| `POST` | `/api/v1/auth/register` | Đăng ký |
-| `POST` | `/api/v1/auth/login` | Đăng nhập |
-| `POST` | `/api/v1/auth/refresh` | Refresh token |
-| `POST` | `/api/v1/scraper/start` | Bắt đầu cào |
-| `POST` | `/api/v1/scraper/stop` | Dừng cào |
-| `GET`  | `/api/v1/scraper/history` | Lịch sử cào |
-| `GET`  | `/api/v1/scraper/export/:id` | Export Excel |
-| `GET`  | `/api/v1/user/profile` | Thông tin user |
-| `PUT`  | `/api/v1/user/settings` | Cập nhật cài đặt |
-| `GET`  | `/api/v1/admin/users` | (Admin) Danh sách user |
-| `GET`  | `/api/v1/admin/stats` | (Admin) Thống kê |
+| Method | Endpoint                     | Mô tả                  |
+| ------ | ---------------------------- | ---------------------- |
+| `POST` | `/api/v1/auth/register`      | Đăng ký                |
+| `POST` | `/api/v1/auth/login`         | Đăng nhập              |
+| `POST` | `/api/v1/auth/refresh`       | Refresh token          |
+| `POST` | `/api/v1/scraper/start`      | Bắt đầu cào            |
+| `POST` | `/api/v1/scraper/stop`       | Dừng cào               |
+| `GET`  | `/api/v1/scraper/history`    | Lịch sử cào            |
+| `GET`  | `/api/v1/scraper/export/:id` | Export Excel           |
+| `GET`  | `/api/v1/user/profile`       | Thông tin user         |
+| `PUT`  | `/api/v1/user/settings`      | Cập nhật cài đặt       |
+| `GET`  | `/api/v1/admin/users`        | (Admin) Danh sách user |
+| `GET`  | `/api/v1/admin/stats`        | (Admin) Thống kê       |
 
 ## 🕷️ Scraper Logic
 
 ### TikTok
+
 1. Mở Chromium (500×1000px, `--headless=new`)
 2. Nạp cookie → Navigate → Click mở panel bình luận
 3. Burst scroll (`window.scrollBy(0, 1200)` × 15, interval 60ms)
@@ -155,6 +156,7 @@ npm run dev            # http://localhost:5173
 5. DOM extraction (`[data-e2e="comment-level-1"]`) + API interception (bonus)
 
 ### Facebook
+
 1. Mở Chromium (500×1000px) → CDP resize window
 2. Nạp cookie → Navigate → Chuyển filter "Tất cả bình luận"
 3. Tìm scroll container (div scrollable lớn nhất trong dialog)
