@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSocket, connectSocket, subscribeToScrape, unsubscribeFromScrape } from "@/lib/socket";
 import type {
   ScrapeStartedEvent,
@@ -43,6 +43,11 @@ function isDuplicate(eventKey: string): boolean {
  * Backend emits to the user's personal room (`user:{userId}`) and
  * optionally to `scrape:{historyId}` rooms.
  *
+ * Resilient to socket initialization race condition: DashboardLayout
+ * initializes the socket in its own useEffect, which may run AFTER
+ * child component effects. This hook polls for socket availability
+ * and re-attaches listeners when the socket connects or reconnects.
+ *
  * @param historyId - If provided, also subscribes to the specific scrape room
  * @param options - Callback handlers for each event type
  */
@@ -50,8 +55,60 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
+  // Track socket connection readiness so effects re-run when socket appears
+  const [socketReady, setSocketReady] = useState(() => !!getSocket()?.connected);
+
+  // Poll for socket availability (handles race with DashboardLayout init)
+  // and listen for connect/disconnect to keep state in sync
+  useEffect(() => {
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const syncState = () => {
+      const s = getSocket();
+      const connected = !!s?.connected;
+      setSocketReady((prev) => (prev !== connected ? connected : prev));
+      // Once socket is available, stop polling and listen to events instead
+      if (s && pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    // Poll every 200ms until socket exists
+    if (!getSocket()) {
+      pollTimer = setInterval(syncState, 200);
+    }
+
+    // Once socket exists, listen for connect/disconnect
+    const attachSocketListeners = () => {
+      const s = getSocket();
+      if (!s) return;
+      s.on("connect", syncState);
+      s.on("disconnect", syncState);
+    };
+
+    attachSocketListeners();
+    // Also check periodically in case socket instance was replaced
+    const recheckTimer = setInterval(() => {
+      attachSocketListeners();
+      syncState();
+    }, 1000);
+
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+      clearInterval(recheckTimer);
+      const s = getSocket();
+      if (s) {
+        s.off("connect", syncState);
+        s.off("disconnect", syncState);
+      }
+    };
+  }, []);
+
   // Subscribe/unsubscribe to specific scrape room
   useEffect(() => {
+    if (!socketReady) return;
+
     const socket = getSocket();
     if (!socket?.connected) {
       connectSocket();
@@ -66,12 +123,12 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
         unsubscribeFromScrape(historyId);
       }
     };
-  }, [historyId]);
+  }, [historyId, socketReady]);
 
-  // Attach event listeners
+  // Attach event listeners — re-runs when socket becomes ready
   useEffect(() => {
     const socket = getSocket();
-    if (!socket) return;
+    if (!socket || !socketReady) return;
 
     const handleStarted = (data: ScrapeStartedEvent) => {
       if (isDuplicate(`started:${data.historyId}`)) return;
@@ -121,7 +178,7 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
       socket.off("scrape:failed", handleFailed);
       socket.off("queue:position", handleQueuePosition);
     };
-  }, [historyId]);
+  }, [historyId, socketReady]);
 }
 
 export default useSocket;

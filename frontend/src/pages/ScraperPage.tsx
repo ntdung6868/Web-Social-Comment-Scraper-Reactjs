@@ -18,6 +18,12 @@ import {
   Tooltip,
   Collapse,
   Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack,
+  CircularProgress,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -26,6 +32,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Terminal as TerminalIcon,
+  Download as DownloadIcon,
+  CheckCircle as CheckCircleIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 import { scraperService } from "@/services/scraper.service";
 import { useScrapeStore } from "@/stores/scrape.store";
@@ -66,14 +75,59 @@ interface LogEntry {
   message: string;
 }
 
+interface CompletedScrape {
+  historyId: number;
+  totalComments: number;
+  duration: number;
+  platform: string;
+  url: string;
+}
+
 export default function ScraperPage() {
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
+  const [completedScrape, setCompletedScrape] = useState<CompletedScrape | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const logIdCounter = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   const { activeScrapes, scrapeProgress, addScrape, updateScrape, updateProgress, removeScrape } = useScrapeStore();
+
+  // Reconcile stale active scrapes on mount — check their real status
+  // (handles case where user navigated away, scrape completed, then came back)
+  useEffect(() => {
+    const staleJobs = Array.from(activeScrapes.values()).filter(
+      (s) => s.status === "PENDING" || s.status === "RUNNING",
+    );
+    if (staleJobs.length === 0) return;
+
+    staleJobs.forEach(async (job) => {
+      try {
+        const res = await scraperService.getJobStatus(job.id);
+        const status = res.data?.history?.status;
+        if (status === "SUCCESS") {
+          updateScrape(job.id, { status: "SUCCESS", totalComments: res.data!.history.totalComments });
+          setCompletedScrape({
+            historyId: job.id,
+            totalComments: res.data!.history.totalComments,
+            duration: 0,
+            platform: job.platform,
+            url: job.url,
+          });
+          setTimeout(() => removeScrape(job.id), 5000);
+        } else if (status === "FAILED") {
+          updateScrape(job.id, { status: "FAILED", errorMessage: res.data!.history.errorMessage });
+          setTimeout(() => removeScrape(job.id), 5000);
+        }
+        // If still RUNNING/PENDING, leave it — socket will update
+      } catch {
+        // API error — remove stale entry
+        removeScrape(job.id);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll logs to bottom
   useEffect(() => {
@@ -128,13 +182,23 @@ export default function ScraperPage() {
         );
         toast.success(`Scrape completed! ${data.totalComments} comments extracted.`);
 
+        // Show download dialog with scrape details
+        const scrapeJob = useScrapeStore.getState().activeScrapes.get(data.historyId);
+        setCompletedScrape({
+          historyId: data.historyId,
+          totalComments: data.totalComments,
+          duration: data.duration,
+          platform: scrapeJob?.platform || "Unknown",
+          url: scrapeJob?.url || "",
+        });
+
         // Auto-remove from active after 5 seconds
         setTimeout(() => removeScrape(data.historyId), 5000);
 
         // Refresh dashboard & history
         queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
-        // Refresh user info (updates trialUses counter on dashboard)
-        useAuthStore.getState().checkAuth();
+        // Silently refresh user info (updates trialUses counter on dashboard)
+        useAuthStore.getState().refreshUser();
       },
       [updateScrape, addLog, removeScrape],
     ),
@@ -149,7 +213,7 @@ export default function ScraperPage() {
 
         // Refresh dashboard stats & user info
         queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
-        useAuthStore.getState().checkAuth();
+        useAuthStore.getState().refreshUser();
       },
       [updateScrape, addLog, removeScrape],
     ),
@@ -182,14 +246,30 @@ export default function ScraperPage() {
       // listens on the user room which receives all events for this user.
       // Subscribing to the scrape room would cause duplicate events.
 
+      // Optimistically add to active scrapes so the card shows immediately
+      // (don't rely solely on socket scrape:started which may arrive later)
+      const urlValue = document.querySelector<HTMLInputElement>('input[name="url"]')?.value || "";
+      const platform = urlValue.includes("tiktok.com") ? "TIKTOK" : "FACEBOOK";
+      addScrape({
+        id: historyId,
+        userId: 0,
+        platform: platform as "TIKTOK" | "FACEBOOK",
+        url: urlValue,
+        totalComments: 0,
+        status: "PENDING",
+        errorMessage: null,
+        createdAt: new Date().toISOString(),
+        commentCount: 0,
+      });
+
       addLog("info", `📨 Scrape job submitted — ID: ${historyId}, Queue Position: ${queuePosition}`);
       toast.success(`Scrape started! Position in queue: ${queuePosition}`);
       reset();
       setError(null);
 
       queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
-      // Refresh user info — trialUses decremented on job creation
-      useAuthStore.getState().checkAuth();
+      // Silently refresh user info — trialUses decremented on job creation
+      useAuthStore.getState().refreshUser();
     },
     onError: (err: any) => {
       const errorMessage =
@@ -208,6 +288,28 @@ export default function ScraperPage() {
   const handleCancel = (historyId: number) => {
     cancelScrape(historyId);
     addLog("info", `🚫 Cancel requested for scrape #${historyId}`);
+  };
+
+  const handleExport = async (format: "xlsx" | "csv" | "json") => {
+    if (!completedScrape) return;
+    setIsExporting(true);
+    try {
+      const blob = await scraperService.exportComments(completedScrape.historyId, format);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `comments-${completedScrape.historyId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success(`Downloaded as ${format.toUpperCase()}`);
+    } catch (err) {
+      console.error("Export failed:", err);
+      toast.error("Export failed. Please try from History page.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const activeJobs = Array.from(activeScrapes.values()).filter((s) => s.status === "PENDING" || s.status === "RUNNING");
@@ -420,6 +522,103 @@ export default function ScraperPage() {
           </Collapse>
         </CardContent>
       </Card>
+
+      {/* Download Dialog — shown when a scrape completes */}
+      <Dialog
+        open={!!completedScrape}
+        onClose={() => setCompletedScrape(null)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            backgroundImage: "none",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            pb: 1,
+          }}
+        >
+          <CheckCircleIcon color="success" fontSize="large" />
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="h6" fontWeight={700}>
+              Scrape Completed!
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {completedScrape?.totalComments} comments extracted in{" "}
+              {completedScrape ? Math.round(completedScrape.duration / 1000) : 0}s
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={() => setCompletedScrape(null)} sx={{ alignSelf: "flex-start" }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent>
+          <Box
+            sx={{
+              p: 2,
+              mb: 2,
+              borderRadius: 2,
+              backgroundColor: (theme) => alpha(theme.palette.success.main, 0.08),
+              border: (theme) => `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              {completedScrape?.platform} &middot; Scrape #{completedScrape?.historyId}
+            </Typography>
+            <Typography variant="body2" sx={{ wordBreak: "break-all" }}>
+              {completedScrape?.url}
+            </Typography>
+          </Box>
+
+          <Typography variant="subtitle2" gutterBottom>
+            Download Results
+          </Typography>
+          <Stack spacing={1.5}>
+            <Button
+              variant="contained"
+              color="success"
+              fullWidth
+              startIcon={isExporting ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+              onClick={() => handleExport("xlsx")}
+              disabled={isExporting}
+              size="large"
+            >
+              Download Excel (.xlsx)
+            </Button>
+            <Button
+              variant="outlined"
+              fullWidth
+              startIcon={isExporting ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+              onClick={() => handleExport("csv")}
+              disabled={isExporting}
+            >
+              Download CSV
+            </Button>
+            <Button
+              variant="outlined"
+              fullWidth
+              startIcon={isExporting ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+              onClick={() => handleExport("json")}
+              disabled={isExporting}
+            >
+              Download JSON
+            </Button>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCompletedScrape(null)} color="inherit">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -21,6 +21,7 @@ interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -150,6 +151,20 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...userData } : null,
         })),
+
+      /**
+       * Silently refresh user info without triggering isLoading.
+       * Use for background refreshes (e.g. after scrape starts/completes)
+       * so ProtectedRoute doesn't flash a loading spinner.
+       */
+      refreshUser: async () => {
+        try {
+          const response = await authService.me();
+          set({ user: response.data!.user, isAuthenticated: true });
+        } catch {
+          // Silently ignore — checkAuth handles token expiry
+        }
+      },
     }),
     {
       name: "auth-storage",

@@ -8,10 +8,10 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ adminOnly = false }: ProtectedRouteProps) {
   const location = useLocation();
-  const { isAuthenticated, isInitialized, isLoading, user } = useAuthStore();
+  const { isAuthenticated, isInitialized, user } = useAuthStore();
 
-  // Show loading while checking authentication
-  if (!isInitialized || isLoading) {
+  // Show loading only during initial auth check (not background refreshes)
+  if (!isInitialized) {
     return (
       <Box
         sx={{
