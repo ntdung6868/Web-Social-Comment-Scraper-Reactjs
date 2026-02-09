@@ -46,7 +46,11 @@ const scrapeSchema = z.object({
     .string()
     .url("Please enter a valid URL")
     .refine(
-      (url) => url.includes("tiktok.com") || url.includes("facebook.com"),
+      (url) =>
+        url.includes("tiktok.com") ||
+        url.includes("facebook.com") ||
+        url.includes("fb.watch") ||
+        url.includes("fb.com"),
       "Only TikTok and Facebook URLs are supported",
     ),
   maxComments: z.number().min(10).max(10000).optional(),

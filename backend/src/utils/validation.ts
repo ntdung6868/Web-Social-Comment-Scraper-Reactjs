@@ -19,24 +19,8 @@ const TIKTOK_PATTERNS = [
 ];
 
 // Facebook URL patterns
-const FACEBOOK_PATTERNS = [
-  // Video URL
-  /^https?:\/\/(www\.|m\.|web\.)?facebook\.com\/[\w.-]+\/videos\/\d+/i,
-  // Watch URL
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/watch\/?\?v=\d+/i,
-  // Reel URL
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/reel\/\d+/i,
-  // Post URL
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/[\w.-]+\/posts\/[\w.-]+/i,
-  // Story URL
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/stories\/\d+/i,
-  // Photo URL
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/photo(\/|\?)/i,
-  // Permalink
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/permalink\.php\?/i,
-  // Groups
-  /^https?:\/\/(www\.|m\.)?facebook\.com\/groups\/[\w.-]+\/(posts|permalink)\/\d+/i,
-];
+// Like Python reference: simply check 'facebook.com' in url — accept any FB URL
+const FACEBOOK_PATTERNS = [/^https?:\/\/(www\.|m\.|web\.)?facebook\.com\//i, /^https?:\/\/(www\.)?fb\.watch\//i];
 
 /**
  * Detect platform from URL
