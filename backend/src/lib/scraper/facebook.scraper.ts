@@ -112,7 +112,7 @@ export class FacebookScraper {
       // Scroll to load comments section
       if (this.page) {
         await this.page.evaluate(() => window.scrollTo(0, 800));
-        await this.page.waitForTimeout(1000);
+        await this.page.waitForTimeout(500);
       }
 
       // Scroll to load all comments — burst scroll only, no clicking (like Python reference)
@@ -257,7 +257,7 @@ export class FacebookScraper {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });
-      await this.page.waitForTimeout(800);
+      await this.page.waitForTimeout(300);
 
       const cookies = JSON.parse(this.config.cookies.data);
       const cookieList = Array.isArray(cookies) ? cookies : cookies.cookies || [];
@@ -281,20 +281,26 @@ export class FacebookScraper {
         }));
 
       if (formattedCookies.length > 0) {
-        // Add cookies one-by-one to skip invalid ones
-        let added = 0;
-        for (const cookie of formattedCookies) {
-          try {
-            await this.context.addCookies([cookie]);
-            added++;
-          } catch (e) {
-            console.warn(`[Facebook] ⚠️ Cookie bị lỗi (${cookie.name}):`, e);
+        // Batch add — much faster than one-by-one
+        try {
+          await this.context.addCookies(formattedCookies);
+          console.log(`[Facebook] ✅ Đã nạp ${formattedCookies.length} cookies`);
+        } catch {
+          // Fallback: one-by-one if batch fails
+          let added = 0;
+          for (const cookie of formattedCookies) {
+            try {
+              await this.context.addCookies([cookie]);
+              added++;
+            } catch {
+              // skip bad cookie
+            }
           }
+          console.log(`[Facebook] ✅ Đã nạp ${added}/${formattedCookies.length} cookies (fallback)`);
         }
-        console.log(`[Facebook] ✅ Đã nạp ${added}/${formattedCookies.length} cookies`);
         // Refresh to apply cookies
         await this.page.reload({ waitUntil: "domcontentloaded" });
-        await this.page.waitForTimeout(1000);
+        await this.page.waitForTimeout(500);
       }
     } catch (error) {
       console.warn("[Facebook] ⚠️ Không thể nạp cookies:", error);
@@ -313,7 +319,7 @@ export class FacebookScraper {
       waitUntil: "domcontentloaded",
       timeout: 60000,
     });
-    await this.page.waitForTimeout(1500);
+    await this.page.waitForTimeout(800);
 
     // Wait for page content to load
     const loadSelectors = ['div[role="article"]', 'div[role="main"]', 'div[data-pagelet="MainFeed"]', "div.x1yztbdb"];
@@ -400,7 +406,7 @@ export class FacebookScraper {
       if (await filterBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await filterBtn.scrollIntoViewIfNeeded();
         await filterBtn.click({ force: true });
-        await this.page.waitForTimeout(1000);
+        await this.page.waitForTimeout(500);
 
         // Select "All comments"
         const allCommentsOption = this.page
@@ -410,7 +416,7 @@ export class FacebookScraper {
         if (await allCommentsOption.isVisible({ timeout: 3000 }).catch(() => false)) {
           await allCommentsOption.click({ force: true });
           console.log("[Facebook] ✅ Đã chuyển bộ lọc sang 'Tất cả bình luận'!");
-          await this.page.waitForTimeout(1500);
+          await this.page.waitForTimeout(800);
           return;
         }
       }
@@ -621,14 +627,14 @@ export class FacebookScraper {
               el.scrollTop = Math.max(0, el.scrollTop - 500);
             })
             .catch(() => {});
-          await this.page.waitForTimeout(500);
+          await this.page.waitForTimeout(300);
           await containerCache
             .evaluate((node) => {
               const el = node as HTMLElement;
               el.scrollTop = el.scrollHeight;
             })
             .catch(() => {});
-          await this.page.waitForTimeout(1000);
+          await this.page.waitForTimeout(500);
         }
       } else {
         noMoreScroll = 0;

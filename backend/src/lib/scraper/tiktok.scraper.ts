@@ -147,9 +147,7 @@ export class TikTokScraper {
 
       // Click comment button to open comment panel
       await this.clickCommentButton();
-      await this.randomSleep(1500, 2500);
-      // Wait for comments to stabilize
-      await this.page!.waitForTimeout(1200);
+      await this.randomSleep(800, 1500);
 
       // Check captcha again after interaction
       await this.checkCaptcha();
@@ -310,7 +308,7 @@ export class TikTokScraper {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });
-      await this.randomSleep(2000, 3000);
+      await this.page.waitForTimeout(500);
 
       const cookies = JSON.parse(this.config.cookies.data);
       const cookieList = Array.isArray(cookies) ? cookies : cookies.cookies || [];
@@ -334,17 +332,23 @@ export class TikTokScraper {
         }));
 
       if (formattedCookies.length > 0) {
-        // Add cookies one-by-one to skip invalid ones instead of failing the whole batch
-        let added = 0;
-        for (const cookie of formattedCookies) {
-          try {
-            await this.context.addCookies([cookie]);
-            added++;
-          } catch (e) {
-            console.warn(`[TikTok] ⚠️ Cookie bị lỗi (${cookie.name}):`, e);
+        // Batch add — much faster than one-by-one
+        try {
+          await this.context.addCookies(formattedCookies);
+          console.log(`[TikTok] ✅ Đã apply ${formattedCookies.length} cookies`);
+        } catch {
+          // Fallback: one-by-one if batch fails
+          let added = 0;
+          for (const cookie of formattedCookies) {
+            try {
+              await this.context.addCookies([cookie]);
+              added++;
+            } catch {
+              // skip bad cookie
+            }
           }
+          console.log(`[TikTok] ✅ Đã apply ${added}/${formattedCookies.length} cookies (fallback)`);
         }
-        console.log(`[TikTok] ✅ Đã apply ${added}/${formattedCookies.length} cookies`);
       }
     } catch (error) {
       console.warn("[TikTok] ⚠️ Không thể apply cookies:", error);
@@ -365,7 +369,7 @@ export class TikTokScraper {
       waitUntil: "load",
       timeout: 45000,
     });
-    await this.randomSleep(2500, 4000);
+    await this.randomSleep(1500, 2500);
 
     // Log debug info
     try {
@@ -400,30 +404,16 @@ export class TikTokScraper {
 
   private async checkCaptcha(): Promise<void> {
     if (await this.isCaptchaPresent()) {
-      console.error("[TikTok] 🛑 PHÁT HIỆN CAPTCHA!");
+      console.error("[TikTok] 🛑 PHÁT HIỆN CAPTCHA! DỪNG NGAY.");
 
-      if (this.config.headless) {
-        // Headless mode: throw immediately (like Python reference)
-        throw new Error("🔒 CAPTCHA TIKTOK! Hãy lấy cookie từ trình duyệt thật hoặc tắt chế độ Headless.");
-      } else {
-        // Non-headless: wait for user to solve (like Python reference)
-        console.log("[TikTok] ⏳ Đang chờ bạn giải captcha...");
-        const maxWait = 120000; // 120 seconds
-        let waited = 0;
-        while (waited < maxWait) {
-          if (!(await this.isCaptchaPresent())) {
-            console.log("[TikTok] ✅ Captcha đã được giải! Tiếp tục...");
-            await this.page!.waitForTimeout(2000);
-            return;
-          }
-          await this.page!.waitForTimeout(3000);
-          waited += 3000;
-          if (waited % 15000 === 0) {
-            console.log(`[TikTok] ⏳ Vẫn đang chờ captcha (${waited / 1000}s)...`);
-          }
-        }
-        throw new Error("Captcha không được giải trong 120s. Vui lòng thử lại!");
-      }
+      // Emit progress immediately so frontend knows
+      this.emitProgress("error", 0, "🔒 CAPTCHA! Hãy lấy cookie mới hoặc tắt Headless.");
+
+      // Always throw immediately — don't wait
+      // User needs to get fresh cookies from a real browser session
+      throw new Error(
+        "🔒 CAPTCHA TIKTOK! Hãy: 1) Mở Chrome → tiktok.com → Đăng nhập → Chờ 10-15 phút → Lấy cookie mới. 2) Hoặc tắt Headless trong Cài đặt.",
+      );
     }
   }
 
@@ -566,9 +556,9 @@ export class TikTokScraper {
         // Trick: scroll up then down to trigger load (from Python reference)
         if (noMoreScroll < 3) {
           await this.page.evaluate(() => window.scrollBy(0, -500));
-          await this.page.waitForTimeout(500);
+          await this.page.waitForTimeout(300);
           await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await this.page.waitForTimeout(1000);
+          await this.page.waitForTimeout(500);
         }
       } else {
         noMoreScroll = 0;
@@ -945,7 +935,7 @@ export class TikTokScraper {
   }
 
   private emitProgress(
-    phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving",
+    phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving" | "error",
     progress: number,
     message: string,
   ): void {
