@@ -42,6 +42,9 @@ export type AdminUserListQueryInput = z.infer<typeof adminUserListQuerySchema>;
 // ===========================================
 
 export const adminUserUpdateSchema = z.object({
+  username: z.string().min(3).max(50).optional(),
+  email: z.string().email().optional(),
+  password: z.string().min(6).max(128).optional(),
   isActive: z.boolean().optional(),
   isAdmin: z.boolean().optional(),
   planType: z.enum(["FREE", "PRO"]).optional(),

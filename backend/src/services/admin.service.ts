@@ -6,10 +6,12 @@
 import os from "os";
 import { adminRepository } from "../repositories/admin.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
+import { authRepository } from "../repositories/auth.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
 import { checkDatabaseHealth } from "../config/database.js";
 import { getQueueStats, getAllJobs } from "../lib/queue.js";
 import { getConnectedUserCount, getConnectedSocketCount } from "../lib/socket.js";
+import { hashPassword } from "../utils/password.js";
 import type {
   SystemHealth,
   AdminDashboardStats,
@@ -172,7 +174,30 @@ export class AdminService {
       throw createError.notFound("User not found");
     }
 
+    // Check unique constraints for username/email
+    if (data.username && data.username !== existingUser.username) {
+      const taken = await authRepository.usernameExists(data.username);
+      if (taken) {
+        throw createError.conflict("Username already taken");
+      }
+    }
+    if (data.email && data.email !== existingUser.email) {
+      const taken = await authRepository.emailExists(data.email);
+      if (taken) {
+        throw createError.conflict("Email already taken");
+      }
+    }
+
+    // Hash password if provided
+    let passwordHash: string | undefined;
+    if (data.password) {
+      passwordHash = await hashPassword(data.password);
+    }
+
     await adminRepository.updateUser(userId, {
+      username: data.username,
+      email: data.email,
+      passwordHash,
       isActive: data.isActive,
       isAdmin: data.isAdmin,
       planType: data.planType,

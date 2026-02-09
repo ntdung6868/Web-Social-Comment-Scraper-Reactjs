@@ -203,6 +203,9 @@ export class AdminRepository {
   async updateUser(
     userId: number,
     data: {
+      username?: string;
+      email?: string;
+      passwordHash?: string;
       isActive?: boolean;
       isAdmin?: boolean;
       planType?: PlanType;

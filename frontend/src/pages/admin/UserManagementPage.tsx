@@ -39,6 +39,7 @@ import {
   RestartAlt as ResetIcon,
   Person as PersonIcon,
   Warning as WarningIcon,
+  Edit as EditIcon,
 } from "@mui/icons-material";
 import { format } from "date-fns";
 import { apiRequest } from "@/services/api";
@@ -89,12 +90,18 @@ export default function UserManagementPage() {
 
   // Confirmation dialog state
   const [confirmAction, setConfirmAction] = useState<{
-    type: "ban" | "unban" | "delete" | "reset-trial" | "grant-pro";
+    type: "ban" | "unban" | "delete" | "reset-trial" | "grant-pro" | "save-changes";
     userId: number;
     username: string;
   } | null>(null);
   const [banReason, setBanReason] = useState("");
   const [proDays, setProDays] = useState(30);
+
+  // Edit fields state
+  const [editUsername, setEditUsername] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [pendingPayload, setPendingPayload] = useState<Record<string, string> | null>(null);
 
   // ── List Query ──
   const { data, isLoading, refetch } = useQuery({
@@ -107,7 +114,7 @@ export default function UserManagementPage() {
           pagination: { currentPage: number; totalPages: number; totalItems: number };
         };
       }>(
-        `/admin/users?page=${page + 1}&limit=${rowsPerPage}${searchQuery ? `&search=${searchQuery}` : ""}${roleFilter ? `&role=${roleFilter}` : ""}`,
+        `/admin/users?page=${page + 1}&limit=${rowsPerPage}${searchQuery ? `&search=${searchQuery}` : ""}${roleFilter ? `&planType=${roleFilter}` : ""}`,
       ),
     placeholderData: (prev) => prev,
   });
@@ -201,10 +208,11 @@ export default function UserManagementPage() {
     setConfirmAction(null);
     setBanReason("");
     setProDays(30);
+    setPendingPayload(null);
   };
 
   const openConfirm = (
-    type: "ban" | "unban" | "delete" | "reset-trial" | "grant-pro",
+    type: "ban" | "unban" | "delete" | "reset-trial" | "grant-pro" | "save-changes",
     userId: number,
     username: string,
   ) => {
@@ -231,6 +239,20 @@ export default function UserManagementPage() {
       case "grant-pro":
         grantProMutation.mutate({ userId, durationDays: proDays });
         break;
+      case "save-changes":
+        if (pendingPayload) {
+          updateUserMutation.mutate(
+            { userId, data: pendingPayload },
+            {
+              onSuccess: () => {
+                setEditPassword("");
+                setPendingPayload(null);
+                closeConfirm();
+              },
+            },
+          );
+        }
+        break;
     }
   };
 
@@ -239,7 +261,8 @@ export default function UserManagementPage() {
     unbanMutation.isPending ||
     deleteMutation.isPending ||
     resetTrialMutation.isPending ||
-    grantProMutation.isPending;
+    grantProMutation.isPending ||
+    updateUserMutation.isPending;
 
   if (isLoading) {
     return <LoadingSpinner message="Loading users..." />;
@@ -287,7 +310,7 @@ export default function UserManagementPage() {
           />
           <TextField
             select
-            label="Role"
+            label="Plan"
             value={roleFilter}
             onChange={(e) => {
               setRoleFilter(e.target.value);
@@ -296,9 +319,9 @@ export default function UserManagementPage() {
             size="small"
             sx={{ minWidth: 150 }}
           >
-            <MenuItem value="">All Roles</MenuItem>
-            <MenuItem value="USER">User</MenuItem>
-            <MenuItem value="ADMIN">Admin</MenuItem>
+            <MenuItem value="">All Plans</MenuItem>
+            <MenuItem value="FREE">Free</MenuItem>
+            <MenuItem value="PRO">Pro</MenuItem>
           </TextField>
         </Box>
       </Card>
@@ -314,7 +337,6 @@ export default function UserManagementPage() {
                 <TableHead>
                   <TableRow>
                     <TableCell>User</TableCell>
-                    <TableCell>Role</TableCell>
                     <TableCell>Plan</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Trial Uses</TableCell>
@@ -331,14 +353,6 @@ export default function UserManagementPage() {
                         <Typography variant="caption" color="text.secondary">
                           {user.email}
                         </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.isAdmin ? "Admin" : "User"}
-                          size="small"
-                          color={user.isAdmin ? "primary" : "default"}
-                          variant="outlined"
-                        />
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -454,6 +468,66 @@ export default function UserManagementPage() {
                   />
                 )}
               </Stack>
+
+              {/* Editable Fields */}
+              <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+                Edit User Info
+              </Typography>
+              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Username"
+                    size="small"
+                    fullWidth
+                    defaultValue={detailUser.username}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Email"
+                    size="small"
+                    fullWidth
+                    defaultValue={detailUser.email}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="New Password"
+                    size="small"
+                    fullWidth
+                    type="password"
+                    placeholder="Leave empty to keep"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    size="small"
+                    startIcon={<EditIcon />}
+                    disabled={updateUserMutation.isPending}
+                    sx={{ height: 40 }}
+                    onClick={() => {
+                      const payload: Record<string, string> = {};
+                      if (editUsername && editUsername !== detailUser.username) payload.username = editUsername;
+                      if (editEmail && editEmail !== detailUser.email) payload.email = editEmail;
+                      if (editPassword) payload.password = editPassword;
+                      if (Object.keys(payload).length === 0) {
+                        toast.error("No changes to save");
+                        return;
+                      }
+                      setPendingPayload(payload);
+                      openConfirm("save-changes", detailUser.id, detailUser.username);
+                    }}
+                  >
+                    {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </Grid>
+              </Grid>
 
               {/* Info Section */}
               <Box
@@ -633,6 +707,7 @@ export default function UserManagementPage() {
           {confirmAction?.type === "delete" && "Delete User"}
           {confirmAction?.type === "reset-trial" && "Reset Trial Uses"}
           {confirmAction?.type === "grant-pro" && "Grant Pro Subscription"}
+          {confirmAction?.type === "save-changes" && "Update User Info"}
         </DialogTitle>
         <DialogContent>
           {/* Ban — needs reason */}
@@ -692,6 +767,31 @@ export default function UserManagementPage() {
                 helperText="How many days of Pro subscription?"
               />
             </>
+          )}
+
+          {/* Save Changes */}
+          {confirmAction?.type === "save-changes" && pendingPayload && (
+            <Alert severity="warning">
+              Update <strong>{confirmAction.username}</strong>'s info?
+              {pendingPayload.username && (
+                <>
+                  <br />
+                  Username → <strong>{String(pendingPayload.username)}</strong>
+                </>
+              )}
+              {pendingPayload.email && (
+                <>
+                  <br />
+                  Email → <strong>{String(pendingPayload.email)}</strong>
+                </>
+              )}
+              {pendingPayload.password && (
+                <>
+                  <br />
+                  Password → <strong>********</strong>
+                </>
+              )}
+            </Alert>
           )}
         </DialogContent>
         <DialogActions>
