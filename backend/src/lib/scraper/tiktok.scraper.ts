@@ -192,30 +192,41 @@ export class TikTokScraper {
   // ===========================================
 
   private async launchBrowser(): Promise<void> {
+    const launchArgs = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-notifications",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-infobars",
+      // Memory optimization (from Python reference)
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-breakpad",
+      "--disable-component-update",
+      "--disable-default-apps",
+      "--disable-hang-monitor",
+      "--disable-popup-blocking",
+      "--disable-sync",
+      "--disable-translate",
+      "--metrics-recording-only",
+      "--no-first-run",
+    ];
+
+    // CRITICAL: When headless is requested, use full Chromium with --headless=new
+    // instead of letting Playwright auto-select Chrome Headless Shell.
+    // The headless shell is easily fingerprinted by TikTok / Facebook bot-detection.
+    if (this.config.headless) {
+      launchArgs.push("--headless=new");
+    }
+
     const launchOptions: Parameters<typeof chromium.launch>[0] = {
-      headless: this.config.headless,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-notifications",
-        "--disable-blink-features=AutomationControlled",
-        "--disable-infobars",
-        // Memory optimization (from Python reference)
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-background-timer-throttling",
-        "--disable-breakpad",
-        "--disable-component-update",
-        "--disable-default-apps",
-        "--disable-hang-monitor",
-        "--disable-popup-blocking",
-        "--disable-sync",
-        "--disable-translate",
-        "--metrics-recording-only",
-        "--no-first-run",
-      ],
+      // Always set headless: false so Playwright uses the FULL Chromium binary.
+      // Our --headless=new flag above handles actual headless rendering.
+      headless: false,
+      args: launchArgs,
     };
 
     // Add proxy if configured
@@ -305,8 +316,8 @@ export class TikTokScraper {
 
     console.log("[TikTok] 🌍 Đang truy cập trang...");
     await this.page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
+      waitUntil: "networkidle",
+      timeout: 45000,
     });
     await this.randomSleep(2500, 4000);
 
@@ -539,6 +550,15 @@ export class TikTokScraper {
   // DOM-based Comment Extraction (ported from Python post-scroll extraction)
   // ===========================================
 
+  // All known selectors for TikTok comment items (ordered by reliability)
+  private static readonly COMMENT_SELECTORS = [
+    '[data-e2e="comment-level-1"]',
+    '[class*="CommentItemContainer"]',
+    '[class*="comment-item"]',
+    '[class*="DivCommentItemContainer"]',
+    '[class*="CommentListContainer"] > div > div',
+  ];
+
   private async extractCommentsFromDOM(): Promise<ScrapedComment[]> {
     if (!this.page) return [];
 
@@ -546,9 +566,34 @@ export class TikTokScraper {
     const seen = new Set<string>();
 
     try {
-      // Find all level-1 comment elements (from Python reference)
-      const commentElements = await this.page.$$('[data-e2e="comment-level-1"]');
-      console.log(`[TikTok] 🔍 Tìm thấy ${commentElements.length} comment elements trong DOM`);
+      // Try each selector until we find comment elements
+      let commentElements: Awaited<ReturnType<Page["$$"]>> = [];
+      let matchedSelector = "";
+
+      for (const selector of TikTokScraper.COMMENT_SELECTORS) {
+        try {
+          // Wait briefly for the selector to appear
+          await this.page.waitForSelector(selector, { timeout: 5000 }).catch(() => null);
+          const found = await this.page.$$(selector);
+          if (found.length > 0) {
+            commentElements = found;
+            matchedSelector = selector;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      console.log(
+        `[TikTok] 🔍 Tìm thấy ${commentElements.length} comment elements trong DOM` +
+          (matchedSelector ? ` (selector: ${matchedSelector})` : " (không tìm thấy selector nào)"),
+      );
+
+      // DEBUG: If 0 comments found, dump page info for troubleshooting
+      if (commentElements.length === 0) {
+        await this.dumpDebugInfo();
+      }
 
       for (const element of commentElements) {
         try {
@@ -762,6 +807,47 @@ export class TikTokScraper {
     } catch {
       console.error(`[TikTok] Invalid proxy format: ${proxy}`);
       return null;
+    }
+  }
+
+  /**
+   * Dump page debug info when scraping finds 0 comments.
+   * Logs page HTML snippet and saves a debug screenshot.
+   */
+  private async dumpDebugInfo(): Promise<void> {
+    if (!this.page) return;
+
+    try {
+      // Log a snippet of the page HTML (first 2000 chars) to reveal what TikTok served
+      const htmlSnippet = await this.page.evaluate(() => document.documentElement.outerHTML.substring(0, 2000));
+      console.warn("[TikTok] ⚠️ DEBUG: 0 comments found. Page HTML snippet:");
+      console.warn(htmlSnippet);
+
+      // Check for common block indicators
+      const currentUrl = this.page.url();
+      const title = await this.page.title();
+      console.warn(`[TikTok] ⚠️ DEBUG: URL=${currentUrl}  Title=${title}`);
+
+      // Check if we're on a login/block page
+      const bodyText = await this.page.evaluate(() => document.body?.innerText?.substring(0, 500) || "");
+      if (
+        bodyText.toLowerCase().includes("log in") ||
+        bodyText.toLowerCase().includes("sign up") ||
+        bodyText.toLowerCase().includes("verify")
+      ) {
+        console.warn("[TikTok] ⚠️ Detected login/verification wall. Cookie might be needed.");
+      }
+
+      // Try to save screenshot (non-critical — swallow errors)
+      try {
+        const path = `/tmp/tiktok-debug-${this.config.historyId}-${Date.now()}.png`;
+        await this.page.screenshot({ path, fullPage: true });
+        console.warn(`[TikTok] 📸 Debug screenshot saved: ${path}`);
+      } catch {
+        // ignore screenshot failures
+      }
+    } catch (e) {
+      console.warn("[TikTok] Could not dump debug info:", e);
     }
   }
 

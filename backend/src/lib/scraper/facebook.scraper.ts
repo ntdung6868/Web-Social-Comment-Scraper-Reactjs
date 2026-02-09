@@ -152,29 +152,38 @@ export class FacebookScraper {
   // ===========================================
 
   private async launchBrowser(): Promise<void> {
+    // Use full Chromium binary (not Chrome Headless Shell) to avoid bot detection.
+    // Set headless: false so Playwright picks the full browser, then pass --headless=new
+    // as a Chrome flag when headless mode is desired.
+    const chromeArgs = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-notifications",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-infobars",
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-breakpad",
+      "--disable-component-update",
+      "--disable-default-apps",
+      "--disable-hang-monitor",
+      "--disable-popup-blocking",
+      "--disable-sync",
+      "--disable-translate",
+      "--metrics-recording-only",
+      "--no-first-run",
+    ];
+
+    if (this.config.headless) {
+      chromeArgs.push("--headless=new");
+    }
+
     const launchOptions: Parameters<typeof chromium.launch>[0] = {
-      headless: this.config.headless,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-notifications",
-        "--disable-blink-features=AutomationControlled",
-        "--disable-infobars",
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-background-timer-throttling",
-        "--disable-breakpad",
-        "--disable-component-update",
-        "--disable-default-apps",
-        "--disable-hang-monitor",
-        "--disable-popup-blocking",
-        "--disable-sync",
-        "--disable-translate",
-        "--metrics-recording-only",
-        "--no-first-run",
-      ],
+      headless: false,
+      args: chromeArgs,
     };
 
     // Add proxy if configured
