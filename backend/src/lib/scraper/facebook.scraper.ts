@@ -434,15 +434,17 @@ export class FacebookScraper {
     if (!this.page) return null;
 
     try {
-      // Find the deepest scrollable element in dialog or comment section
+      // Find the scrollable element with biggest delta across ALL dialogs
+      // Python uses find_element (first dialog only), but when there are multiple
+      // dialogs (cookie consent, login prompt, post dialog), we must check all.
       const container = await this.page.evaluate(() => {
         let bestDelta = 0;
         let bestIndex = -1;
         const allDivs: Element[] = [];
 
-        // Priority 1: Inside dialog
-        const dialog = document.querySelector('div[role="dialog"]');
-        if (dialog) {
+        // Scan ALL dialogs (not just the first one)
+        const dialogs = document.querySelectorAll('div[role="dialog"]');
+        for (const dialog of dialogs) {
           const divs = dialog.querySelectorAll("div");
           divs.forEach((el) => {
             const sh = el.scrollHeight;
@@ -456,7 +458,7 @@ export class FacebookScraper {
           });
         }
 
-        // Priority 2: Comment sections outside dialog
+        // Fallback: Comment sections outside dialog
         if (bestIndex < 0) {
           const sections = document.querySelectorAll(
             'div[data-pagelet*="Comment"], div[aria-label*="Comment"], div[aria-label*="Bình luận"]',
@@ -473,8 +475,22 @@ export class FacebookScraper {
           });
         }
 
+        // Last fallback: any scrollable div on the page
+        if (bestIndex < 0) {
+          const allPageDivs = document.querySelectorAll("div");
+          allPageDivs.forEach((el) => {
+            const sh = el.scrollHeight;
+            const ch = el.clientHeight;
+            const delta = sh - ch;
+            allDivs.push(el);
+            if (delta > 200 && delta > bestDelta) {
+              bestDelta = delta;
+              bestIndex = allDivs.length - 1;
+            }
+          });
+        }
+
         if (bestIndex >= 0) {
-          // Mark the element for Playwright to find
           const el = allDivs[bestIndex]!;
           el.setAttribute("data-fb-scroll-target", "true");
           return bestDelta;
