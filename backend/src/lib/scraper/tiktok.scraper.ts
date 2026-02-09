@@ -97,6 +97,20 @@ export class TikTokScraper {
     this.abortController = new AbortController();
   }
 
+  /**
+   * Normalize sameSite cookie value to Playwright-compatible format.
+   * Browser extensions export values like "no_restriction", "unspecified", "lax", etc.
+   * Playwright only accepts "Strict" | "Lax" | "None".
+   */
+  static normalizeSameSite(value: unknown): "Strict" | "Lax" | "None" {
+    if (!value || typeof value !== "string") return "Lax";
+    const lower = value.toLowerCase().trim();
+    if (lower === "strict") return "Strict";
+    if (lower === "none" || lower === "no_restriction") return "None";
+    // "lax", "unspecified", or anything else → Lax
+    return "Lax";
+  }
+
   // ===========================================
   // Main Scrape Method
   // ===========================================
@@ -192,6 +206,7 @@ export class TikTokScraper {
   // ===========================================
 
   private async launchBrowser(): Promise<void> {
+    // Chrome args matching Python reference _setup_driver() for anti-detection
     const launchArgs = [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -200,19 +215,33 @@ export class TikTokScraper {
       "--disable-notifications",
       "--disable-blink-features=AutomationControlled",
       "--disable-infobars",
-      // Memory optimization (from Python reference)
+      "--shm-size=2g",
+      // Stability flags (from Python reference)
       "--disable-extensions",
       "--disable-background-networking",
       "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
       "--disable-breakpad",
+      "--disable-component-extensions-with-background-pages",
       "--disable-component-update",
       "--disable-default-apps",
       "--disable-hang-monitor",
+      "--disable-ipc-flooding-protection",
       "--disable-popup-blocking",
+      "--disable-prompt-on-repost",
+      "--disable-renderer-backgrounding",
       "--disable-sync",
       "--disable-translate",
       "--metrics-recording-only",
       "--no-first-run",
+      "--safebrowsing-disable-auto-update",
+      "--enable-features=NetworkService,NetworkServiceInProcess",
+      "--force-color-profile=srgb",
+      "--memory-pressure-off",
+      "--disable-features=TranslateUI,VizDisplayCompositor",
+      "--js-flags=--max-old-space-size=512",
+      "--disable-software-rasterizer",
+      "--window-size=1920,1080",
     ];
 
     // CRITICAL: When headless is requested, use full Chromium with --headless=new
@@ -242,10 +271,10 @@ export class TikTokScraper {
 
     const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
 
-    // Create context with 420px width (like Python reference - less bot detection)
+    // Create context with 500px width (narrow viewport like Python reference's 420px)
     this.context = await this.browser.newContext({
       userAgent,
-      viewport: { width: 420, height: 812 },
+      viewport: { width: 500, height: 900 },
       locale: "vi-VN",
       timezoneId: "Asia/Ho_Chi_Minh",
     });
@@ -281,26 +310,42 @@ export class TikTokScraper {
       const cookies = JSON.parse(this.config.cookies.data);
       const cookieList = Array.isArray(cookies) ? cookies : cookies.cookies || [];
 
+      // Clear existing cookies first (like Python reference: driver.delete_all_cookies())
+      await this.context.clearCookies();
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const formattedCookies = cookieList.map((c: any) => ({
-        name: String(c.name || ""),
-        value: String(c.value || ""),
-        domain: String(c.domain || ".tiktok.com"),
-        path: String(c.path || "/"),
-        expires:
-          typeof c.expirationDate === "number"
-            ? c.expirationDate
-            : typeof c.expires === "number"
-              ? c.expires
-              : undefined,
-        httpOnly: Boolean(c.httpOnly),
-        secure: Boolean(c.secure),
-        sameSite: (c.sameSite as "Strict" | "Lax" | "None") || "Lax",
-      }));
+      const formattedCookies = cookieList
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((c: any) => c.name && c.value)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any) => ({
+          name: String(c.name),
+          value: String(c.value),
+          domain: String(c.domain || ".tiktok.com"),
+          path: String(c.path || "/"),
+          expires:
+            typeof c.expirationDate === "number"
+              ? c.expirationDate
+              : typeof c.expires === "number"
+                ? c.expires
+                : undefined,
+          httpOnly: Boolean(c.httpOnly),
+          secure: Boolean(c.secure),
+          sameSite: TikTokScraper.normalizeSameSite(c.sameSite),
+        }));
 
       if (formattedCookies.length > 0) {
-        await this.context.addCookies(formattedCookies);
-        console.log(`[TikTok] ✅ Đã apply ${formattedCookies.length} cookies`);
+        // Add cookies one-by-one to skip invalid ones instead of failing the whole batch
+        let added = 0;
+        for (const cookie of formattedCookies) {
+          try {
+            await this.context.addCookies([cookie]);
+            added++;
+          } catch (e) {
+            console.warn(`[TikTok] ⚠️ Cookie bị lỗi (${cookie.name}):`, e);
+          }
+        }
+        console.log(`[TikTok] ✅ Đã apply ${added}/${formattedCookies.length} cookies`);
       }
     } catch (error) {
       console.warn("[TikTok] ⚠️ Không thể apply cookies:", error);
@@ -390,30 +435,77 @@ export class TikTokScraper {
 
     console.log("[TikTok] ⏳ Đang tìm nút bình luận...");
 
-    // Selectors for comment button (from Python reference)
+    // Selectors for comment button (from Python reference _click_comment_button)
+    // Python uses XPath with ancestor::button to find the clickable button ancestor
     const selectors = [
       "div#column-list-container button[aria-label*='comment' i]",
       "span[data-e2e='comment-icon']",
       "strong[data-e2e='comment-count']",
       "[data-e2e='comment-icon']",
+      "span[class*='xgplayer-icon-comment']",
     ];
 
+    // Pass 1: Quick check (no long waits) — like Python's fast pass
     for (const selector of selectors) {
       try {
-        const button = this.page.locator(selector).first();
-        if (await button.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await button.scrollIntoViewIfNeeded();
-          await this.page.waitForTimeout(500);
-          await button.click({ force: true });
-          console.log("[TikTok] ✅ Đã click mở bình luận");
-          return;
+        const el = await this.page.$(selector);
+        if (!el) continue;
+        const visible = await el.isVisible().catch(() => false);
+        if (!visible) continue;
+
+        // Navigate up to find the ancestor <button> (like Python ancestor::button)
+        const btn = await el.evaluate((node) => {
+          let current: HTMLElement | null = node as HTMLElement;
+          for (let i = 0; i < 5; i++) {
+            if (current?.tagName?.toLowerCase() === "button") return true;
+            current = current?.parentElement || null;
+          }
+          return false;
+        });
+
+        // Scroll into view and JS click (like Python: execute_script("arguments[0].click()"))
+        await el.scrollIntoViewIfNeeded();
+        await this.page.waitForTimeout(300);
+        if (btn) {
+          // Click the ancestor button via JS
+          await el.evaluate((node) => {
+            let current: HTMLElement | null = node as HTMLElement;
+            for (let i = 0; i < 5; i++) {
+              if (current?.tagName?.toLowerCase() === "button") {
+                current.click();
+                return;
+              }
+              current = current?.parentElement || null;
+            }
+            // Fallback: click the element itself
+            (node as HTMLElement).click();
+          });
+        } else {
+          await el.evaluate((node) => (node as HTMLElement).click());
         }
+        console.log(`[TikTok] ✅ Đã click mở bình luận (selector: ${selector})`);
+        return;
       } catch {
         continue;
       }
     }
 
-    // No button found - comments may already be visible (TikTok photo/video)
+    // Pass 2: Slow check with waits — like Python's WebDriverWait pass
+    for (const selector of selectors) {
+      try {
+        const el = await this.page.waitForSelector(selector, { timeout: 3000, state: "visible" });
+        if (!el) continue;
+        await el.scrollIntoViewIfNeeded();
+        await this.page.waitForTimeout(300);
+        await el.evaluate((node) => (node as HTMLElement).click());
+        console.log(`[TikTok] ✅ Đã click mở bình luận [pass 2] (selector: ${selector})`);
+        return;
+      } catch {
+        continue;
+      }
+    }
+
+    // No button found - comments may already be visible (TikTok photo) — Python returns True here too
     console.log("[TikTok] ℹ️ Không cần click nút bình luận (đã hiển thị sẵn)");
   }
 

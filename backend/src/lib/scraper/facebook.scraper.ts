@@ -63,6 +63,18 @@ export class FacebookScraper {
     this.abortController = new AbortController();
   }
 
+  /**
+   * Normalize sameSite cookie value to Playwright-compatible format.
+   * Browser extensions export values like "no_restriction", "unspecified", etc.
+   */
+  static normalizeSameSite(value: unknown): "Strict" | "Lax" | "None" {
+    if (!value || typeof value !== "string") return "Lax";
+    const lower = value.toLowerCase().trim();
+    if (lower === "strict") return "Strict";
+    if (lower === "none" || lower === "no_restriction") return "None";
+    return "Lax";
+  }
+
   // ===========================================
   // Main Scrape Method
   // ===========================================
@@ -152,9 +164,7 @@ export class FacebookScraper {
   // ===========================================
 
   private async launchBrowser(): Promise<void> {
-    // Use full Chromium binary (not Chrome Headless Shell) to avoid bot detection.
-    // Set headless: false so Playwright picks the full browser, then pass --headless=new
-    // as a Chrome flag when headless mode is desired.
+    // Chrome args matching Python reference _setup_driver() for anti-detection
     const chromeArgs = [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -163,18 +173,33 @@ export class FacebookScraper {
       "--disable-notifications",
       "--disable-blink-features=AutomationControlled",
       "--disable-infobars",
+      "--shm-size=2g",
+      // Stability flags (from Python reference)
       "--disable-extensions",
       "--disable-background-networking",
       "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
       "--disable-breakpad",
+      "--disable-component-extensions-with-background-pages",
       "--disable-component-update",
       "--disable-default-apps",
       "--disable-hang-monitor",
+      "--disable-ipc-flooding-protection",
       "--disable-popup-blocking",
+      "--disable-prompt-on-repost",
+      "--disable-renderer-backgrounding",
       "--disable-sync",
       "--disable-translate",
       "--metrics-recording-only",
       "--no-first-run",
+      "--safebrowsing-disable-auto-update",
+      "--enable-features=NetworkService,NetworkServiceInProcess",
+      "--force-color-profile=srgb",
+      "--memory-pressure-off",
+      "--disable-features=TranslateUI,VizDisplayCompositor",
+      "--js-flags=--max-old-space-size=512",
+      "--disable-software-rasterizer",
+      "--window-size=1920,1080",
     ];
 
     if (this.config.headless) {
@@ -199,10 +224,10 @@ export class FacebookScraper {
 
     const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
 
-    // 420px width (like Python reference - optimized for Facebook mobile-like view)
+    // 500px width viewport (narrow like Python reference)
     this.context = await this.browser.newContext({
       userAgent,
-      viewport: { width: 420, height: 812 },
+      viewport: { width: 500, height: 900 },
       locale: "vi-VN",
       timezoneId: "Asia/Ho_Chi_Minh",
     });
@@ -235,26 +260,42 @@ export class FacebookScraper {
       const cookies = JSON.parse(this.config.cookies.data);
       const cookieList = Array.isArray(cookies) ? cookies : cookies.cookies || [];
 
+      // Clear existing cookies first (like Python: driver.delete_all_cookies())
+      await this.context.clearCookies();
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const formattedCookies = cookieList.map((c: any) => ({
-        name: String(c.name || ""),
-        value: String(c.value || ""),
-        domain: String(c.domain || ".facebook.com"),
-        path: String(c.path || "/"),
-        expires:
-          typeof c.expirationDate === "number"
-            ? c.expirationDate
-            : typeof c.expires === "number"
-              ? c.expires
-              : undefined,
-        httpOnly: Boolean(c.httpOnly),
-        secure: Boolean(c.secure),
-        sameSite: (c.sameSite as "Strict" | "Lax" | "None") || "Lax",
-      }));
+      const formattedCookies = cookieList
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((c: any) => c.name && c.value)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any) => ({
+          name: String(c.name),
+          value: String(c.value),
+          domain: String(c.domain || ".facebook.com"),
+          path: String(c.path || "/"),
+          expires:
+            typeof c.expirationDate === "number"
+              ? c.expirationDate
+              : typeof c.expires === "number"
+                ? c.expires
+                : undefined,
+          httpOnly: Boolean(c.httpOnly),
+          secure: Boolean(c.secure),
+          sameSite: FacebookScraper.normalizeSameSite(c.sameSite),
+        }));
 
       if (formattedCookies.length > 0) {
-        await this.context.addCookies(formattedCookies);
-        console.log(`[Facebook] ✅ Đã nạp ${formattedCookies.length} cookies`);
+        // Add cookies one-by-one to skip invalid ones
+        let added = 0;
+        for (const cookie of formattedCookies) {
+          try {
+            await this.context.addCookies([cookie]);
+            added++;
+          } catch (e) {
+            console.warn(`[Facebook] ⚠️ Cookie bị lỗi (${cookie.name}):`, e);
+          }
+        }
+        console.log(`[Facebook] ✅ Đã nạp ${added}/${formattedCookies.length} cookies`);
         // Refresh to apply cookies
         await this.page.reload({ waitUntil: "domcontentloaded" });
         await this.page.waitForTimeout(1000);
