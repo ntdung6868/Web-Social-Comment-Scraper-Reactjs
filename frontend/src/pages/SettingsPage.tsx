@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-// Bỏ import setUser từ auth store vì không cần update ngược lại store
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
 import {
@@ -28,6 +27,8 @@ import {
   Delete as DeleteIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
+  Construction as ConstructionIcon, // Icon cho Coming Soon
+  AdminPanelSettings as AdminIcon,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 
@@ -55,7 +56,14 @@ const validateCookieDomain = (cookies: any[], platform: "TIKTOK" | "FACEBOOK"): 
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
+  const isAdmin = user?.isAdmin || false;
+
+  // Nếu là Admin, tab đầu tiên là General (0). Nếu là User, tab đầu tiên là Cookies (0 - nhưng logic hiển thị sẽ khác)
+  // Để đơn giản, ta quy ước:
+  // Admin: 0=General, 1=Cookies, 2=Proxies
+  // User:  0=Cookies, 1=Proxies
   const [tabValue, setTabValue] = useState(0);
+
   const [isSaving, setIsSaving] = useState(false);
   const [loadingPlatform, setLoadingPlatform] = useState<"TIKTOK" | "FACEBOOK" | null>(null);
 
@@ -70,7 +78,7 @@ export default function SettingsPage() {
   const tiktokInputRef = useRef<HTMLInputElement>(null);
   const facebookInputRef = useRef<HTMLInputElement>(null);
 
-  // State lưu giá trị hiện tại (đang chỉnh sửa)
+  // State Settings
   const [settings, setSettings] = useState({
     headless: true,
     concurrency: 2,
@@ -78,7 +86,6 @@ export default function SettingsPage() {
     proxyList: "",
   });
 
-  // State lưu giá trị gốc (để so sánh xem có thay đổi không)
   const [originalSettings, setOriginalSettings] = useState({
     headless: true,
     concurrency: 2,
@@ -86,10 +93,9 @@ export default function SettingsPage() {
     proxyList: "",
   });
 
-  // Kiểm tra xem có thay đổi gì không
+  // Kiểm tra thay đổi
   const hasChanges = JSON.stringify(settings) !== JSON.stringify(originalSettings);
 
-  // Load Settings 1 lần duy nhất khi Mount
   useEffect(() => {
     loadSettings();
   }, []);
@@ -97,7 +103,6 @@ export default function SettingsPage() {
   const loadSettings = async () => {
     try {
       const res = await userService.getSettings();
-      // Handle cấu trúc response linh hoạt
       const responseData = res.data as any;
       const s = responseData.data?.settings || responseData.settings;
 
@@ -110,9 +115,8 @@ export default function SettingsPage() {
         };
 
         setSettings(loadedSettings);
-        setOriginalSettings(loadedSettings); // Lưu bản gốc
+        setOriginalSettings(loadedSettings);
 
-        // Cập nhật stats từ API chính xác
         setCookieStats({
           tiktok: {
             active: s.hasTiktokCookie,
@@ -142,7 +146,7 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    event.target.value = ""; // Reset input
+    event.target.value = "";
 
     if (!file.name.toLowerCase().endsWith(".json")) {
       toast.error("Invalid file format. Please upload a JSON file.");
@@ -156,7 +160,6 @@ export default function SettingsPage() {
       try {
         const jsonContent = e.target?.result as string;
 
-        // 1. Validate JSON
         let parsedData;
         try {
           parsedData = JSON.parse(jsonContent);
@@ -166,7 +169,6 @@ export default function SettingsPage() {
           return;
         }
 
-        // 2. Validate structure
         let cookies: any[] = [];
         if (Array.isArray(parsedData)) cookies = parsedData;
         else if (parsedData && Array.isArray(parsedData.cookies)) cookies = parsedData.cookies;
@@ -176,17 +178,14 @@ export default function SettingsPage() {
           return;
         }
 
-        // 3. Validate domain
         if (!validateCookieDomain(cookies, platform)) {
           toast.error(`Invalid cookies! Domain mismatch for ${platform}.`);
           setLoadingPlatform(null);
           return;
         }
 
-        // 4. Send API
         try {
           const res = await userService.uploadCookie(platform, jsonContent, file.name);
-
           const responseData = res.data as any;
           const newCookieInfo = responseData.data?.cookie || responseData.cookie;
 
@@ -196,11 +195,7 @@ export default function SettingsPage() {
             return;
           }
 
-          console.log("[DEBUG Frontend] Upload response:", newCookieInfo);
-
-          // 5. Update State Cục bộ (Quan trọng: Chỉ update platform đang thao tác)
           const key = platform === "TIKTOK" ? "tiktok" : "facebook";
-
           setCookieStats((prev) => ({
             ...prev,
             [key]: {
@@ -226,20 +221,16 @@ export default function SettingsPage() {
     reader.readAsText(file);
   };
 
-  // --- CLEAR COOKIES ---
   const handleClearCookies = async (platform: "TIKTOK" | "FACEBOOK") => {
     if (!confirm(`Are you sure you want to clear ${platform === "TIKTOK" ? "TikTok" : "Facebook"} cookies?`)) return;
 
     setLoadingPlatform(platform);
     try {
       await userService.deleteCookie(platform);
-
-      // Update UI trực tiếp (Chỉ reset platform tương ứng, giữ nguyên platform kia)
       const key = platform === "TIKTOK" ? "tiktok" : "facebook";
-
       setCookieStats((prev) => ({
-        ...prev, // Giữ lại state cũ (ví dụ: facebook vẫn active)
-        [key]: { active: false, count: 0, date: "", filename: "" }, // Chỉ reset tiktok
+        ...prev,
+        [key]: { active: false, count: 0, date: "", filename: "" },
       }));
 
       toast.success("Cookies cleared successfully.");
@@ -250,17 +241,25 @@ export default function SettingsPage() {
     }
   };
 
+  // --- SAVE HANDLER ---
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      if (isAdmin) {
+        await userService.updateScraperSettings(settings.headless);
+      }
+
+      // Proxies logic (Coming soon nhưng vẫn call API nếu có data)
       await userService.updateProxies(settings.proxyList, "RANDOM");
       await userService.toggleProxy(settings.proxyEnabled);
-      await userService.updateScraperSettings(settings.headless);
 
       toast.success("Settings saved successfully!");
-      setOriginalSettings(settings); // Cập nhật lại bản gốc sau khi lưu thành công
-    } catch (error) {
-      toast.error("Failed to save settings");
+      setOriginalSettings(settings);
+    } catch (error: any) {
+      console.error("Save Error Details:", error);
+      const errorMsg =
+        error.response?.data?.error?.message || error.response?.data?.message || "Failed to save settings";
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -316,7 +315,7 @@ export default function SettingsPage() {
         </Typography>
       </Box>
 
-      {/* Inputs File Ẩn */}
+      {/* Hidden File Inputs */}
       <input
         type="file"
         ref={tiktokInputRef}
@@ -335,55 +334,65 @@ export default function SettingsPage() {
       <Card>
         <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
           <Tabs value={tabValue} onChange={handleTabChange} aria-label="settings tabs">
-            <Tab icon={<GeneralIcon />} iconPosition="start" label="General" />
+            {/* Tab General chỉ dành cho Admin */}
+            {isAdmin && <Tab icon={<GeneralIcon />} iconPosition="start" label="General" />}
             <Tab icon={<CookieIcon />} iconPosition="start" label="Cookies" />
             <Tab icon={<ProxyIcon />} iconPosition="start" label="Proxies" />
           </Tabs>
         </Box>
 
         <CardContent>
-          <TabPanel value={tabValue} index={0}>
-            <Grid container spacing={4}>
-              <Grid item xs={12} md={8}>
-                <Typography variant="h6" gutterBottom>
-                  Scraper Behavior
-                </Typography>
-                <Box sx={{ mb: 3 }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={settings.headless}
-                        onChange={(e) => setSettings({ ...settings, headless: e.target.checked })}
-                      />
-                    }
-                    label={
-                      <Box>
-                        <Typography variant="body1">Headless Mode</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Run browser in background (Recommended)
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                </Box>
-                <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                  Concurrency
-                </Typography>
-                <TextField
-                  type="number"
-                  label="Max Concurrent Jobs"
-                  value={settings.concurrency}
-                  onChange={(e) => setSettings({ ...settings, concurrency: Number(e.target.value) })}
-                  size="small"
-                  sx={{ maxWidth: 200 }}
-                  helperText="Controls how many scraping tabs run at the same time."
-                />
-              </Grid>
-            </Grid>
-          </TabPanel>
+          {/* LOGIC HIỂN THỊ TAB:
+            - Nếu Admin: General (0), Cookies (1), Proxies (2)
+            - Nếu User: Cookies (0), Proxies (1)
+          */}
 
-          {/* COOKIES SETTINGS */}
-          <TabPanel value={tabValue} index={1}>
+          {/* --- TAB GENERAL (ADMIN ONLY - Index 0) --- */}
+          {isAdmin && (
+            <TabPanel value={tabValue} index={0}>
+              <Grid container spacing={4}>
+                <Grid item xs={12} md={8}>
+                  <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+                    <AdminIcon color="primary" />
+                    <Typography variant="h6">Scraper Behavior (Admin Only)</Typography>
+                  </Stack>
+                  <Box sx={{ mb: 3 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={settings.headless}
+                          onChange={(e) => setSettings({ ...settings, headless: e.target.checked })}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body1">Headless Mode</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Run browser in background (Recommended for performance)
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </Box>
+                  <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                    Concurrency
+                  </Typography>
+                  <TextField
+                    type="number"
+                    label="Max Concurrent Jobs"
+                    value={settings.concurrency}
+                    onChange={(e) => setSettings({ ...settings, concurrency: Number(e.target.value) })}
+                    size="small"
+                    sx={{ maxWidth: 200 }}
+                    helperText="Controls how many scraping tabs run at the same time."
+                  />
+                </Grid>
+              </Grid>
+            </TabPanel>
+          )}
+
+          {/* --- TAB COOKIES (Index 1 cho Admin, Index 0 cho User) --- */}
+          <TabPanel value={tabValue} index={isAdmin ? 1 : 0}>
             <Grid container spacing={3}>
               {/* TikTok Cookie Card */}
               <Grid item xs={12} md={6}>
@@ -399,7 +408,7 @@ export default function SettingsPage() {
                     </Stack>
 
                     <Typography variant="body2" color="text.secondary" paragraph>
-                      Upload cookies to access age-restricted content and improve stability.
+                      Upload cookies to access age-restricted content.
                     </Typography>
 
                     {renderCookieInfo(cookieStats.tiktok)}
@@ -489,45 +498,63 @@ export default function SettingsPage() {
             </Grid>
           </TabPanel>
 
-          {/* PROXY SETTINGS */}
-          <TabPanel value={tabValue} index={2}>
-            <Grid container spacing={4}>
-              <Grid item xs={12} md={8}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.proxyEnabled}
-                      onChange={(e) => setSettings({ ...settings, proxyEnabled: e.target.checked })}
-                    />
-                  }
-                  label="Enable Proxy Rotation"
-                  sx={{ mb: 3 }}
-                />
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={6}
-                  label="Proxy List"
-                  placeholder="http://user:pass@ip:port&#10;http://ip:port"
-                  value={settings.proxyList}
-                  onChange={(e) => setSettings({ ...settings, proxyList: e.target.value })}
-                  disabled={!settings.proxyEnabled}
-                  helperText="One proxy per line."
-                />
-              </Grid>
-            </Grid>
+          {/* --- TAB PROXIES (Index 2 cho Admin, Index 1 cho User) --- */}
+          <TabPanel value={tabValue} index={isAdmin ? 2 : 1}>
+            {/* Giao diện "Coming Soon" */}
+            <Box
+              sx={{
+                p: 6,
+                textAlign: "center",
+                bgcolor: alpha("#2196f3", 0.08),
+                borderRadius: 3,
+                border: "1px dashed",
+                borderColor: "primary.main",
+              }}
+            >
+              <ConstructionIcon sx={{ fontSize: 60, color: "primary.main", mb: 2, opacity: 0.8 }} />
+              <Typography variant="h5" fontWeight={600} gutterBottom>
+                Advanced Proxy Management
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 500, mx: "auto", mb: 3 }}>
+                We are building a powerful proxy rotation engine to help you bypass restrictions effortlessly. This
+                feature will be available in the next update.
+              </Typography>
+              <Chip label="Coming Soon" color="primary" size="small" />
+            </Box>
+
+            {/* Hidden Logic */}
+            <Box sx={{ display: "none" }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={settings.proxyEnabled}
+                    onChange={(e) => setSettings({ ...settings, proxyEnabled: e.target.checked })}
+                  />
+                }
+                label="Enable Proxy Rotation"
+              />
+              <TextField
+                fullWidth
+                multiline
+                rows={6}
+                value={settings.proxyList}
+                onChange={(e) => setSettings({ ...settings, proxyList: e.target.value })}
+              />
+            </Box>
           </TabPanel>
 
+          {/* NÚT SAVE */}
           <Box sx={{ mt: 4, display: "flex", justifyContent: "flex-end" }}>
             <Button
               variant="contained"
               size="large"
               startIcon={<SaveIcon />}
               onClick={handleSave}
-              disabled={isSaving || !hasChanges} // Disable nếu không có thay đổi
+              disabled={isSaving || !hasChanges}
               sx={{
-                opacity: hasChanges ? 1 : 0.5, // Giảm opacity nếu không có thay đổi
+                opacity: hasChanges ? 1 : 0.5,
                 transition: "opacity 0.2s",
+                fontWeight: 600,
               }}
             >
               {isSaving ? "Saving..." : "Save Changes"}
