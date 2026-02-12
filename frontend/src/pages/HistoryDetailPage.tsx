@@ -37,7 +37,8 @@ export default function HistoryDetailPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `comments-${id}.${format}`;
+      const time = new Date().toTimeString().slice(0, 8).replace(/:/g, "-");
+      a.download = `comments-${scrape.platform}-${time}.${format}`;
       a.click();
       setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch (err) {
