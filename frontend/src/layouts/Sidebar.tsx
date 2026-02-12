@@ -205,7 +205,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
               display: "flex",
               alignItems: "center",
               p: 1.5,
-              borderRadius: 3, // Bo tròn nhiều hơn chút cho giống card
+              borderRadius: 2, // Bo tròn nhiều hơn chút cho giống card
               backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.08),
               mb: 1,
               position: "relative", // Để định vị nếu cần
