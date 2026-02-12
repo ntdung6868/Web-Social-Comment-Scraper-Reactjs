@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogActions,
   Stack,
-  CircularProgress,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -88,7 +87,7 @@ export default function ScraperPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
   const [completedScrape, setCompletedScrape] = useState<CompletedScrape | null>(null);
-  const [exportingFormat, setExportingFormat] = useState<string | null>(null);
+  const exportingRef = useRef(false);
   const logIdCounter = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -291,8 +290,8 @@ export default function ScraperPage() {
   };
 
   const handleExport = async (format: "xlsx" | "csv" | "json") => {
-    if (!completedScrape) return;
-    setExportingFormat(format);
+    if (!completedScrape || exportingRef.current) return;
+    exportingRef.current = true;
     try {
       const blob = await scraperService.exportComments(completedScrape.historyId, format);
       const url = window.URL.createObjectURL(blob);
@@ -307,7 +306,7 @@ export default function ScraperPage() {
       console.error("Export failed:", err);
       toast.error("Export failed. Please try from History page.");
     } finally {
-      setExportingFormat(null);
+      exportingRef.current = false;
     }
   };
 
@@ -584,29 +583,16 @@ export default function ScraperPage() {
               variant="contained"
               color="success"
               fullWidth
-              startIcon={exportingFormat === "xlsx" ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+              startIcon={<DownloadIcon />}
               onClick={() => handleExport("xlsx")}
-              disabled={!!exportingFormat}
               size="large"
             >
               Download Excel (.xlsx)
             </Button>
-            <Button
-              variant="outlined"
-              fullWidth
-              startIcon={exportingFormat === "csv" ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
-              onClick={() => handleExport("csv")}
-              disabled={!!exportingFormat}
-            >
+            <Button variant="outlined" fullWidth startIcon={<DownloadIcon />} onClick={() => handleExport("csv")}>
               Download CSV
             </Button>
-            <Button
-              variant="outlined"
-              fullWidth
-              startIcon={exportingFormat === "json" ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
-              onClick={() => handleExport("json")}
-              disabled={!!exportingFormat}
-            >
+            <Button variant="outlined" fullWidth startIcon={<DownloadIcon />} onClick={() => handleExport("json")}>
               Download JSON
             </Button>
           </Stack>
