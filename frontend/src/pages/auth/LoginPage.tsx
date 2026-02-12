@@ -144,9 +144,7 @@ export default function LoginPage() {
               <Typography variant="subtitle2" fontWeight={700}>
                 Account Banned
               </Typography>
-              <Typography variant="body2">
-                Reason: {banReason}
-              </Typography>
+              <Typography variant="body2">Reason: {banReason}</Typography>
             </Alert>
           )}
           {error && (

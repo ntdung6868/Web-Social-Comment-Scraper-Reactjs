@@ -139,10 +139,9 @@ export class AuthService {
       throw createError.unauthorized("Invalid credentials", "INVALID_CREDENTIALS");
     }
 
-    // Check password
-    const isValidPassword = await comparePassword(data.password, user.passwordHash);
-    if (!isValidPassword) {
-      throw createError.unauthorized("Invalid credentials", "INVALID_CREDENTIALS");
+    // Check if user is banned (before password check so banned users always see ban notice)
+    if (user.isBanned) {
+      throw createError.forbidden(`Account is banned: ${user.banReason ?? "No reason provided"}`, "USER_BANNED");
     }
 
     // Check if user is active
@@ -150,9 +149,10 @@ export class AuthService {
       throw createError.forbidden("Account is deactivated", "USER_INACTIVE");
     }
 
-    // Check if user is banned
-    if (user.isBanned) {
-      throw createError.forbidden(`Account is banned: ${user.banReason ?? "No reason provided"}`, "USER_BANNED");
+    // Check password
+    const isValidPassword = await comparePassword(data.password, user.passwordHash);
+    if (!isValidPassword) {
+      throw createError.unauthorized("Invalid credentials", "INVALID_CREDENTIALS");
     }
 
     // Generate tokens
