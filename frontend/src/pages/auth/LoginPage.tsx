@@ -27,7 +27,6 @@ import {
   Block as BlockIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
-import { AxiosError } from "axios";
 
 // Schema cho phép nhập Username hoặc Email
 const loginSchema = z.object({
@@ -69,10 +68,11 @@ export default function LoginPage() {
       setBanReason(null);
       await login(data.email, data.password, data.rememberMe);
       navigate(from, { replace: true });
-    } catch (err) {
-      const axiosError = err as AxiosError<{ error: { message: string; code: string } }>;
-      const code = axiosError.response?.data?.error?.code;
-      const message = axiosError.response?.data?.error?.message || "Login failed. Please check your credentials.";
+    } catch (err: any) {
+      const respData = err?.response?.data;
+      const code = respData?.error?.code;
+      const message =
+        respData?.error?.message || respData?.message || err?.message || "Login failed. Please check your credentials.";
       if (code === "USER_BANNED") {
         const reason = message.replace(/^Account is banned:\s*/i, "") || "No reason provided";
         setBanReason(reason);
