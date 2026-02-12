@@ -19,10 +19,44 @@ import {
   Cookie as CookieIcon,
   Apple as AppleIcon,
   SmartToy as CaptchaIcon,
+  ContentCopy as CopyIcon,
   OpenInNew as OpenInNewIcon,
   CheckCircle as CheckIcon,
   Warning as WarningIcon,
 } from "@mui/icons-material";
+import toast from "react-hot-toast";
+
+// ── Copy helper ──
+const copyToClipboard = (text: string) => {
+  navigator.clipboard.writeText(text);
+  toast.success("Copied!");
+};
+
+// ── Code Block Component ──
+function CodeBlock({ code }: { code: string }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+        mt: 1,
+        p: 1.5,
+        borderRadius: 1.5,
+        backgroundColor: (theme) => alpha(theme.palette.common.black, 0.6),
+        fontFamily: "monospace",
+        fontSize: "0.8rem",
+        color: "#e0e0e0",
+        overflowX: "auto",
+      }}
+    >
+      <Box sx={{ flex: 1, whiteSpace: "nowrap" }}>{code}</Box>
+      <Button size="small" onClick={() => copyToClipboard(code)} sx={{ minWidth: 32, p: 0.5, color: "grey.400" }}>
+        <CopyIcon fontSize="small" />
+      </Button>
+    </Box>
+  );
+}
 
 // ── Section Card Component ──
 function SectionCard({
@@ -311,14 +345,13 @@ export default function GuidePage() {
                           <em>Open Anyway</em>.
                         </li>
                         <li>
-                          Terminal (temporary):{" "}
-                          <code>sudo spctl --master-disable</code>
+                          Terminal (temporary):
+                          <CodeBlock code="sudo spctl --master-disable" />
                         </li>
                         <li>
-                          Re-sign the app:{" "}
-                          <code>sudo codesign --force --deep --sign - /path/to/App.app</code>{" "}
-                          then <code>sudo xattr -r -c /path/to/App.app</code>{" "}
-                          (drag the .app file after the space).
+                          Re-sign the app (drag the .app file after the space):
+                          <CodeBlock code="sudo codesign --force --deep --sign - /path/to/App.app" />
+                          <CodeBlock code="sudo xattr -r -c /path/to/App.app" />
                         </li>
                       </Box>
                     </Alert>
