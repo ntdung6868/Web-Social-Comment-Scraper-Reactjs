@@ -300,8 +300,27 @@ export default function GuidePage() {
                       variant="outlined"
                       sx={{ mt: 1.5, "& .MuiAlert-message": { fontSize: "0.75rem" } }}
                     >
-                      <strong>If blocked by macOS:</strong> Right-click the app → Open → click Open again. Or go to{" "}
-                      <em>System Settings → Privacy & Security → Open Anyway</em>.
+                      <strong>If blocked by macOS:</strong>
+                      <Box component="ol" sx={{ pl: 2, mt: 0.5, mb: 0, "& li": { mb: 0.5 } }}>
+                        <li>
+                          <strong>(Recommended)</strong> Right-click the app → select <em>Open</em> → click{" "}
+                          <em>Open</em> again.
+                        </li>
+                        <li>
+                          Open <em>System Settings → Privacy & Security</em> → scroll down and click{" "}
+                          <em>Open Anyway</em>.
+                        </li>
+                        <li>
+                          Terminal (temporary):{" "}
+                          <code>sudo spctl --master-disable</code>
+                        </li>
+                        <li>
+                          Re-sign the app:{" "}
+                          <code>sudo codesign --force --deep --sign - /path/to/App.app</code>{" "}
+                          then <code>sudo xattr -r -c /path/to/App.app</code>{" "}
+                          (drag the .app file after the space).
+                        </li>
+                      </Box>
                     </Alert>
                   </Box>
                 </Grid>
