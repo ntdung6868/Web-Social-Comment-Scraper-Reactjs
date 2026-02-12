@@ -41,6 +41,7 @@ const HistoryDetailPage = lazy(() => import("@/pages/HistoryDetailPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const GuidePage = lazy(() => import("@/pages/GuidePage"));
+const PricingPage = lazy(() => import("@/pages/PricingPage"));
 
 // Admin pages
 const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
@@ -112,6 +113,10 @@ const router = createBrowserRouter([
           {
             path: "/guide",
             element: withSuspense(GuidePage),
+          },
+          {
+            path: "/pricing",
+            element: withSuspense(PricingPage),
           },
         ],
       },

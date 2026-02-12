@@ -62,7 +62,7 @@ const scrapeSchema = z.object({
         url.includes("fb.com"),
       "Only TikTok and Facebook URLs are supported",
     ),
-  maxComments: z.number().min(10).max(10000).optional(),
+  maxComments: z.number().min(10).max(50000).optional(),
 });
 
 type ScrapeFormData = z.infer<typeof scrapeSchema>;
@@ -368,9 +368,9 @@ export default function ScraperPage() {
                 type="number"
                 label="Max Comments"
                 error={!!errors.maxComments}
-                helperText={errors.maxComments?.message || "Limit: 10 - 10,000"}
+                helperText={errors.maxComments?.message || "Limit: 10 - 50,000"}
                 sx={{ width: 200 }}
-                inputProps={{ min: 10, max: 10000 }}
+                inputProps={{ min: 10, max: 50000 }}
               />
 
               <Button

@@ -441,14 +441,14 @@ export class UserRepository {
       };
     }
 
-    if (user.planType === "PRO") {
+    if (user.planType === "PERSONAL" || user.planType === "PREMIUM") {
       if (user.subscriptionEnd && user.subscriptionEnd < new Date()) {
         // Subscription expired, update status
         await prisma.user.update({
           where: { id: userId },
           data: { planStatus: "EXPIRED" },
         });
-        return { canScrape: false, message: "Your Pro subscription has expired" };
+        return { canScrape: false, message: "Your subscription has expired. Please renew your plan!" };
       }
       return { canScrape: true, message: "OK" };
     }
@@ -457,7 +457,7 @@ export class UserRepository {
     if (user.trialUses <= 0) {
       return {
         canScrape: false,
-        message: "You have used all trial scrapes. Please upgrade to Pro!",
+        message: "You have used all trial scrapes. Please upgrade your plan!",
         trialUsesRemaining: 0,
       };
     }
@@ -503,9 +503,13 @@ export class UserRepository {
 
     if (!user) return 0;
 
-    // Free plan limited to 100 comments
-    // Pro plan has no limit (null)
-    return user.planType === "FREE" ? 100 : null;
+    // Plan-based download limits
+    const limits: Record<string, number | null> = {
+      FREE: 100,
+      PERSONAL: 5000,
+      PREMIUM: 50000,
+    };
+    return limits[user.planType] ?? 100;
   }
 }
 

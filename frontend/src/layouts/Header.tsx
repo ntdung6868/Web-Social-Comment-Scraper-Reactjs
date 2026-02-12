@@ -95,9 +95,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   // Logic hiển thị Plan
-  const isPro = user?.planType === "PRO";
-  const planLabel = isPro ? "Pro Plan" : "Free Plan";
-  const planColor = isPro ? "primary" : "default";
+  const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
+  const planLabel = user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Plan";
+  const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
 
   return (
     <AppBar
@@ -211,11 +211,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
             {/* HIỂN THỊ GÓI CƯỚC CHÍNH XÁC */}
             <Chip
-              icon={isPro ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
+              icon={isPaid ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
               label={planLabel}
               size="small"
               color={planColor}
-              variant={isPro ? "filled" : "outlined"}
+              variant={isPaid ? "filled" : "outlined"}
               sx={{ mt: 1, borderRadius: 1, fontWeight: 600 }}
             />
           </Box>

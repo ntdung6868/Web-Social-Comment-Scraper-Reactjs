@@ -6,6 +6,7 @@
 import { userRepository } from "../repositories/user.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
 import { env } from "../config/env.js";
+import { prisma } from "../config/database.js";
 import type { User } from "@prisma/client";
 import type { CookieStatus, PlanType, PlanStatus, ProxyRotation } from "../types/enums.js";
 import type { UserPublic, UserSettings, SubscriptionInfo } from "../types/user.types.js";
@@ -464,6 +465,58 @@ export class UserService {
    */
   async useTrialScrape(userId: number): Promise<number> {
     return userRepository.useTrialScrape(userId);
+  }
+
+  /**
+   * Downgrade user's plan (user-initiated)
+   * Only allows downgrading to a lower plan
+   */
+  async downgradePlan(userId: number, targetPlan: PlanType): Promise<UserPublic> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw createError.notFound("User not found");
+    }
+
+    const PLAN_RANK: Record<PlanType, number> = { FREE: 0, PERSONAL: 1, PREMIUM: 2 };
+    const currentRank = PLAN_RANK[user.planType as PlanType];
+    const targetRank = PLAN_RANK[targetPlan];
+
+    console.log(
+      "[DOWNGRADE] userId=",
+      userId,
+      "current=",
+      user.planType,
+      "target=",
+      targetPlan,
+      "currentRank=",
+      currentRank,
+      "targetRank=",
+      targetRank,
+    );
+
+    if (targetRank >= currentRank) {
+      console.log("[DOWNGRADE] Reject: can only downgrade to a lower plan");
+      throw createError.badRequest("Can only downgrade to a lower plan");
+    }
+
+    // When subscription is expired, only allow downgrade to FREE
+    const isExpired =
+      user.planStatus === "EXPIRED" || (user.subscriptionEnd != null && user.subscriptionEnd < new Date());
+    if (isExpired && targetPlan !== "FREE") {
+      throw createError.badRequest("Your subscription has expired. You can only downgrade to the Free plan.");
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        planType: targetPlan,
+        planStatus: "ACTIVE",
+        subscriptionEnd: targetPlan === "FREE" ? null : user.subscriptionEnd,
+      },
+    });
+
+    console.log("[DOWNGRADE] Success: downgraded to", targetPlan);
+    return toPublicUser(updated);
   }
 }
 

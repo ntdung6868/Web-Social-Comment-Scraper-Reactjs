@@ -285,9 +285,13 @@ export class AdminService {
   }
 
   /**
-   * Grant Pro subscription to user
+   * Grant paid subscription to user
    */
-  async grantProSubscription(userId: number, durationDays: number): Promise<AdminUserDetail> {
+  async grantProSubscription(
+    userId: number,
+    durationDays: number,
+    planType: "PERSONAL" | "PREMIUM" = "PREMIUM",
+  ): Promise<AdminUserDetail> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -297,9 +301,27 @@ export class AdminService {
     subscriptionEnd.setDate(subscriptionEnd.getDate() + durationDays);
 
     await adminRepository.updateUser(userId, {
-      planType: "PRO",
+      planType,
       planStatus: "ACTIVE",
       subscriptionEnd,
+    });
+
+    return this.getUserDetail(userId);
+  }
+
+  /**
+   * Downgrade user to FREE plan
+   */
+  async downgradeToFree(userId: number): Promise<AdminUserDetail> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw createError.notFound("User not found");
+    }
+
+    await adminRepository.updateUser(userId, {
+      planType: "FREE",
+      planStatus: "ACTIVE",
+      subscriptionEnd: null,
     });
 
     return this.getUserDetail(userId);

@@ -22,7 +22,7 @@ async function main() {
       email: "admin@example.com",
       passwordHash: adminPassword,
       isAdmin: true,
-      planType: "PRO",
+      planType: "PREMIUM",
       planStatus: "ACTIVE",
       trialUses: 999,
       maxTrialUses: 999,
@@ -57,7 +57,8 @@ async function main() {
     { key: "global_proxy_list", value: "" },
     { key: "maintenance_mode", value: "false" },
     { key: "max_comments_free", value: "100" },
-    { key: "max_comments_pro", value: "0" }, // 0 = unlimited
+    { key: "max_comments_personal", value: "5000" },
+    { key: "max_comments_premium", value: "0" }, // 0 = unlimited
   ];
 
   for (const setting of defaultSettings) {

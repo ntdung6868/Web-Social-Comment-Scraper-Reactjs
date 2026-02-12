@@ -56,9 +56,10 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
 
   // Logic hiển thị gói cước
-  const isPro = user?.planType === "PRO";
-  const planLabel = isPro ? "Pro Member" : "Free Member";
-  const planColor = isPro ? "primary" : "default";
+  const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
+  const planLabel =
+    user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Member";
+  const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
 
   const {
     register: registerProfile,
@@ -177,10 +178,10 @@ export default function ProfilePage() {
               </Typography>
 
               <Chip
-                icon={isPro ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
+                icon={isPaid ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
                 label={planLabel}
                 color={planColor}
-                variant={isPro ? "filled" : "outlined"}
+                variant={isPaid ? "filled" : "outlined"}
                 sx={{ mt: 1, fontWeight: 600 }}
               />
 
@@ -204,8 +205,8 @@ export default function ProfilePage() {
                     Subscription Status
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <SecurityIcon fontSize="small" color={isPro ? "success" : "action"} />
-                    <Typography variant="body2" fontWeight={500} color={isPro ? "success.main" : "text.primary"}>
+                    <SecurityIcon fontSize="small" color={isPaid ? "success" : "action"} />
+                    <Typography variant="body2" fontWeight={500} color={isPaid ? "success.main" : "text.primary"}>
                       {/* HIỂN THỊ TRẠNG THÁI GÓI CƯỚC THẬT */}
                       {user.planStatus === "ACTIVE" ? "Active" : "Inactive"} ({planLabel})
                     </Typography>

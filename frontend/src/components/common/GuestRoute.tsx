@@ -7,10 +7,10 @@ import { useAuthStore } from "@/stores/auth.store";
  * Redirects to dashboard if user is already logged in
  */
 export default function GuestRoute() {
-  const { isAuthenticated, isInitialized, isLoading } = useAuthStore();
+  const { isAuthenticated, isInitialized } = useAuthStore();
 
-  // Show loading while checking authentication
-  if (!isInitialized || isLoading) {
+  // Show loading while checking initial authentication only
+  if (!isInitialized) {
     return (
       <Box
         sx={{

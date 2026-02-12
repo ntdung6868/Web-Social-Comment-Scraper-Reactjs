@@ -119,4 +119,10 @@ router.delete("/proxies", userController.deleteProxies);
  */
 router.get("/subscription", userController.getSubscription);
 
+/**
+ * POST /api/users/subscription/downgrade
+ * Downgrade current plan (user-initiated)
+ */
+router.post("/subscription/downgrade", userController.downgradePlan);
+
 export default router;

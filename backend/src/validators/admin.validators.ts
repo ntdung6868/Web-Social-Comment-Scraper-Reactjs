@@ -21,7 +21,7 @@ export const adminUserListQuerySchema = z.object({
     .default("20")
     .transform((val) => Math.min(100, Math.max(1, parseInt(val, 10) || 20))),
   search: z.string().max(100).optional(),
-  planType: z.enum(["FREE", "PRO"]).optional(),
+  planType: z.enum(["FREE", "PERSONAL", "PREMIUM"]).optional(),
   planStatus: z.enum(["ACTIVE", "EXPIRED"]).optional(),
   isBanned: z
     .string()
@@ -47,7 +47,7 @@ export const adminUserUpdateSchema = z.object({
   password: z.string().min(6).max(128).optional(),
   isActive: z.boolean().optional(),
   isAdmin: z.boolean().optional(),
-  planType: z.enum(["FREE", "PRO"]).optional(),
+  planType: z.enum(["FREE", "PERSONAL", "PREMIUM"]).optional(),
   planStatus: z.enum(["ACTIVE", "EXPIRED"]).optional(),
   trialUses: z.number().int().min(0).max(100).optional(),
   subscriptionEnd: z

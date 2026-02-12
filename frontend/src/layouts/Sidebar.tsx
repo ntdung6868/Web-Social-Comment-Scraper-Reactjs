@@ -27,6 +27,7 @@ import {
   BugReport as BugIcon,
   Star as StarIcon,
   MenuBook as GuideIcon,
+  Paid as PaidIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -52,6 +53,7 @@ const navItems: NavItem[] = [
   { title: "History", path: "/history", icon: <HistoryIcon /> },
   { title: "Settings", path: "/settings", icon: <SettingsIcon /> },
   { title: "Guide", path: "/guide", icon: <GuideIcon /> },
+  { title: "Pricing", path: "/pricing", icon: <PaidIcon /> },
 ];
 
 const adminItems: NavItem[] = [
@@ -88,9 +90,9 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
     navigate("/login");
   };
 
-  const isPro = user?.planType === "PRO";
-  const planLabel = isPro ? "Pro Member" : "Free Plan";
-  const planColor = isPro ? "primary" : "default";
+  const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
+  const planLabel = user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Plan";
+  const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
 
   const drawerContent = (
     <Box
@@ -240,11 +242,11 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
 
               <Box sx={{ mt: 0.5 }}>
                 <Chip
-                  icon={isPro ? <StarIcon style={{ fontSize: 12 }} /> : undefined}
+                  icon={isPaid ? <StarIcon style={{ fontSize: 12 }} /> : undefined}
                   label={planLabel}
                   size="small"
                   color={planColor}
-                  variant={isPro ? "filled" : "outlined"}
+                  variant={isPaid ? "filled" : "outlined"}
                   sx={{
                     height: 20,
                     fontSize: "0.65rem",

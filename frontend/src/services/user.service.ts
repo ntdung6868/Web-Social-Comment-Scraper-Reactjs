@@ -55,4 +55,7 @@ export const userService = {
 
   // Subscription
   getSubscription: () => apiRequest.get<ApiResponse<{ subscription: SubscriptionInfo }>>("/users/subscription"),
+
+  downgradePlan: (planType: string) =>
+    apiRequest.post<ApiResponse<{ user: User }>>("/users/subscription/downgrade", { planType }),
 };

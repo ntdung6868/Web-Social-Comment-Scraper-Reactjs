@@ -7,6 +7,7 @@ import { createServer } from "http";
 import { createApp } from "./app.js";
 import { env, connectDatabase, disconnectDatabase } from "./config/index.js";
 import { initializeSocket } from "./lib/socket.js";
+import { startCleanupJob, stopCleanupJob } from "./lib/cleanup.js";
 
 /**
  * Start the server
@@ -29,6 +30,9 @@ async function bootstrap(): Promise<void> {
     initializeSocket(httpServer);
     console.log("🔌 Socket.io initialized");
 
+    // Start data retention cleanup job
+    startCleanupJob();
+
     // Start HTTP server
     httpServer.listen(env.port, () => {
       console.log(`✅ Server running on port ${env.port}`);
@@ -43,6 +47,9 @@ async function bootstrap(): Promise<void> {
 
     const shutdown = async (signal: string) => {
       console.log(`\n📤 Received ${signal}. Starting graceful shutdown...`);
+
+      // Stop cleanup job
+      stopCleanupJob();
 
       // Close HTTP server
       httpServer.close(async () => {

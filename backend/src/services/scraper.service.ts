@@ -85,13 +85,18 @@ export class ScraperService {
       proxy = proxyManager.getNext();
     }
 
-    // Cap maxComments for FREE plan (avoid wasting resources)
-    const FREE_PLAN_MAX_COMMENTS = 100;
+    // Cap maxComments based on plan
+    const PLAN_MAX_COMMENTS: Record<string, number> = {
+      FREE: 100,
+      PERSONAL: 5000,
+      PREMIUM: 50000,
+    };
+    const planLimit = PLAN_MAX_COMMENTS[user.planType] ?? 100;
     let effectiveMaxComments = data.maxComments;
-    if (user.planType === "FREE" && effectiveMaxComments) {
-      effectiveMaxComments = Math.min(effectiveMaxComments, FREE_PLAN_MAX_COMMENTS);
-    } else if (user.planType === "FREE") {
-      effectiveMaxComments = FREE_PLAN_MAX_COMMENTS;
+    if (effectiveMaxComments) {
+      effectiveMaxComments = Math.min(effectiveMaxComments, planLimit);
+    } else {
+      effectiveMaxComments = planLimit;
     }
 
     // Create history record
@@ -302,9 +307,14 @@ export class ScraperService {
       throw createError.notFound("Scrape history not found");
     }
 
-    // Check download limit for free users
+    // Check download limit based on plan
     const user = await userRepository.findById(userId);
-    const downloadLimit = user?.planType === "FREE" ? 100 : undefined;
+    const PLAN_EXPORT_LIMITS: Record<string, number | undefined> = {
+      FREE: 100,
+      PERSONAL: 5000,
+      PREMIUM: 50000,
+    };
+    const downloadLimit = user ? PLAN_EXPORT_LIMITS[user.planType] : 100;
 
     const comments = await scraperRepository.getAllCommentsForExport(historyId, downloadLimit);
 

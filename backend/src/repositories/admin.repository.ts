@@ -384,7 +384,7 @@ export class AdminRepository {
       prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
       prisma.user.count({ where: { createdAt: { gte: weekStart } } }),
       prisma.user.count({ where: { planType: "FREE" } }),
-      prisma.user.count({ where: { planType: "PRO" } }),
+      prisma.user.count({ where: { planType: { in: ["PERSONAL", "PREMIUM"] } } }),
       prisma.user.count({ where: { planStatus: "EXPIRED" } }),
       prisma.scrapeHistory.count(),
       prisma.scrapeHistory.count({ where: { status: "SUCCESS" } }),

@@ -29,7 +29,7 @@ interface AdminDashboardStats {
   };
   subscriptions: {
     free: number;
-    pro: number;
+    pro: number; // paid users (PERSONAL + PREMIUM)
     expired: number;
   };
   scraping: {
@@ -90,7 +90,20 @@ function StatCard({ title, value, subtitle, icon, color, loading }: StatCardProp
               </Typography>
             )}
           </Box>
-          <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: alpha(color, 0.1), flexShrink: 0 }}>{icon}</Box>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              backgroundColor: alpha(color, 0.1),
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {icon}
+          </Box>
         </Box>
       </CardContent>
     </Card>
@@ -341,7 +354,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4}>
           <StatCard
-            title="Pro Plan"
+            title="Paid Plans"
             value={stats?.subscriptions?.pro ?? 0}
             icon={<ProIcon sx={{ color: "#ffa726" }} />}
             color="#ffa726"

@@ -3,7 +3,7 @@
 // ===========================================
 
 export type Platform = "TIKTOK" | "FACEBOOK";
-export type PlanType = "FREE" | "PRO";
+export type PlanType = "FREE" | "PERSONAL" | "PREMIUM";
 export type PlanStatus = "ACTIVE" | "EXPIRED" | "CANCELLED";
 export type ScrapeStatus = "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
 export type ProxyRotation = "RANDOM" | "SEQUENTIAL";

@@ -298,4 +298,30 @@ export const userController = {
     const subscription = await userService.getSubscriptionInfo(req.user.userId);
     sendSuccess(res, { subscription });
   }),
+
+  /**
+   * POST /users/subscription/downgrade
+   * Downgrade current plan (user-initiated)
+   */
+  downgradePlan: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
+      });
+      return;
+    }
+
+    const { planType } = req.body;
+    if (!planType || !["FREE", "PERSONAL", "PREMIUM"].includes(planType)) {
+      res.status(400).json({
+        success: false,
+        error: { code: "INVALID_INPUT", message: "Invalid plan type" },
+      });
+      return;
+    }
+
+    const user = await userService.downgradePlan(req.user.userId, planType);
+    sendSuccess(res, { user }, "Plan downgraded successfully");
+  }),
 };

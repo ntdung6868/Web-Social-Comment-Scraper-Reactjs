@@ -12,7 +12,7 @@ export type Platform = "TIKTOK" | "FACEBOOK";
 /**
  * Subscription plan types
  */
-export type PlanType = "FREE" | "PRO";
+export type PlanType = "FREE" | "PERSONAL" | "PREMIUM";
 
 /**
  * Plan/subscription status

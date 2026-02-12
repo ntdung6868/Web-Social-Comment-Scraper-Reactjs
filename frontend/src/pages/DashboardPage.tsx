@@ -67,9 +67,14 @@ function StatCard({ title, value, subtitle, icon, color, loading }: StatCardProp
           </Box>
           <Box
             sx={{
-              p: 1.5,
-              borderRadius: 2,
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
               backgroundColor: alpha(color, 0.1),
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
             }}
           >
             {icon}
@@ -247,7 +252,7 @@ export default function DashboardPage() {
                     Trial scrapes remaining: {user.trialUses} / {user.maxTrialUses}
                   </Typography>
                 )}
-                {user?.planType === "PRO" && user.subscriptionEnd && (
+                {(user?.planType === "PERSONAL" || user?.planType === "PREMIUM") && user.subscriptionEnd && (
                   <Typography variant="body2" color="text.secondary">
                     Expires: {format(new Date(user.subscriptionEnd), "MMM dd, yyyy")}
                   </Typography>

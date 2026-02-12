@@ -197,7 +197,7 @@ export const adminController = {
 
   /**
    * POST /admin/users/:id/grant-pro
-   * Grant Pro subscription
+   * Set user plan (upgrade or downgrade)
    */
   grantProSubscription: asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const userId = parseInt(req.params.id!, 10);
@@ -209,7 +209,15 @@ export const adminController = {
       return;
     }
 
-    const { durationDays } = req.body as { durationDays: number };
+    const { durationDays, planType } = req.body as { durationDays?: number; planType?: string };
+
+    // Downgrade to FREE
+    if (planType === "FREE") {
+      const user = await adminService.downgradeToFree(userId);
+      sendSuccess(res, { user }, "User downgraded to Free plan");
+      return;
+    }
+
     if (!durationDays || durationDays < 1) {
       res.status(400).json({
         success: false,
@@ -218,8 +226,9 @@ export const adminController = {
       return;
     }
 
-    const user = await adminService.grantProSubscription(userId, durationDays);
-    sendSuccess(res, { user }, `Pro subscription granted for ${durationDays} days`);
+    const validPlan = planType === "PERSONAL" || planType === "PREMIUM" ? planType : "PREMIUM";
+    const user = await adminService.grantProSubscription(userId, durationDays, validPlan);
+    sendSuccess(res, { user }, `${validPlan} plan granted for ${durationDays} days`);
   }),
 
   // ===========================================

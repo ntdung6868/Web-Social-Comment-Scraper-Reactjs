@@ -96,6 +96,7 @@ export default function UserManagementPage() {
   } | null>(null);
   const [banReason, setBanReason] = useState("");
   const [proDays, setProDays] = useState(30);
+  const [grantPlanType, setGrantPlanType] = useState<"FREE" | "PERSONAL" | "PREMIUM">("PREMIUM");
 
   // Edit fields state
   const [editUsername, setEditUsername] = useState("");
@@ -183,14 +184,14 @@ export default function UserManagementPage() {
   });
 
   const grantProMutation = useMutation({
-    mutationFn: ({ userId, durationDays }: { userId: number; durationDays: number }) =>
-      apiRequest.post(`/admin/users/${userId}/grant-pro`, { durationDays }),
+    mutationFn: ({ userId, durationDays, planType }: { userId: number; durationDays: number; planType: string }) =>
+      apiRequest.post(`/admin/users/${userId}/grant-pro`, { durationDays, planType }),
     onSuccess: () => {
-      toast.success("Pro subscription granted");
+      toast.success("Plan updated");
       closeConfirm();
       refreshAll();
     },
-    onError: () => toast.error("Failed to grant Pro"),
+    onError: () => toast.error("Failed to update plan"),
   });
 
   const updateUserMutation = useMutation({
@@ -237,7 +238,7 @@ export default function UserManagementPage() {
         resetTrialMutation.mutate(userId);
         break;
       case "grant-pro":
-        grantProMutation.mutate({ userId, durationDays: proDays });
+        grantProMutation.mutate({ userId, durationDays: proDays, planType: grantPlanType });
         break;
       case "save-changes":
         if (pendingPayload) {
@@ -321,7 +322,8 @@ export default function UserManagementPage() {
           >
             <MenuItem value="">All Plans</MenuItem>
             <MenuItem value="FREE">Free</MenuItem>
-            <MenuItem value="PRO">Pro</MenuItem>
+            <MenuItem value="PERSONAL">Personal</MenuItem>
+            <MenuItem value="PREMIUM">Premium</MenuItem>
           </TextField>
         </Box>
       </Card>
@@ -358,7 +360,13 @@ export default function UserManagementPage() {
                         <Chip
                           label={user.planType}
                           size="small"
-                          color={user.planType === "PRO" ? "success" : "default"}
+                          color={
+                            user.planType === "PREMIUM"
+                              ? "secondary"
+                              : user.planType === "PERSONAL"
+                                ? "success"
+                                : "default"
+                          }
                         />
                       </TableCell>
                       <TableCell>
@@ -454,7 +462,13 @@ export default function UserManagementPage() {
                 <Chip
                   label={detailUser.planType}
                   size="small"
-                  color={detailUser.planType === "PRO" ? "success" : "default"}
+                  color={
+                    detailUser.planType === "PREMIUM"
+                      ? "secondary"
+                      : detailUser.planType === "PERSONAL"
+                        ? "success"
+                        : "default"
+                  }
                 />
                 {detailUser.isBanned && <Chip label="Banned" size="small" color="error" />}
                 {detailUser.distinctIpCount !== undefined && detailUser.distinctIpCount > 3 && (
@@ -622,7 +636,7 @@ export default function UserManagementPage() {
                   )}
                 </Grid>
 
-                {/* Grant Pro */}
+                {/* Manage Plan */}
                 <Grid item xs={6}>
                   <Button
                     variant="outlined"
@@ -630,9 +644,12 @@ export default function UserManagementPage() {
                     size="small"
                     startIcon={<ProIcon />}
                     color="warning"
-                    onClick={() => openConfirm("grant-pro", detailUser.id, detailUser.username)}
+                    onClick={() => {
+                      setGrantPlanType(detailUser.planType as "FREE" | "PERSONAL" | "PREMIUM");
+                      openConfirm("grant-pro", detailUser.id, detailUser.username);
+                    }}
                   >
-                    {detailUser.planType === "PRO" ? "Extend Pro" : "Grant Pro"}
+                    Manage Plan
                   </Button>
                 </Grid>
 
@@ -706,7 +723,7 @@ export default function UserManagementPage() {
           {confirmAction?.type === "unban" && "Unban User"}
           {confirmAction?.type === "delete" && "Delete User"}
           {confirmAction?.type === "reset-trial" && "Reset Trial Uses"}
-          {confirmAction?.type === "grant-pro" && "Grant Pro Subscription"}
+          {confirmAction?.type === "grant-pro" && "Manage User Plan"}
           {confirmAction?.type === "save-changes" && "Update User Info"}
         </DialogTitle>
         <DialogContent>
@@ -750,22 +767,42 @@ export default function UserManagementPage() {
             </Alert>
           )}
 
-          {/* Grant Pro — needs duration */}
+          {/* Manage Plan — plan selector + duration */}
           {confirmAction?.type === "grant-pro" && (
             <>
               <Alert severity="info" sx={{ mb: 2 }}>
-                Grant Pro subscription to <strong>{confirmAction.username}</strong>.
+                Set plan for <strong>{confirmAction.username}</strong>.
               </Alert>
               <TextField
-                label="Duration (days)"
-                type="number"
+                select
+                label="Plan Type"
                 fullWidth
                 size="small"
-                value={proDays}
-                onChange={(e) => setProDays(Math.max(1, parseInt(e.target.value) || 1))}
-                inputProps={{ min: 1, max: 365 }}
-                helperText="How many days of Pro subscription?"
-              />
+                value={grantPlanType}
+                onChange={(e) => setGrantPlanType(e.target.value as "FREE" | "PERSONAL" | "PREMIUM")}
+                sx={{ mb: 2 }}
+              >
+                <MenuItem value="FREE">FREE — Downgrade</MenuItem>
+                <MenuItem value="PERSONAL">PERSONAL — $23 / 3 days</MenuItem>
+                <MenuItem value="PREMIUM">PREMIUM — $45 / month</MenuItem>
+              </TextField>
+              {grantPlanType !== "FREE" && (
+                <TextField
+                  label="Duration (days)"
+                  type="number"
+                  fullWidth
+                  size="small"
+                  value={proDays}
+                  onChange={(e) => setProDays(Math.max(1, parseInt(e.target.value) || 1))}
+                  inputProps={{ min: 1, max: 365 }}
+                  helperText={`Subscription will be active for ${proDays} day(s)`}
+                />
+              )}
+              {grantPlanType === "FREE" && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  This will remove the paid subscription and revert to the Free plan.
+                </Alert>
+              )}
             </>
           )}
 
