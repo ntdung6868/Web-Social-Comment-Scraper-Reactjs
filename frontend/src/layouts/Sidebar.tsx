@@ -26,6 +26,7 @@ import {
   Logout as LogoutIcon,
   BugReport as BugIcon,
   Star as StarIcon,
+  MenuBook as GuideIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -50,6 +51,7 @@ const navItems: NavItem[] = [
   { title: "Scraper", path: "/scraper", icon: <SearchIcon /> },
   { title: "History", path: "/history", icon: <HistoryIcon /> },
   { title: "Settings", path: "/settings", icon: <SettingsIcon /> },
+  { title: "Guide", path: "/guide", icon: <GuideIcon /> },
 ];
 
 const adminItems: NavItem[] = [

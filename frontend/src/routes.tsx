@@ -40,6 +40,7 @@ const HistoryPage = lazy(() => import("@/pages/HistoryPage"));
 const HistoryDetailPage = lazy(() => import("@/pages/HistoryDetailPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+const GuidePage = lazy(() => import("@/pages/GuidePage"));
 
 // Admin pages
 const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
@@ -107,6 +108,10 @@ const router = createBrowserRouter([
           {
             path: "/settings",
             element: withSuspense(SettingsPage),
+          },
+          {
+            path: "/guide",
+            element: withSuspense(GuidePage),
           },
         ],
       },
