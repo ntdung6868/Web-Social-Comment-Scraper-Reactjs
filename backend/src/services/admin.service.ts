@@ -8,6 +8,7 @@ import { adminRepository } from "../repositories/admin.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
 import { authRepository } from "../repositories/auth.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
+import { invalidateMaintenanceCache } from "../middlewares/maintenance.middleware.js";
 import { checkDatabaseHealth } from "../config/database.js";
 import { getQueueStats, getAllJobs } from "../lib/queue.js";
 import { getConnectedUserCount, getConnectedSocketCount } from "../lib/socket.js";
@@ -268,16 +269,23 @@ export class AdminService {
   }
 
   /**
-   * Reset user trial uses
+   * Reset user trial uses (reads default from global settings)
    */
-  async resetTrialUses(userId: number, trialCount = 3): Promise<AdminUserDetail> {
+  async resetTrialUses(userId: number, trialCount?: number): Promise<AdminUserDetail> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
     }
 
+    // If no explicit count, read from global settings
+    if (trialCount === undefined) {
+      const { getSettingNumber } = await import("../utils/settings.js");
+      trialCount = (await getSettingNumber("maxTrialUses")) ?? 3;
+    }
+
     await adminRepository.updateUser(userId, {
       trialUses: trialCount,
+      maxTrialUses: trialCount,
       planStatus: "ACTIVE",
     });
 
@@ -318,10 +326,16 @@ export class AdminService {
       throw createError.notFound("User not found");
     }
 
+    // Read dynamic maxTrialUses from settings
+    const { getSettingNumber } = await import("../utils/settings.js");
+    const maxTrialUses = await getSettingNumber("maxTrialUses");
+
     await adminRepository.updateUser(userId, {
       planType: "FREE",
       planStatus: "ACTIVE",
       subscriptionEnd: null,
+      trialUses: maxTrialUses,
+      maxTrialUses,
     });
 
     return this.getUserDetail(userId);
@@ -368,6 +382,10 @@ export class AdminService {
    */
   async updateSetting(key: string, value: string | null, adminId: number): Promise<void> {
     await adminRepository.setSetting(key, value, adminId);
+    // Invalidate caches when relevant settings change
+    if (key === "maintenanceMode") {
+      invalidateMaintenanceCache();
+    }
   }
 
   /**
@@ -383,8 +401,44 @@ export class AdminService {
    */
   async toggleMaintenanceMode(enabled: boolean, adminId: number): Promise<void> {
     await adminRepository.setSetting("maintenanceMode", enabled ? "true" : "false", adminId);
+    invalidateMaintenanceCache();
+  }
+
+  // ===========================================
+  // Session Management
+  // ===========================================
+
+  /**
+   * Get active sessions
+   */
+  async getActiveSessions(page = 1, limit = 20) {
+    return adminRepository.getActiveSessions(page, limit);
+  }
+
+  /**
+   * Revoke a specific session
+   */
+  async revokeSession(sessionId: number): Promise<void> {
+    await adminRepository.revokeSession(sessionId);
+  }
+
+  /**
+   * Revoke all sessions for a user
+   */
+  async revokeAllUserSessions(userId: number): Promise<number> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw createError.notFound("User not found");
+    }
+    return adminRepository.revokeAllUserSessions(userId);
+  }
+
+  /**
+   * Get user scrape history (admin view)
+   */
+  async getUserScrapeHistory(userId: number, page = 1, limit = 10) {
+    return adminRepository.getUserScrapeHistory(userId, page, limit);
   }
 }
-
 // Export singleton instance
 export const adminService = new AdminService();

@@ -211,6 +211,7 @@ export class AdminRepository {
       planType?: PlanType;
       planStatus?: PlanStatus;
       trialUses?: number;
+      maxTrialUses?: number;
       subscriptionEnd?: Date | null;
     },
   ): Promise<User> {
@@ -320,6 +321,7 @@ export class AdminRepository {
         totalComments: log.totalComments,
         errorMessage: log.errorMessage,
         createdAt: log.createdAt,
+        updatedAt: log.updatedAt,
       })),
       pagination: {
         currentPage: page,
@@ -357,6 +359,7 @@ export class AdminRepository {
       successfulJobs: number;
       failedJobs: number;
       totalComments: number;
+      avgCompletionTime: number;
     };
   }> {
     const now = new Date();
@@ -377,6 +380,7 @@ export class AdminRepository {
       successfulScrapes,
       failedScrapes,
       commentsAggregate,
+      completedScrapes,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true, isBanned: false } }),
@@ -390,7 +394,24 @@ export class AdminRepository {
       prisma.scrapeHistory.count({ where: { status: "SUCCESS" } }),
       prisma.scrapeHistory.count({ where: { status: "FAILED" } }),
       prisma.scrapeHistory.aggregate({ _sum: { totalComments: true } }),
+      prisma.scrapeHistory.findMany({
+        where: {
+          status: { in: ["SUCCESS", "FAILED"] },
+          updatedAt: { not: null },
+        },
+        select: { createdAt: true, updatedAt: true },
+      }),
     ]);
+
+    // Calculate average completion time in seconds
+    let avgCompletionTime = 0;
+    if (completedScrapes.length > 0) {
+      const totalMs = completedScrapes.reduce((sum, s) => {
+        const duration = new Date(s.updatedAt!).getTime() - new Date(s.createdAt).getTime();
+        return sum + Math.max(0, duration);
+      }, 0);
+      avgCompletionTime = Math.round(totalMs / completedScrapes.length / 1000);
+    }
 
     return {
       users: {
@@ -410,6 +431,7 @@ export class AdminRepository {
         successfulJobs: successfulScrapes,
         failedJobs: failedScrapes,
         totalComments: commentsAggregate._sum.totalComments ?? 0,
+        avgCompletionTime,
       },
     };
   }
@@ -451,6 +473,118 @@ export class AdminRepository {
       create: { key, value, updatedBy },
       update: { value, updatedBy },
     });
+  }
+
+  // ===========================================
+  // Session Management
+  // ===========================================
+
+  /**
+   * Get all active sessions across all users
+   */
+  async getActiveSessions(page: number, limit: number): Promise<{ data: any[]; total: number }> {
+    const skip = (page - 1) * limit;
+
+    const [sessions, total] = await Promise.all([
+      prisma.refreshToken.findMany({
+        where: {
+          isRevoked: false,
+          expiresAt: { gt: new Date() },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: {
+            select: { id: true, username: true, email: true, isAdmin: true, planType: true },
+          },
+        },
+      }),
+      prisma.refreshToken.count({
+        where: {
+          isRevoked: false,
+          expiresAt: { gt: new Date() },
+        },
+      }),
+    ]);
+
+    return {
+      data: sessions.map((s) => ({
+        id: s.id,
+        userId: s.userId,
+        username: s.user.username,
+        email: s.user.email,
+        isAdmin: s.user.isAdmin,
+        planType: s.user.planType,
+        ipAddress: s.ipAddress,
+        userAgent: s.userAgent,
+        deviceInfo: s.deviceInfo,
+        createdAt: s.createdAt,
+        expiresAt: s.expiresAt,
+      })),
+      total,
+    };
+  }
+
+  /**
+   * Revoke a specific session
+   */
+  async revokeSession(sessionId: number): Promise<void> {
+    await prisma.refreshToken.update({
+      where: { id: sessionId },
+      data: { isRevoked: true, revokedAt: new Date() },
+    });
+  }
+
+  /**
+   * Revoke all sessions for a user
+   */
+  async revokeAllUserSessions(userId: number): Promise<number> {
+    const result = await prisma.refreshToken.updateMany({
+      where: { userId, isRevoked: false },
+      data: { isRevoked: true, revokedAt: new Date() },
+    });
+    return result.count;
+  }
+
+  /**
+   * Get user's scrape history for admin
+   */
+  async getUserScrapeHistory(
+    userId: number,
+    page: number,
+    limit: number,
+  ): Promise<{ data: AdminScrapeLog[]; total: number }> {
+    const skip = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      prisma.scrapeHistory.findMany({
+        where: { userId },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { username: true } },
+        },
+      }),
+      prisma.scrapeHistory.count({ where: { userId } }),
+    ]);
+
+    return {
+      data: logs.map((log) => ({
+        id: log.id,
+        userId: log.userId,
+        username: log.user.username,
+        platform: log.platform as Platform,
+        url: log.url,
+        status: log.status as ScrapeStatus,
+        totalComments: log.totalComments,
+        errorMessage: log.errorMessage,
+        createdAt: log.createdAt,
+        updatedAt: log.updatedAt,
+      })),
+      total,
+    };
   }
 }
 

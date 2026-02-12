@@ -102,14 +102,15 @@ model RefreshToken {
 // Scrape History Model
 // ===========================================
 model ScrapeHistory {
-  id            Int      @id @default(autoincrement())
-  userId        Int      @map("user_id")
+  id            Int       @id @default(autoincrement())
+  userId        Int       @map("user_id")
   platform      String // Enum -> String
   url           String
-  totalComments Int      @default(0) @map("total_comments")
-  status        String   @default("PENDING") // Enum -> String
-  errorMessage  String?  @map("error_message")
-  createdAt     DateTime @default(now()) @map("created_at")
+  totalComments Int       @default(0) @map("total_comments")
+  status        String    @default("PENDING") // Enum -> String
+  errorMessage  String?   @map("error_message")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime? @updatedAt @map("updated_at")
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   comments Comment[]

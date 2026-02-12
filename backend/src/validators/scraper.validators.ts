@@ -36,7 +36,7 @@ export const scrapeRequestSchema = z.object({
         message: "URL must be a valid TikTok or Facebook video/post URL",
       },
     ),
-  maxComments: z.number().int().min(1).max(50000).optional().default(1000),
+  maxComments: z.number().int().min(1).max(1000000).optional().default(1000),
 });
 
 export type ScrapeRequestInput = z.infer<typeof scrapeRequestSchema>;

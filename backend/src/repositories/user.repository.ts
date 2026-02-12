@@ -493,7 +493,7 @@ export class UserRepository {
   }
 
   /**
-   * Get download limit based on plan
+   * Get download limit based on plan (reads from global settings)
    */
   async getDownloadLimit(userId: number): Promise<number | null> {
     const user = await prisma.user.findUnique({
@@ -503,12 +503,9 @@ export class UserRepository {
 
     if (!user) return 0;
 
-    // Plan-based download limits
-    const limits: Record<string, number | null> = {
-      FREE: 100,
-      PERSONAL: 5000,
-      PREMIUM: 50000,
-    };
+    // Import dynamically to avoid circular dependency
+    const { getPlanMaxComments } = await import("../utils/settings.js");
+    const limits = await getPlanMaxComments();
     return limits[user.planType] ?? 100;
   }
 }

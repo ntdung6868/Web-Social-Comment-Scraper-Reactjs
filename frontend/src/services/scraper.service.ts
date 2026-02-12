@@ -20,6 +20,7 @@ export interface StartScrapeResponse {
   historyId: number;
   jobId: string;
   queuePosition: number;
+  isPaid: boolean;
 }
 
 export interface HistoryFilters {

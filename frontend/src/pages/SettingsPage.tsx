@@ -81,14 +81,12 @@ export default function SettingsPage() {
   // State Settings
   const [settings, setSettings] = useState({
     headless: true,
-    concurrency: 2,
     proxyEnabled: false,
     proxyList: "",
   });
 
   const [originalSettings, setOriginalSettings] = useState({
     headless: true,
-    concurrency: 2,
     proxyEnabled: false,
     proxyList: "",
   });
@@ -109,7 +107,6 @@ export default function SettingsPage() {
       if (s) {
         const loadedSettings = {
           headless: s.headlessMode,
-          concurrency: 2,
           proxyEnabled: s.proxyEnabled,
           proxyList: s.proxyList || "",
         };
@@ -378,18 +375,6 @@ export default function SettingsPage() {
                       }
                     />
                   </Box>
-                  <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                    Concurrency
-                  </Typography>
-                  <TextField
-                    type="number"
-                    label="Max Concurrent Jobs"
-                    value={settings.concurrency}
-                    onChange={(e) => setSettings({ ...settings, concurrency: Number(e.target.value) })}
-                    size="small"
-                    sx={{ maxWidth: 200 }}
-                    helperText="Controls how many scraping tabs run at the same time."
-                  />
                 </Grid>
               </Grid>
             </TabPanel>

@@ -28,6 +28,8 @@ import {
   Star as StarIcon,
   MenuBook as GuideIcon,
   Paid as PaidIcon,
+  Tune as AdminSettingsIcon,
+  DeviceHub as SessionIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -60,6 +62,8 @@ const adminItems: NavItem[] = [
   { title: "Admin Dashboard", path: "/admin", icon: <AdminIcon />, adminOnly: true },
   { title: "User Management", path: "/admin/users", icon: <PersonIcon />, adminOnly: true },
   { title: "System Logs", path: "/admin/logs", icon: <BugIcon />, adminOnly: true },
+  { title: "Sessions", path: "/admin/sessions", icon: <SessionIcon />, adminOnly: true },
+  { title: "System Settings", path: "/admin/settings", icon: <AdminSettingsIcon />, adminOnly: true },
 ];
 
 export default function Sidebar({ open, collapsed, onClose, drawerWidth, collapsedWidth, isMobile }: SidebarProps) {

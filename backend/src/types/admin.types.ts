@@ -61,6 +61,7 @@ export interface AdminDashboardStats {
     activeJobs: number;
     queuedJobs: number;
     totalComments: number;
+    avgCompletionTime: number;
   };
   system: {
     uptime: number;
@@ -136,6 +137,7 @@ export interface AdminScrapeLog {
   totalComments: number;
   errorMessage: string | null;
   createdAt: Date;
+  updatedAt: Date | null;
   duration?: number;
 }
 
@@ -169,6 +171,5 @@ export interface GlobalSettings {
   maintenanceMode: boolean;
   registrationEnabled: boolean;
   maxTrialUses: number;
-  maxConcurrentScrapes: number;
   defaultProxyRotation: string;
 }

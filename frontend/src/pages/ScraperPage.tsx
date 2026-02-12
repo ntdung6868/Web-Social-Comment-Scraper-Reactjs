@@ -62,7 +62,7 @@ const scrapeSchema = z.object({
         url.includes("fb.com"),
       "Only TikTok and Facebook URLs are supported",
     ),
-  maxComments: z.number().min(10).max(50000).optional(),
+  maxComments: z.number().min(10).max(1000000).optional(),
 });
 
 type ScrapeFormData = z.infer<typeof scrapeSchema>;
@@ -240,7 +240,7 @@ export default function ScraperPage() {
   const startScrapeMutation = useMutation({
     mutationFn: scraperService.startScrape,
     onSuccess: (response) => {
-      const { historyId, queuePosition } = response.data!;
+      const { historyId, queuePosition, isPaid } = response.data!;
       // NOTE: Don't call subscribeToScrape here — useSocket(undefined) already
       // listens on the user room which receives all events for this user.
       // Subscribing to the scrape room would cause duplicate events.
@@ -261,8 +261,13 @@ export default function ScraperPage() {
         commentCount: 0,
       });
 
-      addLog("info", `📨 Scrape job submitted — ID: ${historyId}, Queue Position: ${queuePosition}`);
-      toast.success(`Scrape started! Position in queue: ${queuePosition}`);
+      addLog(
+        "info",
+        isPaid
+          ? `🚀 Scrape job started — ID: ${historyId}`
+          : `📨 Scrape job submitted — ID: ${historyId}, Queue Position: ${queuePosition}`,
+      );
+      toast.success(isPaid ? "Scrape started!" : `Scrape started! Position in queue: ${queuePosition}`);
       reset();
       setError(null);
 
@@ -368,9 +373,9 @@ export default function ScraperPage() {
                 type="number"
                 label="Max Comments"
                 error={!!errors.maxComments}
-                helperText={errors.maxComments?.message || "Limit: 10 - 50,000"}
+                helperText={errors.maxComments?.message || "Server enforces your plan limit"}
                 sx={{ width: 200 }}
-                inputProps={{ min: 10, max: 50000 }}
+                inputProps={{ min: 10 }}
               />
 
               <Button

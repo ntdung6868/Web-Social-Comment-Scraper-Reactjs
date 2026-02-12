@@ -104,6 +104,14 @@ export default function UserManagementPage() {
   const [editPassword, setEditPassword] = useState("");
   const [pendingPayload, setPendingPayload] = useState<Record<string, string> | null>(null);
 
+  // Fetch admin settings for dynamic maxTrialUses
+  const { data: settingsData } = useQuery({
+    queryKey: queryKeys.admin.settings(),
+    queryFn: () => apiRequest.get<{ success: boolean; data: { settings: Record<string, string | null> } }>("/admin/settings"),
+    staleTime: 5 * 60 * 1000,
+  });
+  const maxTrialUses = parseInt(settingsData?.data?.settings?.maxTrialUses ?? "3", 10) || 3;
+
   // ── List Query ──
   const { data, isLoading, refetch } = useQuery({
     queryKey: queryKeys.admin.users({ page: page + 1, limit: rowsPerPage, search: searchQuery, role: roleFilter }),
@@ -174,7 +182,7 @@ export default function UserManagementPage() {
   });
 
   const resetTrialMutation = useMutation({
-    mutationFn: (userId: number) => apiRequest.post(`/admin/users/${userId}/reset-trial`, { trialCount: 3 }),
+    mutationFn: (userId: number) => apiRequest.post(`/admin/users/${userId}/reset-trial`, {}),
     onSuccess: () => {
       toast.success("Trial uses reset");
       closeConfirm();
@@ -391,7 +399,7 @@ export default function UserManagementPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {user.trialUses} / {(user as unknown as { maxTrialUses?: number }).maxTrialUses ?? 3}
+                          {user.trialUses} / {maxTrialUses}
                         </Typography>
                       </TableCell>
                       <TableCell>{format(new Date(user.createdAt), "MMM dd, yyyy")}</TableCell>
@@ -558,7 +566,7 @@ export default function UserManagementPage() {
                   chip={<Chip label={detailUser.planStatus} size="small" color="info" variant="outlined" />}
                 />
                 <Divider />
-                <InfoRow label="Trial Uses" value={`${detailUser.trialUses} / ${detailUser.maxTrialUses ?? 3}`} />
+                <InfoRow label="Trial Uses" value={`${detailUser.trialUses} / ${maxTrialUses}`} />
                 <Divider />
                 <InfoRow
                   label="Subscription End"
@@ -702,6 +710,26 @@ export default function UserManagementPage() {
                     Delete User
                   </Button>
                 </Grid>
+
+                {/* Revoke Sessions */}
+                <Grid item xs={6}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    size="small"
+                    color="warning"
+                    onClick={async () => {
+                      try {
+                        await apiRequest.delete(`/admin/users/${detailUser.id}/sessions`);
+                        toast.success("All sessions revoked");
+                      } catch {
+                        toast.error("Failed to revoke sessions");
+                      }
+                    }}
+                  >
+                    Revoke Sessions
+                  </Button>
+                </Grid>
               </Grid>
             </DialogContent>
 
@@ -763,7 +791,7 @@ export default function UserManagementPage() {
           {/* Reset Trial */}
           {confirmAction?.type === "reset-trial" && (
             <Alert severity="info">
-              Reset trial uses for <strong>{confirmAction.username}</strong> back to 3?
+              Reset trial uses for <strong>{confirmAction.username}</strong> back to {maxTrialUses}?
             </Alert>
           )}
 
@@ -782,9 +810,9 @@ export default function UserManagementPage() {
                 onChange={(e) => setGrantPlanType(e.target.value as "FREE" | "PERSONAL" | "PREMIUM")}
                 sx={{ mb: 2 }}
               >
-                <MenuItem value="FREE">FREE — Downgrade</MenuItem>
-                <MenuItem value="PERSONAL">PERSONAL — $23 / 3 days</MenuItem>
-                <MenuItem value="PREMIUM">PREMIUM — $45 / month</MenuItem>
+                <MenuItem value="FREE">FREE</MenuItem>
+                <MenuItem value="PERSONAL">PERSONAL</MenuItem>
+                <MenuItem value="PREMIUM">PREMIUM</MenuItem>
               </TextField>
               {grantPlanType !== "FREE" && (
                 <TextField

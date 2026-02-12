@@ -15,6 +15,8 @@ export interface CreateUserData {
   username: string;
   email: string;
   passwordHash: string;
+  trialUses?: number;
+  maxTrialUses?: number;
 }
 
 export interface RefreshTokenData {
@@ -127,6 +129,8 @@ export class AuthRepository {
         username: data.username,
         email: data.email.toLowerCase(),
         passwordHash: data.passwordHash,
+        ...(data.trialUses !== undefined && { trialUses: data.trialUses }),
+        ...(data.maxTrialUses !== undefined && { maxTrialUses: data.maxTrialUses }),
       },
     });
   }

@@ -128,4 +128,32 @@ router.patch("/settings", zodValidate(globalSettingsUpdateSchema), adminControll
  */
 router.post("/maintenance", adminController.toggleMaintenance);
 
+// ===========================================
+// Session Management
+// ===========================================
+
+/**
+ * GET /api/admin/sessions
+ * Get all active sessions
+ */
+router.get("/sessions", adminController.getActiveSessions);
+
+/**
+ * DELETE /api/admin/sessions/:id
+ * Revoke a specific session
+ */
+router.delete("/sessions/:id", adminController.revokeSession);
+
+/**
+ * DELETE /api/admin/users/:id/sessions
+ * Revoke all sessions for a user
+ */
+router.delete("/users/:id/sessions", adminController.revokeAllUserSessions);
+
+/**
+ * GET /api/admin/users/:id/scrapes
+ * Get user scrape history
+ */
+router.get("/users/:id/scrapes", adminController.getUserScrapeHistory);
+
 export default router;

@@ -117,6 +117,8 @@ export interface ScrapeJob {
   status: ScrapeStatus;
   errorMessage: string | null;
   createdAt: string;
+  updatedAt?: string | null;
+  username?: string;
   commentCount?: number;
 }
 

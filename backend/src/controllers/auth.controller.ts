@@ -46,7 +46,7 @@ export const authController = {
     const result = await authService.register(data, meta);
 
     // Set refresh token in HTTP-only cookie
-    setRefreshTokenCookie(res, result.tokens.refreshToken);
+    await setRefreshTokenCookie(res, result.tokens.refreshToken);
 
     sendCreated(
       res,
@@ -70,7 +70,7 @@ export const authController = {
     const result = await authService.login(data, meta);
 
     // Set refresh token in HTTP-only cookie
-    setRefreshTokenCookie(res, result.tokens.refreshToken, data.rememberMe);
+    await setRefreshTokenCookie(res, result.tokens.refreshToken, data.rememberMe);
 
     sendSuccess(
       res,
@@ -260,18 +260,23 @@ export const authController = {
 // ===========================================
 
 const REFRESH_TOKEN_COOKIE = "refreshToken";
-const COOKIE_MAX_AGE_DEFAULT = 7 * 24 * 60 * 60 * 1000; // 7 days
-const COOKIE_MAX_AGE_REMEMBER = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /**
- * Set refresh token in HTTP-only cookie
+ * Set refresh token in HTTP-only cookie.
+ * Reads sessionMaxAge from GlobalSettings so admin can configure it.
  */
-function setRefreshTokenCookie(res: Response, token: string, rememberMe: boolean = false): void {
+async function setRefreshTokenCookie(res: Response, token: string, rememberMe: boolean = false): Promise<void> {
+  // Dynamic session max age from settings (in days, default 7)
+  const { getSettingNumber } = await import("../utils/settings.js");
+  const sessionDays = await getSettingNumber("sessionMaxAge");
+  const defaultMaxAge = sessionDays * 24 * 60 * 60 * 1000;
+  const rememberMaxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+
   res.cookie(REFRESH_TOKEN_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: rememberMe ? COOKIE_MAX_AGE_REMEMBER : COOKIE_MAX_AGE_DEFAULT,
+    maxAge: rememberMe ? rememberMaxAge : defaultMaxAge,
     path: "/",
   });
 }

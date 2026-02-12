@@ -24,12 +24,22 @@ import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
 import type { ScrapeJob } from "@/types";
 
-const statusColors: Record<string, "default" | "primary" | "success" | "error"> = {
+const statusColors: Record<string, "default" | "primary" | "success" | "error" | "warning"> = {
   PENDING: "default",
-  PROCESSING: "primary",
-  COMPLETED: "success",
+  RUNNING: "primary",
+  SUCCESS: "success",
   FAILED: "error",
 };
+
+function formatDuration(start: Date, end: Date): string {
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs < 0) return "-";
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
 
 export default function SystemLogsPage() {
   const [page, setPage] = useState(0);
@@ -42,7 +52,7 @@ export default function SystemLogsPage() {
       apiRequest.get<{
         success: boolean;
         data: {
-          data: (ScrapeJob & { user?: { email: string; name: string }; startedAt?: string; completedAt?: string })[];
+          data: (ScrapeJob & { username?: string; errorMessage?: string | null })[];
           pagination: { currentPage: number; totalPages: number; totalItems: number };
         };
       }>(`/admin/scrapes?page=${page + 1}&limit=${rowsPerPage}${statusFilter ? `&status=${statusFilter}` : ""}`),
@@ -95,8 +105,8 @@ export default function SystemLogsPage() {
           >
             <MenuItem value="">All Statuses</MenuItem>
             <MenuItem value="PENDING">Pending</MenuItem>
-            <MenuItem value="PROCESSING">Processing</MenuItem>
-            <MenuItem value="COMPLETED">Completed</MenuItem>
+            <MenuItem value="RUNNING">Running</MenuItem>
+            <MenuItem value="SUCCESS">Success</MenuItem>
             <MenuItem value="FAILED">Failed</MenuItem>
           </TextField>
         </Box>
@@ -118,8 +128,9 @@ export default function SystemLogsPage() {
                     <TableCell>Platform</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Comments</TableCell>
-                    <TableCell>Started</TableCell>
+                    <TableCell>Created</TableCell>
                     <TableCell>Completed</TableCell>
+                    <TableCell>Duration</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -132,10 +143,10 @@ export default function SystemLogsPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={500}>
-                          {scrape.user?.name || "Unknown"}
+                          {scrape.username || "Unknown"}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {scrape.user?.email || "-"}
+                          ID: {scrape.userId}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -158,9 +169,26 @@ export default function SystemLogsPage() {
                         <Chip label={scrape.status} size="small" color={statusColors[scrape.status]} />
                       </TableCell>
                       <TableCell align="right">{scrape.totalComments.toLocaleString()}</TableCell>
-                      <TableCell>{scrape.startedAt ? format(new Date(scrape.startedAt), "HH:mm:ss") : "-"}</TableCell>
                       <TableCell>
-                        {scrape.completedAt ? format(new Date(scrape.completedAt), "HH:mm:ss") : "-"}
+                        {scrape.createdAt ? format(new Date(scrape.createdAt), "MMM dd, HH:mm:ss") : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {scrape.updatedAt && (scrape.status === "SUCCESS" || scrape.status === "FAILED")
+                          ? format(new Date(scrape.updatedAt), "MMM dd, HH:mm:ss")
+                          : scrape.status === "RUNNING"
+                            ? "In progress..."
+                            : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption" color="text.secondary">
+                          {scrape.updatedAt &&
+                          scrape.createdAt &&
+                          (scrape.status === "SUCCESS" || scrape.status === "FAILED")
+                            ? formatDuration(new Date(scrape.createdAt), new Date(scrape.updatedAt))
+                            : scrape.status === "RUNNING"
+                              ? "..."
+                              : "-"}
+                        </Typography>
                       </TableCell>
                     </TableRow>
                   ))}

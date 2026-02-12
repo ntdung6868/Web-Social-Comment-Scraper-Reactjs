@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Card,
@@ -34,6 +35,7 @@ import {
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
+import { apiRequest } from "@/services/api";
 import type { PlanType } from "@/types";
 
 const PLAN_RANK: Record<PlanType, number> = { FREE: 0, PERSONAL: 1, PREMIUM: 2 };
@@ -62,60 +64,107 @@ interface PricingPlan {
   chipColor: "default" | "primary" | "secondary";
 }
 
-const plans: PricingPlan[] = [
-  {
-    id: "FREE",
-    name: "FREE",
-    price: "$0",
-    period: "",
-    gradient: "linear-gradient(135deg, #e8eaf6 0%, #f5f5f5 100%)",
-    chipColor: "default",
-    features: [
-      { text: "Up to 100 comments / export" },
-      { text: "3 trial scrapes", tooltip: "You get 3 scrape attempts in total" },
-      { text: "Limited support", tooltip: "Community support only" },
-      { text: "Data retention for 1 day", tooltip: "Scrape history auto-deleted after 1 day" },
-    ],
-    buttonText: "Get started",
-  },
-  {
-    id: "PERSONAL",
-    name: "PERSONAL",
-    price: "$23",
-    period: "/ 3 days",
-    gradient: "linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%)",
-    chipColor: "primary",
-    features: [
-      { text: "Up to 5,000 comments / export" },
-      { text: "Unlimited exports", tooltip: "No limit on the number of exports" },
-      { text: "No recurring payment", tooltip: "One-time payment, no auto-renewal" },
-      { text: "Standard support", tooltip: "Email support with 24h response time" },
-      { text: "All platforms", tooltip: "Access to TikTok, Facebook, and more" },
-      { text: "Data retention for 3 days", tooltip: "Scrape history kept for 3 days" },
-    ],
-    buttonText: "Buy now",
-  },
-  {
-    id: "PREMIUM",
-    name: "PREMIUM",
-    price: "$45",
-    period: "/ mo",
-    highlighted: true,
-    badge: "Most Popular",
-    gradient: "linear-gradient(135deg, #7c4dff 0%, #536dfe 50%, #448aff 100%)",
-    chipColor: "secondary",
-    features: [
-      { text: "Up to 50,000 comments / export" },
-      { text: "Unlimited exports", tooltip: "No limit on the number of exports" },
-      { text: "Scheduled Exports", tooltip: "Set up automatic scheduled scraping" },
-      { text: "Billed monthly", tooltip: "Cancel anytime" },
-      { text: "Priority support", tooltip: "Priority email & chat support" },
-      { text: "All platforms", tooltip: "Access to TikTok, Facebook, and more" },
-      { text: "Data retention for 5 days", tooltip: "Scrape history kept for 5 days" },
-    ],
-    buttonText: "Buy now",
-  },
-];
+interface PricingData {
+  pricing: {
+    FREE: { price: number };
+    PERSONAL: { price: number; duration: number };
+    PREMIUM: { price: number; duration: number };
+  };
+  maxComments: Record<string, number>;
+  retention: Record<string, number>;
+  maxTrialUses: number;
+  contact: { email: string; phone: string };
+}
+
+function buildPlans(data?: PricingData): PricingPlan[] {
+  const p = data?.pricing;
+  const mc = data?.maxComments;
+  const ret = data?.retention;
+  const trials = data?.maxTrialUses ?? 3;
+
+  const freePrice = p?.FREE?.price ?? 0;
+  const personalPrice = p?.PERSONAL?.price ?? 23;
+  const premiumPrice = p?.PREMIUM?.price ?? 45;
+  const personalDuration = p?.PERSONAL?.duration ?? 3;
+  const premiumDuration = p?.PREMIUM?.duration ?? 30;
+
+  const freeMax = mc?.FREE ?? 100;
+  const personalMax = mc?.PERSONAL ?? 5000;
+  const premiumMax = mc?.PREMIUM ?? 50000;
+
+  const freeRet = ret?.FREE ?? 1;
+  const personalRet = ret?.PERSONAL ?? 3;
+  const premiumRet = ret?.PREMIUM ?? 5;
+
+  const fmtDuration = (d: number) => (d === 30 ? "/ mo" : d === 1 ? "/ day" : `/ ${d} days`);
+
+  return [
+    {
+      id: "FREE",
+      name: "FREE",
+      price: `$${freePrice}`,
+      period: "",
+      gradient: "linear-gradient(135deg, #e8eaf6 0%, #f5f5f5 100%)",
+      chipColor: "default",
+      features: [
+        { text: `Up to ${freeMax.toLocaleString()} comments / export` },
+        { text: `${trials} trial scrapes`, tooltip: `You get ${trials} scrape attempts in total` },
+        { text: "Limited support", tooltip: "Community support only" },
+        {
+          text: `Data retention for ${freeRet} day${freeRet > 1 ? "s" : ""}`,
+          tooltip: `Scrape history auto-deleted after ${freeRet} day${freeRet > 1 ? "s" : ""}`,
+        },
+      ],
+      buttonText: "Get started",
+    },
+    {
+      id: "PERSONAL",
+      name: "PERSONAL",
+      price: `$${personalPrice}`,
+      period: fmtDuration(personalDuration),
+      gradient: "linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%)",
+      chipColor: "primary",
+      features: [
+        { text: `Up to ${personalMax.toLocaleString()} comments / export` },
+        { text: "Unlimited exports", tooltip: "No limit on the number of exports" },
+        { text: "No recurring payment", tooltip: "One-time payment, no auto-renewal" },
+        { text: "Standard support", tooltip: "Email support with 24h response time" },
+        { text: "All platforms", tooltip: "Access to TikTok, Facebook, and more" },
+        {
+          text: `Data retention for ${personalRet} day${personalRet > 1 ? "s" : ""}`,
+          tooltip: `Scrape history kept for ${personalRet} day${personalRet > 1 ? "s" : ""}`,
+        },
+      ],
+      buttonText: "Buy now",
+    },
+    {
+      id: "PREMIUM",
+      name: "PREMIUM",
+      price: `$${premiumPrice}`,
+      period: fmtDuration(premiumDuration),
+      highlighted: true,
+      badge: "Most Popular",
+      gradient: "linear-gradient(135deg, #7c4dff 0%, #536dfe 50%, #448aff 100%)",
+      chipColor: "secondary",
+      features: [
+        { text: `Up to ${premiumMax.toLocaleString()} comments / export` },
+        { text: "Unlimited exports", tooltip: "No limit on the number of exports" },
+        { text: "Scheduled Exports", tooltip: "Set up automatic scheduled scraping" },
+        {
+          text: premiumDuration === 30 ? "Billed monthly" : `Valid for ${premiumDuration} days`,
+          tooltip: "Cancel anytime",
+        },
+        { text: "Priority support", tooltip: "Priority email & chat support" },
+        { text: "All platforms", tooltip: "Access to TikTok, Facebook, and more" },
+        {
+          text: `Data retention for ${premiumRet} day${premiumRet > 1 ? "s" : ""}`,
+          tooltip: `Scrape history kept for ${premiumRet} day${premiumRet > 1 ? "s" : ""}`,
+        },
+      ],
+      buttonText: "Buy now",
+    },
+  ];
+}
 
 function FeatureItem({ feature }: { feature: PlanFeature }) {
   return (
@@ -440,7 +489,20 @@ function PricingCard({
 // ===========================================
 // Admin Contact Modal
 // ===========================================
-function AdminContactModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AdminContactModal({
+  open,
+  onClose,
+  contactEmail,
+  contactPhone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  contactEmail: string;
+  contactPhone: string;
+}) {
+  const displayEmail = contactEmail || "ntdungdev73@gmail.com";
+  const displayPhone = contactPhone || "0373 527 362";
+
   return (
     <Dialog
       open={open}
@@ -484,7 +546,7 @@ function AdminContactModal({ open, onClose }: { open: boolean; onClose: () => vo
         {/* Email */}
         <Box
           component="a"
-          href="mailto:ntdungdev73@gmail.com"
+          href={`mailto:${displayEmail}`}
           sx={{
             display: "flex",
             alignItems: "center",
@@ -510,7 +572,7 @@ function AdminContactModal({ open, onClose }: { open: boolean; onClose: () => vo
               Email
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600, color: "info.main" }}>
-              ntdungdev73@gmail.com
+              {displayEmail}
             </Typography>
           </Box>
         </Box>
@@ -518,7 +580,7 @@ function AdminContactModal({ open, onClose }: { open: boolean; onClose: () => vo
         {/* Phone */}
         <Box
           component="a"
-          href="tel:0373527362"
+          href={`tel:${displayPhone.replace(/\s/g, "")}`}
           sx={{
             display: "flex",
             alignItems: "center",
@@ -544,7 +606,7 @@ function AdminContactModal({ open, onClose }: { open: boolean; onClose: () => vo
               Phone
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600, color: "success.main" }}>
-              0373 527 362
+              {displayPhone}
             </Typography>
           </Box>
         </Box>
@@ -580,6 +642,15 @@ export default function PricingPage() {
   const currentPlan = user?.planType ?? "FREE";
   const isExpired =
     user?.planStatus === "EXPIRED" || (user?.subscriptionEnd != null && new Date(user.subscriptionEnd) < new Date());
+
+  // Fetch pricing from API
+  const { data: pricingData } = useQuery({
+    queryKey: ["settings", "pricing"],
+    queryFn: () => apiRequest.get<{ success: boolean; data: PricingData }>("/settings/pricing"),
+    staleTime: 5 * 60 * 1000, // 5 min cache
+  });
+
+  const plans = buildPlans(pricingData?.data);
 
   const handleBuyClick = (planName: string) => {
     setSnackbar({ open: true, plan: planName });
@@ -668,7 +739,12 @@ export default function PricingPage() {
       </Box>
 
       {/* Admin Contact Modal */}
-      <AdminContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
+      <AdminContactModal
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        contactEmail={pricingData?.data?.contact?.email ?? ""}
+        contactPhone={pricingData?.data?.contact?.phone ?? ""}
+      />
 
       {/* Downgrade Confirmation Dialog */}
       <Dialog

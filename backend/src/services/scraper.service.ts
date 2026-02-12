@@ -7,7 +7,8 @@ import type { Platform, ScrapeStatus, ProxyRotation } from "../types/enums.js";
 import { scraperRepository } from "../repositories/scraper.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
-import { addScrapeJob, getJobByHistoryId, registerProcessor } from "../lib/queue.js";
+import { getPlanMaxComments } from "../utils/settings.js";
+import { addScrapeJob, getJobByHistoryId, registerProcessor, userHasActiveJob } from "../lib/queue.js";
 import { createScraper, proxyManager, withRetry } from "../lib/scraper/index.js";
 import { emitScrapeStarted, emitScrapeCompleted, emitScrapeFailed } from "../lib/socket.js";
 import { detectPlatform } from "../validators/scraper.validators.js";
@@ -47,11 +48,17 @@ export class ScraperService {
     historyId: number;
     jobId: string;
     queuePosition: number;
+    isPaid: boolean;
   }> {
     // Check if user can scrape
     const canScrape = await userRepository.canScrape(userId);
     if (!canScrape.canScrape) {
       throw createError.forbidden(canScrape.message, "SCRAPE_LIMIT_REACHED");
+    }
+
+    // Check if user already has an active/waiting job (1 concurrent job per user)
+    if (userHasActiveJob(userId)) {
+      throw createError.conflict("You already have a scrape job running. Please wait for it to finish.");
     }
 
     // Detect platform from URL
@@ -85,12 +92,8 @@ export class ScraperService {
       proxy = proxyManager.getNext();
     }
 
-    // Cap maxComments based on plan
-    const PLAN_MAX_COMMENTS: Record<string, number> = {
-      FREE: 100,
-      PERSONAL: 5000,
-      PREMIUM: 50000,
-    };
+    // Cap maxComments based on plan (read from global settings)
+    const PLAN_MAX_COMMENTS = await getPlanMaxComments();
     const planLimit = PLAN_MAX_COMMENTS[user.planType] ?? 100;
     let effectiveMaxComments = data.maxComments;
     if (effectiveMaxComments) {
@@ -133,6 +136,7 @@ export class ScraperService {
       historyId: history.id,
       jobId,
       queuePosition: 1, // Will be updated by socket
+      isPaid: user.planType === "PERSONAL" || user.planType === "PREMIUM",
     };
   }
 
@@ -308,14 +312,10 @@ export class ScraperService {
       throw createError.notFound("Scrape history not found");
     }
 
-    // Check download limit based on plan
+    // Check download limit based on plan (from global settings)
     const user = await userRepository.findById(userId);
-    const PLAN_EXPORT_LIMITS: Record<string, number | undefined> = {
-      FREE: 100,
-      PERSONAL: 5000,
-      PREMIUM: 50000,
-    };
-    const downloadLimit = user ? PLAN_EXPORT_LIMITS[user.planType] : 100;
+    const PLAN_EXPORT_LIMITS = await getPlanMaxComments();
+    const downloadLimit = user ? (PLAN_EXPORT_LIMITS[user.planType] ?? 100) : 100;
 
     const comments = await scraperRepository.getAllCommentsForExport(historyId, downloadLimit);
 

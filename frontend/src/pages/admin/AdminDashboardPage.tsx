@@ -13,6 +13,9 @@ import {
   Schedule as UptimeIcon,
   WorkspacePremium as ProIcon,
   PlayArrow as ActiveIcon,
+  Wifi as WifiIcon,
+  Computer as ComputerIcon,
+  Timer as TimerIcon,
 } from "@mui/icons-material";
 import { apiRequest } from "@/services/api";
 import { queryKeys } from "@/lib/query-client";
@@ -39,6 +42,7 @@ interface AdminDashboardStats {
     activeJobs: number;
     queuedJobs: number;
     totalComments: number;
+    avgCompletionTime: number;
   };
   system: {
     uptime: number;
@@ -132,6 +136,14 @@ function formatUptime(seconds: number): string {
   return `${m}m`;
 }
 
+function formatAvgTime(seconds: number): string {
+  if (seconds <= 0) return "N/A";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 // ── Main Component ───────────────────────────────
 export default function AdminDashboardPage() {
   const { data: healthData, isLoading: healthLoading } = useQuery({
@@ -146,8 +158,23 @@ export default function AdminDashboardPage() {
     refetchInterval: 60000,
   });
 
+  const { data: realtimeData } = useQuery({
+    queryKey: ["admin", "realtime"],
+    queryFn: () =>
+      apiRequest.get<{
+        success: boolean;
+        data: {
+          connectedUsers: number;
+          connectedSockets: number;
+          queueStats: { waiting: number; active: number; completed: number; failed: number; delayed: number };
+        };
+      }>("/admin/realtime"),
+    refetchInterval: 10000,
+  });
+
   const health = healthData?.data;
   const stats = dashboardData?.data;
+  const realtime = realtimeData?.data;
   const loading = dashLoading;
 
   const healthColor = health?.status === "healthy" ? "#66bb6a" : health?.status === "degraded" ? "#ffa726" : "#f44336";
@@ -290,6 +317,47 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
+      {/* ── Real-Time Stats ── */}
+      <SectionHeader title="Real-Time" icon={<WifiIcon color="primary" />} />
+      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+        <Grid item xs={6} sm={3}>
+          <StatCard
+            title="Online Users"
+            value={realtime?.connectedUsers ?? 0}
+            icon={<PeopleIcon sx={{ color: "#66bb6a" }} />}
+            color="#66bb6a"
+            loading={!realtime}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <StatCard
+            title="Connections"
+            value={realtime?.connectedSockets ?? 0}
+            icon={<ComputerIcon sx={{ color: "#42a5f5" }} />}
+            color="#42a5f5"
+            loading={!realtime}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <StatCard
+            title="Active Jobs"
+            value={realtime?.queueStats?.active ?? 0}
+            icon={<ActiveIcon sx={{ color: "#ffa726" }} />}
+            color="#ffa726"
+            loading={!realtime}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <StatCard
+            title="Queued Jobs"
+            value={realtime?.queueStats?.waiting ?? 0}
+            icon={<QueueIcon sx={{ color: "#ab47bc" }} />}
+            color="#ab47bc"
+            loading={!realtime}
+          />
+        </Grid>
+      </Grid>
+
       {/* ── Users Section ── */}
       <SectionHeader title="Users" icon={<PeopleIcon color="primary" />} />
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
@@ -427,6 +495,16 @@ export default function AdminDashboardPage() {
             value={stats?.scraping?.totalComments ?? 0}
             icon={<CommentIcon sx={{ color: "#ab47bc" }} />}
             color="#ab47bc"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard
+            title="Avg Speed"
+            value={formatAvgTime(stats?.scraping?.avgCompletionTime ?? 0)}
+            subtitle="per job"
+            icon={<TimerIcon sx={{ color: "#26a69a" }} />}
+            color="#26a69a"
             loading={loading}
           />
         </Grid>

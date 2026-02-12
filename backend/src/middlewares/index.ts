@@ -8,3 +8,4 @@ export { requireAdmin, requireOwnerOrAdmin } from "./admin.middleware.js";
 export { ApiError, createError, errorHandler, notFoundHandler, asyncHandler } from "./error.middleware.js";
 export { apiLimiter, authLimiter, sensitiveOpLimiter, scrapeLimiter } from "./rateLimit.middleware.js";
 export { validate, ValidationMessages } from "./validate.middleware.js";
+export { maintenanceGuard, invalidateMaintenanceCache } from "./maintenance.middleware.js";

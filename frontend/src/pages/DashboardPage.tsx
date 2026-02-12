@@ -26,7 +26,22 @@ import { format } from "date-fns";
 import { scraperService } from "@/services/scraper.service";
 import { queryKeys } from "@/lib/query-client";
 import { useAuthStore } from "@/stores/auth.store";
+import { apiRequest } from "@/services/api";
 import type { ScrapeJob } from "@/types";
+
+function TrialUsesText({ trialUses }: { trialUses: number }) {
+  const { data } = useQuery({
+    queryKey: ["settings", "pricing"],
+    queryFn: () => apiRequest.get<{ success: boolean; data: { maxTrialUses: number } }>("/settings/pricing"),
+    staleTime: 5 * 60 * 1000,
+  });
+  const max = data?.data?.maxTrialUses ?? 3;
+  return (
+    <Typography variant="body2" color="text.secondary">
+      Trial scrapes remaining: {trialUses} / {max}
+    </Typography>
+  );
+}
 
 interface StatCardProps {
   title: string;
@@ -247,11 +262,7 @@ export default function DashboardPage() {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Status: {user?.planStatus || "ACTIVE"}
                 </Typography>
-                {user?.planType === "FREE" && (
-                  <Typography variant="body2" color="text.secondary">
-                    Trial scrapes remaining: {user.trialUses} / {user.maxTrialUses}
-                  </Typography>
-                )}
+                {user?.planType === "FREE" && <TrialUsesText trialUses={user.trialUses} />}
                 {(user?.planType === "PERSONAL" || user?.planType === "PREMIUM") && user.subscriptionEnd && (
                   <Typography variant="body2" color="text.secondary">
                     Expires: {format(new Date(user.subscriptionEnd), "MMM dd, yyyy")}

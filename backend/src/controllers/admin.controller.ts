@@ -296,4 +296,93 @@ export const adminController = {
     const status = enabled ? "enabled" : "disabled";
     sendSuccess(res, { maintenanceMode: enabled }, `Maintenance mode ${status}`);
   }),
+
+  // ===========================================
+  // Session Management
+  // ===========================================
+
+  /**
+   * GET /admin/sessions
+   * Get active sessions
+   */
+  getActiveSessions: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const result = await adminService.getActiveSessions(page, limit);
+
+    sendSuccess(res, {
+      data: result.data,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(result.total / limit),
+        totalItems: result.total,
+        itemsPerPage: limit,
+      },
+    });
+  }),
+
+  /**
+   * DELETE /admin/sessions/:id
+   * Revoke a specific session
+   */
+  revokeSession: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const sessionId = parseInt(req.params.id!, 10);
+    if (isNaN(sessionId)) {
+      res.status(400).json({
+        success: false,
+        error: { code: "INVALID_INPUT", message: "Invalid session ID" },
+      });
+      return;
+    }
+
+    await adminService.revokeSession(sessionId);
+    sendSuccess(res, null, "Session revoked");
+  }),
+
+  /**
+   * DELETE /admin/users/:id/sessions
+   * Revoke all sessions for a user
+   */
+  revokeAllUserSessions: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = parseInt(req.params.id!, 10);
+    if (isNaN(userId)) {
+      res.status(400).json({
+        success: false,
+        error: { code: "INVALID_INPUT", message: "Invalid user ID" },
+      });
+      return;
+    }
+
+    const count = await adminService.revokeAllUserSessions(userId);
+    sendSuccess(res, { revokedCount: count }, `${count} sessions revoked`);
+  }),
+
+  /**
+   * GET /admin/users/:id/scrapes
+   * Get user scrape history
+   */
+  getUserScrapeHistory: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const userId = parseInt(req.params.id!, 10);
+    if (isNaN(userId)) {
+      res.status(400).json({
+        success: false,
+        error: { code: "INVALID_INPUT", message: "Invalid user ID" },
+      });
+      return;
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const result = await adminService.getUserScrapeHistory(userId, page, limit);
+
+    sendSuccess(res, {
+      data: result.data,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(result.total / limit),
+        totalItems: result.total,
+        itemsPerPage: limit,
+      },
+    });
+  }),
 };

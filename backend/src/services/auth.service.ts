@@ -93,6 +93,13 @@ export class AuthService {
    * Register a new user
    */
   async register(data: RegisterInput, meta?: RequestMeta): Promise<AuthResponse> {
+    // Check if registration is enabled via global settings
+    const { getSettingBool } = await import("../utils/settings.js");
+    const registrationEnabled = await getSettingBool("registrationEnabled");
+    if (!registrationEnabled) {
+      throw createError.forbidden("Registration is currently disabled. Please contact admin.", "REGISTRATION_DISABLED");
+    }
+
     // Check if username exists
     if (await authRepository.usernameExists(data.username)) {
       throw createError.conflict("Username is already taken", "USERNAME_TAKEN");
@@ -112,11 +119,17 @@ export class AuthService {
     // Hash password
     const passwordHash = await hashPassword(data.password);
 
+    // Read dynamic maxTrialUses setting
+    const { getSettingNumber } = await import("../utils/settings.js");
+    const maxTrialUses = (await getSettingNumber("maxTrialUses")) ?? 3;
+
     // Create user
     const user = await authRepository.createUser({
       username: data.username,
       email: data.email,
       passwordHash,
+      trialUses: maxTrialUses,
+      maxTrialUses,
     });
 
     // Generate tokens
@@ -153,6 +166,17 @@ export class AuthService {
     const isValidPassword = await comparePassword(data.password, user.passwordHash);
     if (!isValidPassword) {
       throw createError.unauthorized("Invalid credentials", "INVALID_CREDENTIALS");
+    }
+
+    // Block non-admin users during maintenance mode
+    if (!user.isAdmin) {
+      const { getSettingBool: checkMaintenance } = await import("../utils/settings.js");
+      if (await checkMaintenance("maintenanceMode")) {
+        throw createError.forbidden(
+          "The system is currently under maintenance. Please try again later.",
+          "MAINTENANCE_MODE",
+        );
+      }
     }
 
     // Generate tokens
@@ -194,6 +218,17 @@ export class AuthService {
     }
     if (user.isBanned) {
       throw createError.forbidden(`Account is banned: ${user.banReason ?? "No reason provided"}`, "USER_BANNED");
+    }
+
+    // Block non-admin users during maintenance mode
+    if (!user.isAdmin) {
+      const { getSettingBool: checkMaintenance } = await import("../utils/settings.js");
+      if (await checkMaintenance("maintenanceMode")) {
+        throw createError.forbidden(
+          "The system is currently under maintenance. Please try again later.",
+          "MAINTENANCE_MODE",
+        );
+      }
     }
 
     // Generate new access token

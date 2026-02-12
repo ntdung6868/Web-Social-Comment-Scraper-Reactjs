@@ -37,6 +37,9 @@ export const queryKeys = {
     stats: ["admin", "stats"],
     health: () => ["admin", "health"],
     dashboard: () => ["admin", "dashboard"],
+    settings: () => ["admin", "settings"],
+    sessions: (params: any) => ["admin", "sessions", params],
+    realtime: () => ["admin", "realtime"],
   },
   settings: {
     all: ["settings"],

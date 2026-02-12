@@ -9,7 +9,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
 import { env, corsMiddleware } from "./config/index.js";
-import { errorHandler, notFoundHandler, apiLimiter } from "./middlewares/index.js";
+import { errorHandler, notFoundHandler, apiLimiter, maintenanceGuard } from "./middlewares/index.js";
 
 // Import routes
 import { authRoutes, userRoutes, scraperRoutes, adminRoutes } from "./routes/index.js";
@@ -60,6 +60,12 @@ export function createApp(): Application {
   app.use(apiLimiter);
 
   // ===========================================
+  // Maintenance Mode Guard
+  // ===========================================
+
+  app.use(maintenanceGuard);
+
+  // ===========================================
   // Health Check
   // ===========================================
 
@@ -74,6 +80,30 @@ export function createApp(): Application {
       database: dbHealthy,
       environment: env.nodeEnv,
     });
+  });
+
+  // ===========================================
+  // Public Settings (no auth, no maintenance guard)
+  // ===========================================
+
+  app.get(`/api/${env.apiVersion}/settings/pricing`, async (_req, res) => {
+    try {
+      const { getPlanPricing, getPlanMaxComments, getPlanRetentionDays, getSettingNumber, getContactInfo } =
+        await import("./utils/settings.js");
+      const [pricing, maxComments, retention, maxTrialUses, contact] = await Promise.all([
+        getPlanPricing(),
+        getPlanMaxComments(),
+        getPlanRetentionDays(),
+        getSettingNumber("maxTrialUses"),
+        getContactInfo(),
+      ]);
+      res.json({
+        success: true,
+        data: { pricing, maxComments, retention, maxTrialUses: maxTrialUses ?? 3, contact },
+      });
+    } catch {
+      res.status(500).json({ success: false, error: { message: "Failed to fetch pricing" } });
+    }
   });
 
   // ===========================================

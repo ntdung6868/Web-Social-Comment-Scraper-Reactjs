@@ -506,13 +506,23 @@ export class UserService {
       throw createError.badRequest("Your subscription has expired. You can only downgrade to the Free plan.");
     }
 
+    const updateData: Record<string, unknown> = {
+      planType: targetPlan,
+      planStatus: "ACTIVE",
+      subscriptionEnd: targetPlan === "FREE" ? null : user.subscriptionEnd,
+    };
+
+    // When downgrading to FREE, reset trial uses from settings
+    if (targetPlan === "FREE") {
+      const { getSettingNumber } = await import("../utils/settings.js");
+      const maxTrialUses = await getSettingNumber("maxTrialUses");
+      updateData.trialUses = maxTrialUses;
+      updateData.maxTrialUses = maxTrialUses;
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: {
-        planType: targetPlan,
-        planStatus: "ACTIVE",
-        subscriptionEnd: targetPlan === "FREE" ? null : user.subscriptionEnd,
-      },
+      data: updateData,
     });
 
     console.log("[DOWNGRADE] Success: downgraded to", targetPlan);

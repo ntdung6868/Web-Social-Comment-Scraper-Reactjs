@@ -47,6 +47,8 @@ const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
 const UserManagementPage = lazy(() => import("@/pages/admin/UserManagementPage"));
 const SystemLogsPage = lazy(() => import("@/pages/admin/SystemLogsPage"));
+const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
+const AdminSessionsPage = lazy(() => import("@/pages/admin/AdminSessionsPage"));
 
 // Error page
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
@@ -141,6 +143,14 @@ const router = createBrowserRouter([
           {
             path: "/admin/logs",
             element: withSuspense(SystemLogsPage),
+          },
+          {
+            path: "/admin/settings",
+            element: withSuspense(AdminSettingsPage),
+          },
+          {
+            path: "/admin/sessions",
+            element: withSuspense(AdminSessionsPage),
           },
         ],
       },

@@ -13,6 +13,7 @@ import type {
   QueueConfig,
 } from "../types/queue.types.js";
 import { emitScrapeProgress, emitScrapeFailed, emitQueuePosition } from "./socket.js";
+import { getSettingNumber } from "../utils/settings.js";
 
 // ===========================================
 // Queue Configuration
@@ -219,6 +220,18 @@ class InMemoryQueue extends EventEmitter {
   }
 
   /**
+   * Check if a user has an active or waiting job
+   */
+  hasActiveJob(userId: number): boolean {
+    for (const job of this.jobs.values()) {
+      if (job.data.userId === userId && (job.status === "active" || job.status === "waiting")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Clean completed/failed jobs older than duration
    */
   clean(maxAgeMs: number = 3600000): number {
@@ -295,17 +308,35 @@ class InMemoryQueue extends EventEmitter {
   private async tryProcess(): Promise<void> {
     if (!this.processor) return;
 
-    // Process ALL paid jobs immediately (no concurrency limit)
+    // Read dynamic settings (falls back to config defaults)
+    const freeConcurrency = (await getSettingNumber("freeConcurrency")) ?? this.config.freeConcurrency;
+
+    // Process paid jobs immediately — but max 1 active job per user
+    const skippedPaidJobs: string[] = [];
     while (this.paidWaitingQueue.length > 0) {
       const jobId = this.paidWaitingQueue.shift();
       if (!jobId) break;
       const job = this.jobs.get(jobId);
       if (!job) continue;
-      this.processJob(jobId, job, this.paidActiveJobs);
+
+      // Check if this user already has an active paid job
+      const userHasActive = Array.from(this.paidActiveJobs).some((activeId) => {
+        const activeJob = this.jobs.get(activeId);
+        return activeJob && activeJob.data.userId === job.data.userId;
+      });
+
+      if (userHasActive) {
+        // Re-queue — this user must wait for their current job to finish
+        skippedPaidJobs.push(jobId);
+      } else {
+        this.processJob(jobId, job, this.paidActiveJobs);
+      }
     }
+    // Put skipped jobs back at the front
+    this.paidWaitingQueue.unshift(...skippedPaidJobs);
 
     // Process free queue (low priority, sequential)
-    while (this.freeActiveJobs.size < this.config.freeConcurrency && this.freeWaitingQueue.length > 0) {
+    while (this.freeActiveJobs.size < freeConcurrency && this.freeWaitingQueue.length > 0) {
       const jobId = this.freeWaitingQueue.shift();
       if (!jobId) break;
       const job = this.jobs.get(jobId);
@@ -329,9 +360,11 @@ class InMemoryQueue extends EventEmitter {
     console.log(`[Queue] Processing job ${jobId} [${tier}] for history ${job.data.historyId}`);
 
     try {
-      // Set timeout
+      // Set timeout (read dynamic setting — stored as seconds, convert to ms)
+      const jobTimeoutSec = (await getSettingNumber("jobTimeout")) ?? this.config.jobTimeout / 1000;
+      const jobTimeoutMs = jobTimeoutSec * 1000;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Job timeout")), this.config.jobTimeout);
+        setTimeout(() => reject(new Error("Job timeout")), jobTimeoutMs);
       });
 
       // Process with timeout
@@ -509,6 +542,13 @@ export function getAllJobs(): JobInfo[] {
  */
 export function registerProcessor(handler: (job: InMemoryJob) => Promise<ScrapeJobResult>): void {
   scrapeQueue.process(handler);
+}
+
+/**
+ * Check if a user already has an active/waiting job
+ */
+export function userHasActiveJob(userId: number): boolean {
+  return scrapeQueue.hasActiveJob(userId);
 }
 
 /**
