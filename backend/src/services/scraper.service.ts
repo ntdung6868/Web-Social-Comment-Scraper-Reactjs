@@ -112,6 +112,7 @@ export class ScraperService {
       userId,
       url: data.url,
       platform,
+      planType: user.planType as "FREE" | "PERSONAL" | "PREMIUM",
       cookies: {
         data: cookieData,
         userAgent,

@@ -13,6 +13,7 @@ export interface ScrapeJobData {
   userId: number;
   url: string;
   platform: Platform;
+  planType: "FREE" | "PERSONAL" | "PREMIUM";
   cookies: {
     data: string | null;
     userAgent: string | null;
@@ -68,7 +69,8 @@ export interface JobInfo {
  * Queue configuration
  */
 export interface QueueConfig {
-  concurrency: number;
+  paidConcurrency: number; // Max concurrent paid plan jobs
+  freeConcurrency: number; // Max concurrent free plan jobs
   maxRetries: number;
   retryDelay: number; // milliseconds
   jobTimeout: number; // milliseconds

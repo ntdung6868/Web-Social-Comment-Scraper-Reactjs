@@ -19,7 +19,8 @@ import { emitScrapeProgress, emitScrapeFailed, emitQueuePosition } from "./socke
 // ===========================================
 
 const DEFAULT_CONFIG: QueueConfig = {
-  concurrency: 2, // Max concurrent scrape jobs
+  paidConcurrency: 10, // Paid users scrape immediately (high concurrency)
+  freeConcurrency: 1, // Free users wait in queue (sequential)
   maxRetries: 3,
   retryDelay: 5000, // 5 seconds base delay
   jobTimeout: 300000, // 5 minutes
@@ -31,8 +32,10 @@ const DEFAULT_CONFIG: QueueConfig = {
 
 class InMemoryQueue extends EventEmitter {
   private jobs: Map<string, InMemoryJob> = new Map();
-  private waitingQueue: string[] = [];
-  private activeJobs: Set<string> = new Set();
+  private paidWaitingQueue: string[] = []; // Paid plan jobs
+  private freeWaitingQueue: string[] = []; // Free plan jobs
+  private paidActiveJobs: Set<string> = new Set();
+  private freeActiveJobs: Set<string> = new Set();
   private config: QueueConfig;
   private jobIdCounter = 0;
   private isProcessing = false;
@@ -41,6 +44,13 @@ class InMemoryQueue extends EventEmitter {
   constructor(config: Partial<QueueConfig> = {}) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Check if a job belongs to a paid plan
+   */
+  private isPaid(job: InMemoryJob): boolean {
+    return job.data.planType === "PERSONAL" || job.data.planType === "PREMIUM";
   }
 
   /**
@@ -67,13 +77,20 @@ class InMemoryQueue extends EventEmitter {
     };
 
     this.jobs.set(jobId, job);
-    this.waitingQueue.push(jobId);
 
-    // Emit queue position
+    // Route to the correct queue based on plan type
+    if (this.isPaid(job)) {
+      this.paidWaitingQueue.push(jobId);
+      console.log(`[Queue] Job ${jobId} added to PAID queue for history ${data.historyId} (${data.planType})`);
+    } else {
+      this.freeWaitingQueue.push(jobId);
+      console.log(`[Queue] Job ${jobId} added to FREE queue for history ${data.historyId}`);
+    }
+
+    // Emit queue position (only meaningful for free users)
     this.updateQueuePositions();
 
     this.emit("added", job);
-    console.log(`[Queue] Job ${jobId} added for history ${data.historyId}`);
 
     // Try to process
     this.tryProcess();
@@ -128,10 +145,11 @@ class InMemoryQueue extends EventEmitter {
     if (!job) return false;
 
     if (job.status === "waiting") {
-      // Remove from waiting queue
-      const index = this.waitingQueue.indexOf(jobId);
+      // Remove from the correct waiting queue
+      const queue = this.isPaid(job) ? this.paidWaitingQueue : this.freeWaitingQueue;
+      const index = queue.indexOf(jobId);
       if (index > -1) {
-        this.waitingQueue.splice(index, 1);
+        queue.splice(index, 1);
       }
       job.status = "failed";
       job.failedReason = "Cancelled by user";
@@ -257,7 +275,8 @@ class InMemoryQueue extends EventEmitter {
         job.status = "failed";
         job.finishedAt = new Date();
         job.failedReason = "Job timed out (zombie detection)";
-        this.activeJobs.delete(jobId);
+        this.paidActiveJobs.delete(jobId);
+        this.freeActiveJobs.delete(jobId);
 
         // Emit failure
         emitScrapeFailed(job.data.userId, {
@@ -276,25 +295,39 @@ class InMemoryQueue extends EventEmitter {
 
   private async tryProcess(): Promise<void> {
     if (!this.processor) return;
-    if (this.activeJobs.size >= this.config.concurrency) return;
-    if (this.waitingQueue.length === 0) return;
 
-    const jobId = this.waitingQueue.shift();
-    if (!jobId) return;
+    // Process paid queue first (high priority)
+    while (this.paidActiveJobs.size < this.config.paidConcurrency && this.paidWaitingQueue.length > 0) {
+      const jobId = this.paidWaitingQueue.shift();
+      if (!jobId) break;
+      const job = this.jobs.get(jobId);
+      if (!job) continue;
+      this.processJob(jobId, job, this.paidActiveJobs);
+    }
 
-    const job = this.jobs.get(jobId);
-    if (!job) return;
+    // Process free queue (low priority, sequential)
+    while (this.freeActiveJobs.size < this.config.freeConcurrency && this.freeWaitingQueue.length > 0) {
+      const jobId = this.freeWaitingQueue.shift();
+      if (!jobId) break;
+      const job = this.jobs.get(jobId);
+      if (!job) continue;
+      this.processJob(jobId, job, this.freeActiveJobs);
+    }
+  }
 
-    // Start processing
-    this.activeJobs.add(jobId);
+  /**
+   * Process a single job within the given active set
+   */
+  private async processJob(jobId: string, job: InMemoryJob, activeSet: Set<string>): Promise<void> {
+    if (!this.processor) return;
+
+    activeSet.add(jobId);
     job.status = "active";
     job.startedAt = new Date();
 
-    // NOTE: scrape:started is emitted by the job processor (scraper.service.ts)
-    // to avoid duplicate events to the frontend.
-
     this.emit("active", job);
-    console.log(`[Queue] Processing job ${jobId} for history ${job.data.historyId}`);
+    const tier = this.isPaid(job) ? "PAID" : "FREE";
+    console.log(`[Queue] Processing job ${jobId} [${tier}] for history ${job.data.historyId}`);
 
     try {
       // Set timeout
@@ -305,8 +338,6 @@ class InMemoryQueue extends EventEmitter {
       // Process with timeout
       const result = await Promise.race([this.processor(job), timeoutPromise]);
 
-      // The processor catches its own errors and returns { success: false }.
-      // We must check result.success to set the correct queue status.
       if (result.success) {
         job.status = "completed";
         job.finishedAt = new Date();
@@ -337,8 +368,14 @@ class InMemoryQueue extends EventEmitter {
 
         setTimeout(() => {
           job.status = "waiting";
-          this.waitingQueue.push(jobId);
+          // Re-add to correct queue
+          if (this.isPaid(job)) {
+            this.paidWaitingQueue.push(jobId);
+          } else {
+            this.freeWaitingQueue.push(jobId);
+          }
           this.updateQueuePositions();
+          this.tryProcess();
         }, delay);
       } else {
         // Max retries exceeded
@@ -358,18 +395,19 @@ class InMemoryQueue extends EventEmitter {
         console.log(`[Queue] Job ${jobId} failed: ${errorMessage}`);
       }
     } finally {
-      this.activeJobs.delete(jobId);
+      activeSet.delete(jobId);
 
-      // Update queue positions for remaining jobs
+      // Update queue positions for remaining free jobs
       this.updateQueuePositions();
 
-      // Process next job
+      // Process next jobs
       this.tryProcess();
     }
   }
 
   private updateQueuePositions(): void {
-    this.waitingQueue.forEach((jobId, index) => {
+    // Only emit queue positions for free users (paid users start immediately)
+    this.freeWaitingQueue.forEach((jobId, index) => {
       const job = this.jobs.get(jobId);
       if (job) {
         emitQueuePosition(job.data.userId, {
