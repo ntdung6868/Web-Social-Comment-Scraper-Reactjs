@@ -299,10 +299,8 @@ export default function ScraperPage() {
       const a = document.createElement("a");
       a.href = url;
       a.download = `comments-${completedScrape.historyId}.${format}`;
-      document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       toast.success(`Downloaded as ${format.toUpperCase()}`);
     } catch (err) {
       console.error("Export failed:", err);

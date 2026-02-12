@@ -176,10 +176,10 @@ export default function GuidePage() {
             </li>
             <li>
               <strong>Export cookies:</strong> Click the J2TEAM Cookies icon in the toolbar → select{" "}
-              <strong>Export Cookies</strong> → copy the JSON content.
+              <strong>Export Cookies</strong>.
             </li>
             <li>
-              <strong>Upload:</strong> Go to <strong>Settings → Cookies</strong> tab in this app → paste or upload the
+              <strong>Upload:</strong> Go to <strong>Settings → Cookies</strong> tab in this app → upload the
               JSON file.
             </li>
           </Box>
@@ -411,14 +411,14 @@ export default function GuidePage() {
                   <li>Import your TikTok cookies (from J2TEAM Cookies export).</li>
                   <li>The app will load TikTok with your cookies. Solve the captcha manually when it appears.</li>
                   <li>
-                    Export the solved cookies → upload them in <strong>Settings → Cookies</strong>.
+                    Upload them again in <strong>Settings → Cookies</strong>.
                   </li>
                 </Box>
               </Box>
             </Box>
           </Box>
 
-          {/* Method 3: Non-Headless */}
+          {/* Method 3: Spacing */}
           <Box sx={{ mb: 3 }}>
             <Typography
               variant="subtitle2"
@@ -426,25 +426,6 @@ export default function GuidePage() {
               sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
             >
               <Chip label="3" size="small" color="primary" />
-              Run in Non-Headless Mode
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ pl: 4 }}>
-              Disable <strong>Headless Mode</strong> in <strong>Settings → General</strong>. The browser will be visible
-              and you can manually solve captcha when it appears.
-            </Typography>
-            <Box sx={{ pl: 4, mt: 1 }}>
-              <Chip label="Requires manual interaction" size="small" color="warning" variant="outlined" />
-            </Box>
-          </Box>
-
-          {/* Method 4: Spacing */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="subtitle2"
-              fontWeight={700}
-              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <Chip label="4" size="small" color="primary" />
               Space Out Your Scraping Sessions
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ pl: 4 }}>
