@@ -334,6 +334,27 @@ function PricingCard({
             >
               Current Plan
             </Button>
+          ) : isCurrentPlan && isExpired && plan.id === "FREE" ? (
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              disabled
+              sx={{
+                py: 1.5,
+                borderRadius: 2,
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                textTransform: "none",
+                "&.Mui-disabled": {
+                  background: "linear-gradient(135deg, #78909c 0%, #546e7a 100%)",
+                  color: "#fff",
+                  opacity: 0.85,
+                },
+              }}
+            >
+              Trial Ended
+            </Button>
           ) : isCurrentPlan && isExpired ? (
             <Button
               fullWidth
