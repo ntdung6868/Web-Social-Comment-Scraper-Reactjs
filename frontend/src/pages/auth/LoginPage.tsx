@@ -24,6 +24,7 @@ import {
   Email as EmailIcon,
   Lock as LockIcon,
   Search as SearchIcon,
+  Block as BlockIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 import { AxiosError } from "axios";
@@ -45,6 +46,7 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [banReason, setBanReason] = useState<string | null>(null);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
 
@@ -64,12 +66,19 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     try {
       setError(null);
+      setBanReason(null);
       await login(data.email, data.password, data.rememberMe);
       navigate(from, { replace: true });
     } catch (err) {
-      const axiosError = err as AxiosError<{ error: { message: string } }>;
+      const axiosError = err as AxiosError<{ error: { message: string; code: string } }>;
+      const code = axiosError.response?.data?.error?.code;
       const message = axiosError.response?.data?.error?.message || "Login failed. Please check your credentials.";
-      setError(message);
+      if (code === "USER_BANNED") {
+        const reason = message.replace(/^Account is banned:\s*/i, "") || "No reason provided";
+        setBanReason(reason);
+      } else {
+        setError(message);
+      }
     }
   };
 
@@ -122,6 +131,24 @@ export default function LoginPage() {
           </Box>
 
           {/* Error Alert */}
+          {banReason && (
+            <Alert
+              severity="error"
+              icon={<BlockIcon />}
+              sx={{
+                mb: 3,
+                border: (theme) => `1px solid ${alpha(theme.palette.error.main, 0.4)}`,
+                backgroundColor: (theme) => alpha(theme.palette.error.main, 0.08),
+              }}
+            >
+              <Typography variant="subtitle2" fontWeight={700}>
+                Account Banned
+              </Typography>
+              <Typography variant="body2">
+                Reason: {banReason}
+              </Typography>
+            </Alert>
+          )}
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error}
