@@ -208,7 +208,8 @@ export const scraperController = {
 
     const { history, comments } = await scraperService.getCommentsForExport(historyId, req.user.userId);
 
-    const filename = `comments_${historyId}_${Date.now()}`;
+    const time = new Date().toTimeString().slice(0, 8);
+    const filename = `comments-${history.platform.toLowerCase()}-${time}`;
 
     switch (format) {
       case "json":
