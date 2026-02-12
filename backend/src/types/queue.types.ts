@@ -69,7 +69,6 @@ export interface JobInfo {
  * Queue configuration
  */
 export interface QueueConfig {
-  paidConcurrency: number; // Max concurrent paid plan jobs
   freeConcurrency: number; // Max concurrent free plan jobs
   maxRetries: number;
   retryDelay: number; // milliseconds

@@ -19,7 +19,6 @@ import { emitScrapeProgress, emitScrapeFailed, emitQueuePosition } from "./socke
 // ===========================================
 
 const DEFAULT_CONFIG: QueueConfig = {
-  paidConcurrency: 10, // Paid users scrape immediately (high concurrency)
   freeConcurrency: 1, // Free users wait in queue (sequential)
   maxRetries: 3,
   retryDelay: 5000, // 5 seconds base delay
@@ -296,8 +295,8 @@ class InMemoryQueue extends EventEmitter {
   private async tryProcess(): Promise<void> {
     if (!this.processor) return;
 
-    // Process paid queue first (high priority)
-    while (this.paidActiveJobs.size < this.config.paidConcurrency && this.paidWaitingQueue.length > 0) {
+    // Process ALL paid jobs immediately (no concurrency limit)
+    while (this.paidWaitingQueue.length > 0) {
       const jobId = this.paidWaitingQueue.shift();
       if (!jobId) break;
       const job = this.jobs.get(jobId);
