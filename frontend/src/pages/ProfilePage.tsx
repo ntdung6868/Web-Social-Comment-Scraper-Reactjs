@@ -53,7 +53,10 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
-  const [isEditing, setIsEditing] = useState(false);
+  // Password visibility toggles
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Logic hiển thị gói cước
   const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
@@ -61,16 +64,7 @@ export default function ProfilePage() {
     user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Member";
   const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
 
-  const {
-    register: registerProfile,
-    handleSubmit: handleProfileSubmit,
-    formState: { errors: profileErrors },
-  } = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      username: user?.username || "",
-    },
-  });
+  // Remove edit logic: only show username/email as read-only
 
   const {
     register: registerPassword,
@@ -86,18 +80,7 @@ export default function ProfilePage() {
     },
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: userService.updateProfile,
-    onSuccess: (response) => {
-      // Backend trả về user object đã update
-      updateUser(response.data?.user || (response as any).user);
-      setIsEditing(false);
-      toast.success("Profile updated successfully");
-    },
-    onError: () => {
-      toast.error("Failed to update profile");
-    },
-  });
+  // Only allow password change
 
   const updatePasswordMutation = useMutation({
     mutationFn: ({
@@ -113,8 +96,14 @@ export default function ProfilePage() {
       resetPassword();
       toast.success("Password changed successfully");
     },
-    onError: () => {
-      toast.error("Failed to change password");
+    onError: (err: any) => {
+      // Show cooldown error if present
+      const msg = err?.response?.data?.error?.message || err?.message || "Failed to change password";
+      if (msg.includes("change password every")) {
+        toast.error(msg);
+      } else {
+        toast.error("Failed to change password");
+      }
     },
   });
 
@@ -169,7 +158,6 @@ export default function ProfilePage() {
                 {user.username?.charAt(0).toUpperCase()}
               </Avatar>
 
-              {/* HIỂN THỊ USERNAME THẬT */}
               <Typography variant="h5" fontWeight={700}>
                 {user.username}
               </Typography>
@@ -200,83 +188,36 @@ export default function ProfilePage() {
                   </Box>
                 </Box>
 
-                <Box>
+                <Box sx={{ mb: 2 }}>
                   <Typography variant="caption" color="text.secondary" display="block">
                     Subscription Status
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <SecurityIcon fontSize="small" color={isPaid ? "success" : "action"} />
                     <Typography variant="body2" fontWeight={500} color={isPaid ? "success.main" : "text.primary"}>
-                      {/* HIỂN THỊ TRẠNG THÁI GÓI CƯỚC THẬT */}
                       {user.planStatus === "ACTIVE" ? "Active" : "Inactive"} ({planLabel})
                     </Typography>
                   </Box>
                 </Box>
+
+                {isPaid && user.subscriptionEnd && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Expiration Date
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <CalendarIcon fontSize="small" color="action" />
+                      <Typography variant="body2">{format(new Date(user.subscriptionEnd), "MMMM dd, yyyy")}</Typography>
+                    </Box>
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Right Column: Edit Forms */}
+        {/* Right Column: Password Form Only */}
         <Grid item xs={12} md={8}>
-          <Card sx={{ mb: 3 }}>
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                <Typography variant="h6" fontWeight={600}>
-                  Edit Profile
-                </Typography>
-                <Button
-                  variant={isEditing ? "contained" : "outlined"}
-                  startIcon={isEditing ? <SaveIcon /> : <EditIcon />}
-                  onClick={() => {
-                    if (isEditing) {
-                      handleProfileSubmit(onProfileSubmit)();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                  disabled={updateProfileMutation.isPending}
-                >
-                  {isEditing ? "Save" : "Edit"}
-                </Button>
-              </Box>
-
-              <form onSubmit={handleProfileSubmit(onProfileSubmit)}>
-                <TextField
-                  {...registerProfile("username")}
-                  fullWidth
-                  label="Username"
-                  disabled={!isEditing}
-                  error={!!profileErrors.username}
-                  helperText={profileErrors.username?.message}
-                  sx={{ mb: 2 }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  label="Email"
-                  value={user.email || ""}
-                  disabled
-                  helperText="Email cannot be changed"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </form>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardContent sx={{ p: 3 }}>
               <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mb: 3 }}>
@@ -287,7 +228,7 @@ export default function ProfilePage() {
                 <TextField
                   {...registerPassword("currentPassword")}
                   fullWidth
-                  type="password"
+                  type={showCurrent ? "text" : "password"}
                   label="Current Password"
                   error={!!passwordErrors.currentPassword}
                   helperText={passwordErrors.currentPassword?.message}
@@ -298,13 +239,20 @@ export default function ProfilePage() {
                         <LockIcon color="action" />
                       </InputAdornment>
                     ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button onClick={() => setShowCurrent((v) => !v)} size="small">
+                          {showCurrent ? "Hide" : "Show"}
+                        </Button>
+                      </InputAdornment>
+                    ),
                   }}
                 />
 
                 <TextField
                   {...registerPassword("newPassword")}
                   fullWidth
-                  type="password"
+                  type={showNew ? "text" : "password"}
                   label="New Password"
                   error={!!passwordErrors.newPassword}
                   helperText={passwordErrors.newPassword?.message}
@@ -315,13 +263,20 @@ export default function ProfilePage() {
                         <LockIcon color="action" />
                       </InputAdornment>
                     ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button onClick={() => setShowNew((v) => !v)} size="small">
+                          {showNew ? "Hide" : "Show"}
+                        </Button>
+                      </InputAdornment>
+                    ),
                   }}
                 />
 
                 <TextField
                   {...registerPassword("confirmPassword")}
                   fullWidth
-                  type="password"
+                  type={showConfirm ? "text" : "password"}
                   label="Confirm New Password"
                   error={!!passwordErrors.confirmPassword}
                   helperText={passwordErrors.confirmPassword?.message}
@@ -330,6 +285,13 @@ export default function ProfilePage() {
                     startAdornment: (
                       <InputAdornment position="start">
                         <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Button onClick={() => setShowConfirm((v) => !v)} size="small">
+                          {showConfirm ? "Hide" : "Show"}
+                        </Button>
                       </InputAdornment>
                     ),
                   }}
