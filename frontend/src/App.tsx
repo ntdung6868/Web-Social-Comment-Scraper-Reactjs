@@ -4,22 +4,35 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { Toaster } from "react-hot-toast";
 import { RouterProvider } from "react-router-dom";
-import theme from "@/theme";
+import { getTheme } from "@/theme";
 import { queryClient } from "@/lib/query-client";
 import { useAuthStore } from "@/stores/auth.store";
+import { useThemeStore } from "@/stores/theme.store";
 import router from "./routes";
 
 function App() {
   const { checkAuth } = useAuthStore();
+  const { theme } = useThemeStore();
+  const isDark = theme === "dark";
 
   // Check authentication status on app load
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
+  // Apply dark/light class to root element
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [isDark]);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={getTheme(isDark)}>
         <CssBaseline />
         <RouterProvider router={router} />
         <Toaster
@@ -27,10 +40,12 @@ function App() {
           toastOptions={{
             duration: 4000,
             style: {
-              background: "#1a1a2e",
-              color: "#fff",
+              background: isDark ? "#1a1a2e" : "#ffffff",
+              color: isDark ? "#fff" : "#000",
               borderRadius: "12px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              border: isDark
+                ? "1px solid rgba(255, 255, 255, 0.1)"
+                : "1px solid rgba(0, 0, 0, 0.1)",
             },
             success: {
               iconTheme: {

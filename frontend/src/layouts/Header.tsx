@@ -28,6 +28,7 @@ import {
 import { useAuthStore } from "@/stores/auth.store";
 import { useNotificationStore } from "@/stores/notification.store";
 import NotificationMenu from "@/components/common/NotificationMenu";
+import ThemeToggle from "@/components/common/ThemeToggle";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -163,6 +164,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
               </Badge>
             </IconButton>
           </Tooltip>
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* Profile */}
           <Tooltip title="Account">

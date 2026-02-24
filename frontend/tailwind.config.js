@@ -5,6 +5,7 @@ export default {
   corePlugins: {
     preflight: false,
   },
+  darkMode: "class",
   important: "#root",
   theme: {
     extend: {
@@ -55,3 +56,4 @@ export default {
   },
   plugins: [],
 };
+
