@@ -80,6 +80,14 @@ api.interceptors.response.use(
 
     // Nếu lỗi 401 và chưa từng retry request này
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Nếu lỗi 401 xảy ra tại login/register -> Trả lỗi thẳng, không refresh
+      if (
+        originalRequest.url?.includes("/auth/login") ||
+        originalRequest.url?.includes("/auth/register")
+      ) {
+        return Promise.reject(error);
+      }
+
       // Nếu lỗi 401 xảy ra ngay tại endpoint refresh -> Token hết hạn hẳn -> Logout
       if (originalRequest.url?.includes("/auth/refresh")) {
         localStorage.removeItem("auth-storage");

@@ -62,7 +62,6 @@ const scrapeSchema = z.object({
         url.includes("fb.com"),
       "Only TikTok and Facebook URLs are supported",
     ),
-  maxComments: z.number().min(10).max(1000000).optional(),
 });
 
 type ScrapeFormData = z.infer<typeof scrapeSchema>;
@@ -233,7 +232,6 @@ export default function ScraperPage() {
     resolver: zodResolver(scrapeSchema),
     defaultValues: {
       url: "",
-      maxComments: 500,
     },
   });
 
@@ -354,28 +352,17 @@ export default function ScraperPage() {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)}>
-            <TextField
-              {...register("url")}
-              fullWidth
-              label="Post URL"
-              placeholder="https://www.tiktok.com/@username/video/..."
-              error={!!errors.url}
-              helperText={errors.url?.message}
-              sx={{ mb: 2 }}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />,
-              }}
-            />
-
             <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
               <TextField
-                {...register("maxComments", { valueAsNumber: true })}
-                type="number"
-                label="Max Comments"
-                error={!!errors.maxComments}
-                helperText={errors.maxComments?.message || "Server enforces your plan limit"}
-                sx={{ width: 200 }}
-                inputProps={{ min: 10 }}
+                {...register("url")}
+                fullWidth
+                label="Post URL"
+                placeholder="https://www.tiktok.com/@username/video/..."
+                error={!!errors.url}
+                helperText={errors.url?.message}
+                InputProps={{
+                  startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }}/>,
+                }}
               />
 
               <Button
@@ -384,7 +371,7 @@ export default function ScraperPage() {
                 size="large"
                 startIcon={<PlayIcon />}
                 disabled={startScrapeMutation.isPending}
-                sx={{ height: 56 }}
+                sx={{ height: 56, whiteSpace: "nowrap", flexShrink: 0 }}
               >
                 {startScrapeMutation.isPending ? "Starting..." : "Start Scrape"}
               </Button>

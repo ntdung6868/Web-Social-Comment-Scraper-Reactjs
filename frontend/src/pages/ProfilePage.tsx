@@ -15,27 +15,24 @@ import {
   Grid,
   Chip,
   InputAdornment,
+  IconButton,
+  Alert,
 } from "@mui/material";
 import {
-  Edit as EditIcon,
-  Save as SaveIcon,
   Person as PersonIcon,
   Email as EmailIcon,
   Lock as LockIcon,
   Star as StarIcon,
   CalendarToday as CalendarIcon,
   VerifiedUser as SecurityIcon,
+  Visibility,
+  VisibilityOff,
+  EventBusy as ExpireIcon,
 } from "@mui/icons-material";
-import { userService } from "@/services/user.service";
 import { useAuthStore } from "@/stores/auth.store";
 import toast from "react-hot-toast";
 import { format } from "date-fns";
 import { authService } from "@/services/auth.service";
-
-// 1. Sửa Schema: Username thay vì Name
-const profileSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-});
 
 const passwordSchema = z
   .object({
@@ -48,29 +45,19 @@ const passwordSchema = z
     path: ["confirmPassword"],
   });
 
-type ProfileFormData = z.infer<typeof profileSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser } = useAuthStore();
-  const [isEditing, setIsEditing] = useState(false);
+  const { user } = useAuthStore();
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // Logic hiển thị gói cước
   const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
   const planLabel =
     user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Member";
   const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
-
-  const {
-    register: registerProfile,
-    handleSubmit: handleProfileSubmit,
-    formState: { errors: profileErrors },
-  } = useForm<ProfileFormData>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      username: user?.username || "",
-    },
-  });
 
   const {
     register: registerPassword,
@@ -79,62 +66,36 @@ export default function ProfilePage() {
     formState: { errors: passwordErrors },
   } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  });
-
-  const updateProfileMutation = useMutation({
-    mutationFn: userService.updateProfile,
-    onSuccess: (response) => {
-      // Backend trả về user object đã update
-      updateUser(response.data?.user || (response as any).user);
-      setIsEditing(false);
-      toast.success("Profile updated successfully");
-    },
-    onError: () => {
-      toast.error("Failed to update profile");
-    },
+    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
   });
 
   const updatePasswordMutation = useMutation({
-    mutationFn: ({
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    }: {
-      currentPassword: string;
-      newPassword: string;
-      confirmPassword: string;
-    }) => authService.changePassword(currentPassword, newPassword, confirmPassword),
+    mutationFn: ({ currentPassword, newPassword, confirmPassword }: PasswordFormData) =>
+      authService.changePassword(currentPassword, newPassword, confirmPassword),
     onSuccess: () => {
       resetPassword();
+      setPasswordError(null);
       toast.success("Password changed successfully");
     },
-    onError: () => {
-      toast.error("Failed to change password");
+    onError: (error: any) => {
+      const msg: string =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to change password";
+      setPasswordError(msg);
     },
   });
 
-  const onProfileSubmit = (data: ProfileFormData) => {
-    updateProfileMutation.mutate(data);
-  };
-
   const onPasswordSubmit = (data: PasswordFormData) => {
-    updatePasswordMutation.mutate({
-      currentPassword: data.currentPassword,
-      newPassword: data.newPassword,
-      confirmPassword: data.confirmPassword,
-    });
+    setPasswordError(null);
+    updatePasswordMutation.mutate(data);
   };
 
   if (!user) return null;
 
   return (
     <Box>
-      {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
           Profile
@@ -148,12 +109,7 @@ export default function ProfilePage() {
         {/* Left Column: Profile Card */}
         <Grid item xs={12} md={4}>
           <Card sx={{ height: "100%", textAlign: "center" }}>
-            <Box
-              sx={{
-                height: 120,
-                background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-              }}
-            />
+            <Box sx={{ height: 120, background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)" }} />
             <CardContent sx={{ mt: -6 }}>
               <Avatar
                 sx={{
@@ -169,7 +125,6 @@ export default function ProfilePage() {
                 {user.username?.charAt(0).toUpperCase()}
               </Avatar>
 
-              {/* HIỂN THỊ USERNAME THẬT */}
               <Typography variant="h5" fontWeight={700}>
                 {user.username}
               </Typography>
@@ -178,7 +133,7 @@ export default function ProfilePage() {
               </Typography>
 
               <Chip
-                icon={isPaid ? <StarIcon style={{ fontSize: 16 }} /> : undefined}
+                icon={isPaid ? <StarIcon style={{ fontSize: 16 }}/> : undefined}
                 label={planLabel}
                 color={planColor}
                 variant={isPaid ? "filled" : "outlined"}
@@ -200,94 +155,104 @@ export default function ProfilePage() {
                   </Box>
                 </Box>
 
-                <Box>
+                <Box sx={{ mb: isPaid && user.subscriptionEnd ? 2 : 0 }}>
                   <Typography variant="caption" color="text.secondary" display="block">
                     Subscription Status
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <SecurityIcon fontSize="small" color={isPaid ? "success" : "action"} />
                     <Typography variant="body2" fontWeight={500} color={isPaid ? "success.main" : "text.primary"}>
-                      {/* HIỂN THỊ TRẠNG THÁI GÓI CƯỚC THẬT */}
                       {user.planStatus === "ACTIVE" ? "Active" : "Inactive"} ({planLabel})
                     </Typography>
                   </Box>
                 </Box>
+
+                {isPaid && user.subscriptionEnd && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      Expires On
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <ExpireIcon
+                        fontSize="small"
+                        color={new Date(user.subscriptionEnd) < new Date() ? "error" : "warning"}
+                      />
+                      <Typography
+                        variant="body2"
+                        fontWeight={500}
+                        color={new Date(user.subscriptionEnd) < new Date() ? "error.main" : "warning.main"}
+                      >
+                        {format(new Date(user.subscriptionEnd), "MMMM dd, yyyy")}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* Right Column: Edit Forms */}
+        {/* Right Column */}
         <Grid item xs={12} md={8}>
+          {/* Account Info (read-only) */}
           <Card sx={{ mb: 3 }}>
             <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                <Typography variant="h6" fontWeight={600}>
-                  Edit Profile
-                </Typography>
-                <Button
-                  variant={isEditing ? "contained" : "outlined"}
-                  startIcon={isEditing ? <SaveIcon /> : <EditIcon />}
-                  onClick={() => {
-                    if (isEditing) {
-                      handleProfileSubmit(onProfileSubmit)();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                  disabled={updateProfileMutation.isPending}
-                >
-                  {isEditing ? "Save" : "Edit"}
-                </Button>
-              </Box>
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 3 }}>
+                Account Information
+              </Typography>
 
-              <form onSubmit={handleProfileSubmit(onProfileSubmit)}>
-                <TextField
-                  {...registerProfile("username")}
-                  fullWidth
-                  label="Username"
-                  disabled={!isEditing}
-                  error={!!profileErrors.username}
-                  helperText={profileErrors.username?.message}
-                  sx={{ mb: 2 }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
+              <TextField
+                fullWidth
+                label="Username"
+                value={user.username || ""}
+                disabled
+                sx={{ mb: 2 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
 
-                <TextField
-                  fullWidth
-                  label="Email"
-                  value={user.email || ""}
-                  disabled
-                  helperText="Email cannot be changed"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </form>
+              <TextField
+                fullWidth
+                label="Email"
+                value={user.email || ""}
+                disabled
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
             </CardContent>
           </Card>
 
+          {/* Change Password */}
           <Card>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mb: 3 }}>
+              <Typography variant="h6" fontWeight={600}gutterBottom sx={{ mb: 1 }}>
                 Change Password
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                You can only change your password once every 7 days.
+              </Typography>
+
+              {passwordError && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {passwordError}
+                </Alert>
+              )}
 
               <form onSubmit={handlePasswordSubmit(onPasswordSubmit)}>
                 <TextField
                   {...registerPassword("currentPassword")}
                   fullWidth
-                  type="password"
+                  type={showCurrent ? "text" : "password"}
                   label="Current Password"
                   error={!!passwordErrors.currentPassword}
                   helperText={passwordErrors.currentPassword?.message}
@@ -298,13 +263,20 @@ export default function ProfilePage() {
                         <LockIcon color="action" />
                       </InputAdornment>
                     ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowCurrent((v) => !v)} edge="end" size="small">
+                          {showCurrent ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
                   }}
                 />
 
                 <TextField
                   {...registerPassword("newPassword")}
                   fullWidth
-                  type="password"
+                  type={showNew ? "text" : "password"}
                   label="New Password"
                   error={!!passwordErrors.newPassword}
                   helperText={passwordErrors.newPassword?.message}
@@ -315,13 +287,20 @@ export default function ProfilePage() {
                         <LockIcon color="action" />
                       </InputAdornment>
                     ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowNew((v) => !v)} edge="end" size="small">
+                          {showNew ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
                   }}
                 />
 
                 <TextField
                   {...registerPassword("confirmPassword")}
                   fullWidth
-                  type="password"
+                  type={showConfirm ? "text" : "password"}
                   label="Confirm New Password"
                   error={!!passwordErrors.confirmPassword}
                   helperText={passwordErrors.confirmPassword?.message}
@@ -330,6 +309,13 @@ export default function ProfilePage() {
                     startAdornment: (
                       <InputAdornment position="start">
                         <LockIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowConfirm((v) => !v)} edge="end" size="small">
+                          {showConfirm ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
                       </InputAdornment>
                     ),
                   }}

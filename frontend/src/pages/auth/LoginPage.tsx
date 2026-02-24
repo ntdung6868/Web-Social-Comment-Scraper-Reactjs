@@ -41,7 +41,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   // Chỉ lấy hàm login và isLoading, bỏ setUser (vì không còn mock)
-  const { login, isLoading } = useAuthStore();
+  const { login } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,21 +65,30 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
+      setIsLoading(true);
       setError(null);
       setBanReason(null);
       await login(data.email, data.password, data.rememberMe);
       navigate(from, { replace: true });
-    } catch (err: any) {
+    }catch (err: any) {
       const respData = err?.response?.data;
-      const code = respData?.error?.code;
-      const message =
-        respData?.error?.message || respData?.message || err?.message || "Login failed. Please check your credentials.";
+      const code: string | undefined = respData?.error?.code ?? respData?.code;
+      const message: string =
+        respData?.error?.message ??
+        respData?.message ??
+        err?.message ??
+        "Login failed. Please check your credentials.";
+
       if (code === "USER_BANNED") {
-        const reason = message.replace(/^Account is banned:\s*/i, "") || "No reason provided";
+        const reason = message.replace(/^Account is banned:\s*/i, "").trim() || "No reason provided";
         setBanReason(reason);
+      } else if (!err?.response) {
+        setError("Cannot connect to server. Please try again later.");
       } else {
         setError(message);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
