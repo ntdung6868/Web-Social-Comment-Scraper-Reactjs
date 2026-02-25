@@ -20,6 +20,10 @@ import { authRoutes, userRoutes, scraperRoutes, adminRoutes } from "./routes/ind
 export function createApp(): Application {
   const app = express();
 
+  // Trust Railway / Vercel / any single reverse-proxy hop so that
+  // express-rate-limit can read the real client IP from X-Forwarded-For.
+  app.set("trust proxy", 1);
+
   // ===========================================
   // Security Middlewares
   // ===========================================
