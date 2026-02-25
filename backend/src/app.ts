@@ -83,10 +83,11 @@ export function createApp(): Application {
       redisHealthy = false;
     }
 
-    const allHealthy = dbHealthy && (!env.rateLimit.useRedis || redisHealthy);
-
-    res.status(allHealthy ? 200 : 503).json({
-      status: allHealthy ? "healthy" : "unhealthy",
+    // Only gate the HTTP status on the database — Redis is optional/recoverable.
+    // Returning 503 when Redis is temporarily unavailable would cause Railway to
+    // kill the container even though the app is fully functional.
+    res.status(dbHealthy ? 200 : 503).json({
+      status: dbHealthy ? "healthy" : "unhealthy",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       database: dbHealthy,
