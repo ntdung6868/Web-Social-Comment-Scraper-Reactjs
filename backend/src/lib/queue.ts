@@ -1,575 +1,488 @@
 // ===========================================
-// Queue Service
+// Queue Service — BullMQ Dual-Lane
 // ===========================================
-// In-memory job queue with BullMQ fallback
+// PREMIUM lane : concurrency 5  — PERSONAL + PREMIUM plans run in parallel
+// FREE lane    : concurrency 1  — FREE plan is strictly sequential
 
-import { EventEmitter } from "events";
+import { Queue, Worker, type Job } from "bullmq";
+import Redis from "ioredis";
 import type {
   ScrapeJobData,
   ScrapeJobResult,
   QueueStats,
   JobInfo,
   InMemoryJob,
-  QueueConfig,
 } from "../types/queue.types.js";
 import { emitScrapeProgress, emitScrapeFailed, emitQueuePosition } from "./socket.js";
-import { getSettingNumber } from "../utils/settings.js";
+import { env } from "../config/env.js";
 
 // ===========================================
-// Queue Configuration
+// Configuration
 // ===========================================
 
-const DEFAULT_CONFIG: QueueConfig = {
-  freeConcurrency: 1, // Free users wait in queue (sequential)
-  // Hard cap on total simultaneous Playwright/Chromium processes regardless of plan tier.
-  // Each browser consumes ~300-500 MB RAM; set to 2 for Railway's 512 MB–1 GB instances.
-  maxGlobalConcurrency: 2,
-  maxRetries: 3,
-  retryDelay: 5000, // 5 seconds base delay
-  jobTimeout: 300000, // 5 minutes
-};
+/** Hard per-job timeout: 8 minutes. The browser is force-killed and the job fails. */
+const JOB_TIMEOUT_MS = 8 * 60 * 1000; // 480 000 ms
+
+const PREMIUM_QUEUE_NAME = "premium-scraper-queue";
+const FREE_QUEUE_NAME = "free-scraper-queue";
 
 // ===========================================
-// In-Memory Queue Implementation
+// Redis Connection Factory
+// ===========================================
+// BullMQ workers use blocking Redis commands (BLMOVE / BZPOPMIN).
+// Each Queue and Worker MUST have its own dedicated connection.
+// Sharing a connection causes "maxRetriesPerRequest must be null" errors.
+
+function createRedisConnection(): Redis {
+  return new Redis(env.redis.url, {
+    maxRetriesPerRequest: null, // REQUIRED for BullMQ blocking operations
+    enableReadyCheck: false,
+    retryStrategy: (times) => {
+      if (times > 5) return null; // stop retrying after 5 attempts
+      return Math.min(times * 500, 3000);
+    },
+  });
+}
+
+// ===========================================
+// BullMQ Queues
 // ===========================================
 
-class InMemoryQueue extends EventEmitter {
-  private jobs: Map<string, InMemoryJob> = new Map();
-  private paidWaitingQueue: string[] = []; // Paid plan jobs
-  private freeWaitingQueue: string[] = []; // Free plan jobs
-  private paidActiveJobs: Set<string> = new Set();
-  private freeActiveJobs: Set<string> = new Set();
-  private config: QueueConfig;
-  private jobIdCounter = 0;
-  private isProcessing = false;
-  private processor: ((job: InMemoryJob) => Promise<ScrapeJobResult>) | null = null;
+const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAME, {
+  connection: createRedisConnection(),
+  defaultJobOptions: {
+    attempts: 1, // withRetry() in scraper.service handles retries at the app level
+    removeOnComplete: { count: 500, age: 3_600 }, // Keep last 500, max 1 h
+    removeOnFail: { count: 200, age: 86_400 }, // Keep last 200, max 24 h
+  },
+});
 
-  constructor(config: Partial<QueueConfig> = {}) {
-    super();
-    this.config = { ...DEFAULT_CONFIG, ...config };
-  }
+const freeQueue = new Queue<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, {
+  connection: createRedisConnection(),
+  defaultJobOptions: {
+    attempts: 1,
+    removeOnComplete: { count: 100, age: 3_600 },
+    removeOnFail: { count: 100, age: 86_400 },
+  },
+});
 
-  /**
-   * Check if a job belongs to a paid plan
-   */
-  private isPaid(job: InMemoryJob): boolean {
-    return job.data.planType === "PERSONAL" || job.data.planType === "PREMIUM";
-  }
+// ===========================================
+// In-Memory Job Registry
+// ===========================================
+// Keeps getQueueStats() / getAllJobs() synchronous for backward-compat with the
+// admin API (admin.service.ts calls these synchronously).
+// Entries are cleaned up hourly to prevent unbounded memory growth.
 
-  /**
-   * Register job processor
-   */
-  process(handler: (job: InMemoryJob) => Promise<ScrapeJobResult>): void {
-    this.processor = handler;
-    this.startProcessing();
-  }
+interface RegistryEntry extends JobInfo {
+  userId: string; // Needed by userHasActiveJob() and cancelJobByHistoryId()
+}
 
-  /**
-   * Add job to queue
-   */
-  async add(data: ScrapeJobData): Promise<string> {
-    const jobId = `job_${++this.jobIdCounter}_${Date.now()}`;
+const jobRegistry = new Map<string, RegistryEntry>(); // key = historyId = BullMQ job ID
 
-    const job: InMemoryJob = {
-      id: jobId,
-      data,
-      status: "waiting",
-      progress: 0,
-      createdAt: new Date(),
-      retryCount: 0,
-    };
+// Track active BullMQ Job objects so updateJobProgress() can call job.updateProgress().
+const activeJobRefs = new Map<string, Job<ScrapeJobData, ScrapeJobResult>>();
 
-    this.jobs.set(jobId, job);
-
-    // Route to the correct queue based on plan type
-    if (this.isPaid(job)) {
-      this.paidWaitingQueue.push(jobId);
-      console.log(`[Queue] Job ${jobId} added to PAID queue for history ${data.historyId} (${data.planType})`);
-    } else {
-      this.freeWaitingQueue.push(jobId);
-      console.log(`[Queue] Job ${jobId} added to FREE queue for history ${data.historyId}`);
-    }
-
-    // Emit queue position (only meaningful for free users)
-    this.updateQueuePositions();
-
-    this.emit("added", job);
-
-    // Try to process
-    this.tryProcess();
-
-    return jobId;
-  }
-
-  /**
-   * Get job by ID
-   */
-  getJob(jobId: string): InMemoryJob | undefined {
-    return this.jobs.get(jobId);
-  }
-
-  /**
-   * Get job by history ID
-   */
-  getJobByHistoryId(historyId: string): InMemoryJob | undefined {
-    for (const job of this.jobs.values()) {
-      if (job.data.historyId === historyId) {
-        return job;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Update job progress
-   */
-  updateProgress(jobId: string, progress: number, message?: string): void {
-    const job = this.jobs.get(jobId);
-    if (job) {
-      job.progress = progress;
-
-      // Emit progress via socket
-      emitScrapeProgress(job.data.userId, {
-        historyId: job.data.historyId,
-        phase: "extracting",
-        progress,
-        commentsFound: 0,
-        message: message || `Progress: ${progress}%`,
-        timestamp: new Date(),
-      });
+// Hourly registry sweep — remove completed/failed entries older than 1 h.
+setInterval(() => {
+  const cutoff = Date.now() - 3_600_000;
+  for (const [id, entry] of jobRegistry.entries()) {
+    if (
+      (entry.status === "completed" || entry.status === "failed") &&
+      entry.finishedAt &&
+      entry.finishedAt.getTime() < cutoff
+    ) {
+      jobRegistry.delete(id);
     }
   }
+}, 60_000);
 
-  /**
-   * Cancel a job
-   */
-  async cancel(jobId: string): Promise<boolean> {
-    const job = this.jobs.get(jobId);
+// ===========================================
+// Processor Handler (set by registerProcessor)
+// ===========================================
+
+let processorHandler: ((job: InMemoryJob) => Promise<ScrapeJobResult>) | null = null;
+
+// ===========================================
+// Core Worker Processor
+// ===========================================
+
+async function runJob(
+  bullJob: Job<ScrapeJobData, ScrapeJobResult>,
+  lane: "PREMIUM" | "FREE",
+): Promise<ScrapeJobResult> {
+  if (!processorHandler) {
+    throw new Error("[Queue] No processor registered — call registerProcessor() before jobs are added");
+  }
+
+  const { historyId, userId, planType } = bullJob.data;
+
+  // ── Structured Lane Logs ────────────────────────────────────────────────
+  if (lane === "PREMIUM") {
+    console.log(
+      `[LANE: PREMIUM] Starting parallel job for UserID: ${userId}` +
+        ` | Plan: ${planType} | History: ${historyId}`,
+    );
+  } else {
+    console.log(
+      `[LANE: FREE] Waiting for sequence for UserID: ${userId}` + ` | History: ${historyId}`,
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
+  // Mark registry entry as active
+  const entry = jobRegistry.get(historyId);
+  if (entry) {
+    entry.status = "active";
+    entry.startedAt = new Date();
+  }
+
+  // Track for external progress updates
+  activeJobRefs.set(historyId, bullJob);
+
+  // Adapt BullMQ Job → InMemoryJob shape expected by scraper.service.ts
+  const adapted: InMemoryJob = {
+    id: bullJob.id!,
+    data: bullJob.data,
+    status: "active",
+    progress: 0,
+    createdAt: new Date(bullJob.timestamp),
+    startedAt: new Date(),
+    retryCount: bullJob.attemptsMade,
+  };
+
+  // ── Hard 8-Minute Timeout ───────────────────────────────────────────────
+  // If the scraper hangs (network stall, infinite scroll loop, etc.) this timer
+  // rejects the race, which causes scraper.service.ts to call scraper.cleanup()
+  // via its own try/catch/finally → browser is force-closed, job marked failed.
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `[Queue] Hard timeout (${JOB_TIMEOUT_MS / 60_000} min) exceeded` +
+              ` for history ${historyId} — killing job`,
+          ),
+        ),
+      JOB_TIMEOUT_MS,
+    );
+  });
+  // ────────────────────────────────────────────────────────────────────────
+
+  try {
+    const result = await Promise.race([processorHandler(adapted), timeoutPromise]);
+
+    // Update registry on finish
+    if (entry) {
+      entry.status = result.success ? "completed" : "failed";
+      entry.finishedAt = new Date();
+      entry.progress = 100;
+      if (!result.success) entry.failedReason = result.error;
+    }
+
+    console.log(
+      `[LANE: ${lane}] Job finished for UserID: ${userId}` +
+        ` | History: ${historyId} | Success: ${result.success}`,
+    );
+
+    return result;
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : "Unknown error";
+    const isTimeout = errMsg.includes("Hard timeout") || errMsg.includes("timeout");
+
+    if (entry) {
+      entry.status = "failed";
+      entry.finishedAt = new Date();
+      entry.failedReason = errMsg;
+    }
+
+    console.error(
+      `[LANE: ${lane}] Job failed for UserID: ${userId}` +
+        ` | History: ${historyId} | Error: ${errMsg}`,
+    );
+
+    emitScrapeFailed(userId, {
+      historyId,
+      error: errMsg,
+      code: isTimeout ? "JOB_TIMEOUT" : "SCRAPE_FAILED",
+      retryable: false,
+      timestamp: new Date(),
+    });
+
+    // Re-throw so BullMQ marks the job as failed in Redis
+    throw error;
+  } finally {
+    // Always clean up, even on timeout
+    clearTimeout(timeoutHandle);
+    activeJobRefs.delete(historyId);
+  }
+}
+
+// ===========================================
+// BullMQ Workers (created lazily on registerProcessor)
+// ===========================================
+
+let premiumWorker: Worker<ScrapeJobData, ScrapeJobResult> | null = null;
+let freeWorker: Worker<ScrapeJobData, ScrapeJobResult> | null = null;
+
+function createWorkers(): void {
+  if (premiumWorker || freeWorker) return; // idempotent — only create once
+
+  // PREMIUM LANE — up to 5 paid scrapes run simultaneously
+  premiumWorker = new Worker<ScrapeJobData, ScrapeJobResult>(
+    PREMIUM_QUEUE_NAME,
+    (job) => runJob(job, "PREMIUM"),
+    {
+      connection: createRedisConnection(),
+      concurrency: 5,
+    },
+  );
+
+  // FREE LANE — strictly sequential: next job only starts after current one finishes
+  freeWorker = new Worker<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, (job) => runJob(job, "FREE"), {
+    connection: createRedisConnection(),
+    concurrency: 1,
+  });
+
+  // Worker event listeners for observability
+  const workerPairs: Array<[Worker<ScrapeJobData, ScrapeJobResult>, string]> = [
+    [premiumWorker, "PREMIUM"],
+    [freeWorker, "FREE"],
+  ];
+
+  for (const [worker, lane] of workerPairs) {
+    worker.on("completed", (job) => {
+      console.log(`[LANE: ${lane}] BullMQ ✅ completed job ${job.id} for history ${job.data.historyId}`);
+    });
+
+    worker.on("failed", (job, err) => {
+      if (!job) return;
+      console.error(`[LANE: ${lane}] BullMQ ❌ failed job ${job.id}: ${err.message}`);
+    });
+
+    worker.on("error", (err) => {
+      console.error(`[LANE: ${lane}] Worker error: ${err.message}`);
+    });
+  }
+
+  console.log("[Queue] 🚀 BullMQ dual-lane workers started — PREMIUM (concurrency=5) | FREE (concurrency=1)");
+}
+
+// ===========================================
+// Exported Queue API  (backward-compatible)
+// ===========================================
+
+/**
+ * Add a scrape job to the appropriate lane based on planType.
+ * Returns the historyId, which doubles as the BullMQ job ID.
+ */
+export async function addScrapeJob(data: ScrapeJobData): Promise<string> {
+  const { historyId, userId, planType } = data;
+  const isPaid = planType === "PERSONAL" || planType === "PREMIUM";
+  const queue = isPaid ? premiumQueue : freeQueue;
+
+  // Use historyId as the BullMQ job ID for O(1) lookup via getJob()
+  await queue.add("scrape", data, {
+    jobId: historyId,
+    priority: isPaid ? 1 : 10, // Lower number = higher priority within the same queue
+  });
+
+  console.log(
+    `[Queue] Enqueued → ${isPaid ? "PREMIUM" : "FREE"} lane` +
+      ` | User: ${userId} | History: ${historyId} | Plan: ${planType}`,
+  );
+
+  // Register in memory for sync API access
+  jobRegistry.set(historyId, {
+    id: historyId,
+    historyId,
+    status: "waiting",
+    progress: 0,
+    createdAt: new Date(),
+    userId,
+  });
+
+  // Emit queue position for free users so the frontend can show "Position N"
+  if (!isPaid) {
+    const waitingCount = await freeQueue.getWaitingCount();
+    emitQueuePosition(userId, {
+      historyId,
+      position: waitingCount,
+      estimatedWait: waitingCount * 90, // ~90 s per sequential free job
+    });
+  }
+
+  return historyId;
+}
+
+/**
+ * Get job info by job ID (= historyId in this implementation).
+ */
+export function getJobInfo(jobId: string): JobInfo | null {
+  const entry = jobRegistry.get(jobId);
+  if (!entry) return null;
+
+  return {
+    id: entry.id,
+    historyId: entry.historyId,
+    status: entry.status,
+    progress: entry.progress,
+    createdAt: entry.createdAt,
+    startedAt: entry.startedAt,
+    finishedAt: entry.finishedAt,
+    failedReason: entry.failedReason,
+  };
+}
+
+/**
+ * Get job info by history ID.
+ */
+export function getJobByHistoryId(historyId: string): JobInfo | null {
+  return getJobInfo(historyId);
+}
+
+/**
+ * Cancel a job by its ID (alias for cancelJobByHistoryId since IDs are equal).
+ */
+export async function cancelJob(jobId: string): Promise<boolean> {
+  return cancelJobByHistoryId(jobId);
+}
+
+/**
+ * Cancel a job by history ID.
+ * Only waiting / delayed jobs can be cancelled safely.
+ * Active jobs are left to finish (the scraper's own try/finally handles cleanup).
+ */
+export async function cancelJobByHistoryId(historyId: string): Promise<boolean> {
+  try {
+    // Check premium queue first, then free queue
+    let job = await premiumQueue.getJob(historyId);
+    if (!job) job = await freeQueue.getJob(historyId);
     if (!job) return false;
 
-    if (job.status === "waiting") {
-      // Remove from the correct waiting queue
-      const queue = this.isPaid(job) ? this.paidWaitingQueue : this.freeWaitingQueue;
-      const index = queue.indexOf(jobId);
-      if (index > -1) {
-        queue.splice(index, 1);
-      }
-      job.status = "failed";
-      job.failedReason = "Cancelled by user";
-      job.finishedAt = new Date();
+    const state = await job.getState();
 
-      emitScrapeFailed(job.data.userId, {
-        historyId: job.data.historyId,
-        error: "Cancelled by user",
-        code: "CANCELLED",
-        retryable: false,
-        timestamp: new Date(),
-      });
+    if (state === "waiting" || state === "delayed" || state === "prioritized") {
+      await job.remove();
+
+      const entry = jobRegistry.get(historyId);
+      if (entry) {
+        entry.status = "failed";
+        entry.finishedAt = new Date();
+        entry.failedReason = "Cancelled by user";
+
+        emitScrapeFailed(entry.userId, {
+          historyId,
+          error: "Cancelled by user",
+          code: "CANCELLED",
+          retryable: false,
+          timestamp: new Date(),
+        });
+      }
 
       return true;
     }
 
-    // Cannot cancel active jobs easily without proper cancellation tokens
+    // Active jobs cannot be safely interrupted mid-flight
+    return false;
+  } catch {
     return false;
   }
-
-  /**
-   * Get queue statistics
-   */
-  getStats(): QueueStats {
-    let waiting = 0;
-    let active = 0;
-    let completed = 0;
-    let failed = 0;
-    let delayed = 0;
-
-    for (const job of this.jobs.values()) {
-      switch (job.status) {
-        case "waiting":
-          waiting++;
-          break;
-        case "active":
-          active++;
-          break;
-        case "completed":
-          completed++;
-          break;
-        case "failed":
-          failed++;
-          break;
-        case "delayed":
-          delayed++;
-          break;
-      }
-    }
-
-    return { waiting, active, completed, failed, delayed };
-  }
-
-  /**
-   * Get all jobs info
-   */
-  getAllJobs(): JobInfo[] {
-    return Array.from(this.jobs.values()).map((job) => ({
-      id: job.id,
-      historyId: job.data.historyId,
-      status: job.status,
-      progress: job.progress,
-      createdAt: job.createdAt,
-      startedAt: job.startedAt,
-      finishedAt: job.finishedAt,
-      failedReason: job.failedReason,
-    }));
-  }
-
-  /**
-   * Check if a user has an active or waiting job
-   */
-  hasActiveJob(userId: string): boolean {
-    for (const job of this.jobs.values()) {
-      if (job.data.userId === userId && (job.status === "active" || job.status === "waiting")) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Clean completed/failed jobs older than duration
-   */
-  clean(maxAgeMs: number = 3600000): number {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [jobId, job] of this.jobs.entries()) {
-      if (
-        (job.status === "completed" || job.status === "failed") &&
-        job.finishedAt &&
-        now - job.finishedAt.getTime() > maxAgeMs
-      ) {
-        this.jobs.delete(jobId);
-        cleaned++;
-      }
-    }
-
-    return cleaned;
-  }
-
-  // ===========================================
-  // Private Methods
-  // ===========================================
-
-  private startProcessing(): void {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
-
-    // Periodic check for jobs
-    setInterval(() => this.tryProcess(), 1000);
-
-    // Periodic cleanup
-    setInterval(() => this.clean(), 60000);
-
-    // Periodic zombie job detection (every 30s)
-    setInterval(() => this.detectZombieJobs(), 30000);
-  }
-
-  /**
-   * Detect and fail zombie jobs (active too long without completing)
-   */
-  private detectZombieJobs(): void {
-    const now = Date.now();
-    const zombieThreshold = this.config.jobTimeout + 30000; // jobTimeout + 30s grace
-
-    for (const [jobId, job] of this.jobs.entries()) {
-      if (job.status === "active" && job.startedAt && now - job.startedAt.getTime() > zombieThreshold) {
-        console.warn(
-          `[Queue] Zombie job detected: ${jobId} (active for ${Math.round((now - job.startedAt.getTime()) / 1000)}s)`,
-        );
-
-        // Mark as failed
-        job.status = "failed";
-        job.finishedAt = new Date();
-        job.failedReason = "Job timed out (zombie detection)";
-        this.paidActiveJobs.delete(jobId);
-        this.freeActiveJobs.delete(jobId);
-
-        // Emit failure
-        emitScrapeFailed(job.data.userId, {
-          historyId: job.data.historyId,
-          error: "Job timed out and was automatically cleaned up",
-          code: "ZOMBIE_TIMEOUT",
-          retryable: true,
-          timestamp: new Date(),
-        });
-
-        // Process next
-        this.tryProcess();
-      }
-    }
-  }
-
-  private async tryProcess(): Promise<void> {
-    if (!this.processor) return;
-
-    // Read dynamic settings (falls back to config defaults)
-    const freeConcurrency = (await getSettingNumber("freeConcurrency")) ?? this.config.freeConcurrency;
-    const maxGlobal = this.config.maxGlobalConcurrency;
-
-    // Process paid jobs — priority queue, but bounded by:
-    //   1. Max 1 active job per user (prevents one user monopolising the server)
-    //   2. Hard global cap across ALL tiers (prevents OOM when multiple PREMIUM users submit simultaneously)
-    const skippedPaidJobs: string[] = [];
-    while (this.paidWaitingQueue.length > 0) {
-      // Re-evaluate the global count each iteration (processJob adds to the set synchronously)
-      if (this.paidActiveJobs.size + this.freeActiveJobs.size >= maxGlobal) {
-        console.log(`[Queue] Global concurrency cap (${maxGlobal}) reached — paid job deferred`);
-        break;
-      }
-
-      const jobId = this.paidWaitingQueue.shift();
-      if (!jobId) break;
-      const job = this.jobs.get(jobId);
-      if (!job) continue;
-
-      // Check if this user already has an active paid job
-      const userHasActive = Array.from(this.paidActiveJobs).some((activeId) => {
-        const activeJob = this.jobs.get(activeId);
-        return activeJob && activeJob.data.userId === job.data.userId;
-      });
-
-      if (userHasActive) {
-        // Re-queue — this user must wait for their current job to finish
-        skippedPaidJobs.push(jobId);
-      } else {
-        this.processJob(jobId, job, this.paidActiveJobs);
-      }
-    }
-    // Put skipped jobs back at the front
-    this.paidWaitingQueue.unshift(...skippedPaidJobs);
-
-    // Process free queue (low priority, sequential) — also respects global cap
-    while (
-      this.freeActiveJobs.size < freeConcurrency &&
-      this.freeWaitingQueue.length > 0 &&
-      this.paidActiveJobs.size + this.freeActiveJobs.size < maxGlobal
-    ) {
-      const jobId = this.freeWaitingQueue.shift();
-      if (!jobId) break;
-      const job = this.jobs.get(jobId);
-      if (!job) continue;
-      this.processJob(jobId, job, this.freeActiveJobs);
-    }
-  }
-
-  /**
-   * Process a single job within the given active set
-   */
-  private async processJob(jobId: string, job: InMemoryJob, activeSet: Set<string>): Promise<void> {
-    if (!this.processor) return;
-
-    activeSet.add(jobId);
-    job.status = "active";
-    job.startedAt = new Date();
-
-    this.emit("active", job);
-    const tier = this.isPaid(job) ? "PAID" : "FREE";
-    console.log(`[Queue] Processing job ${jobId} [${tier}] for history ${job.data.historyId}`);
-
-    try {
-      // Set timeout (read dynamic setting — stored as seconds, convert to ms)
-      const jobTimeoutSec = (await getSettingNumber("jobTimeout")) ?? this.config.jobTimeout / 1000;
-      const jobTimeoutMs = jobTimeoutSec * 1000;
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("Job timeout")), jobTimeoutMs);
-      });
-
-      // Process with timeout
-      const result = await Promise.race([this.processor(job), timeoutPromise]);
-
-      if (result.success) {
-        job.status = "completed";
-        job.finishedAt = new Date();
-        job.progress = 100;
-        this.emit("completed", job, result);
-        console.log(`[Queue] Job ${jobId} completed with ${result.totalComments} comments`);
-      } else {
-        job.status = "failed";
-        job.finishedAt = new Date();
-        job.failedReason = result.error || "Scraping failed";
-        this.emit("failed", job, new Error(job.failedReason));
-        console.log(`[Queue] Job ${jobId} failed: ${job.failedReason}`);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-      // Check if should retry
-      if (job.retryCount < this.config.maxRetries) {
-        job.retryCount++;
-        job.status = "delayed";
-
-        // Exponential backoff
-        const delay = this.config.retryDelay * Math.pow(2, job.retryCount - 1);
-
-        console.log(
-          `[Queue] Job ${jobId} failed, retrying in ${delay}ms (attempt ${job.retryCount}/${this.config.maxRetries})`,
-        );
-
-        setTimeout(() => {
-          job.status = "waiting";
-          // Re-add to correct queue
-          if (this.isPaid(job)) {
-            this.paidWaitingQueue.push(jobId);
-          } else {
-            this.freeWaitingQueue.push(jobId);
-          }
-          this.updateQueuePositions();
-          this.tryProcess();
-        }, delay);
-      } else {
-        // Max retries exceeded
-        job.status = "failed";
-        job.finishedAt = new Date();
-        job.failedReason = errorMessage;
-
-        emitScrapeFailed(job.data.userId, {
-          historyId: job.data.historyId,
-          error: errorMessage,
-          code: "MAX_RETRIES_EXCEEDED",
-          retryable: false,
-          timestamp: new Date(),
-        });
-
-        this.emit("failed", job, error);
-        console.log(`[Queue] Job ${jobId} failed: ${errorMessage}`);
-      }
-    } finally {
-      activeSet.delete(jobId);
-
-      // Update queue positions for remaining free jobs
-      this.updateQueuePositions();
-
-      // Process next jobs
-      this.tryProcess();
-    }
-  }
-
-  private updateQueuePositions(): void {
-    // Only emit queue positions for free users (paid users start immediately)
-    this.freeWaitingQueue.forEach((jobId, index) => {
-      const job = this.jobs.get(jobId);
-      if (job) {
-        emitQueuePosition(job.data.userId, {
-          historyId: job.data.historyId,
-          position: index + 1,
-          estimatedWait: (index + 1) * 60, // Rough estimate: 60 seconds per job
-        });
-      }
-    });
-  }
-}
-
-// ===========================================
-// Singleton Instance
-// ===========================================
-
-export const scrapeQueue = new InMemoryQueue();
-
-// ===========================================
-// Queue Service Functions
-// ===========================================
-
-/**
- * Add scrape job to queue
- */
-export async function addScrapeJob(data: ScrapeJobData): Promise<string> {
-  return scrapeQueue.add(data);
 }
 
 /**
- * Get job info by ID
- */
-export function getJobInfo(jobId: string): JobInfo | null {
-  const job = scrapeQueue.getJob(jobId);
-  if (!job) return null;
-
-  return {
-    id: job.id,
-    historyId: job.data.historyId,
-    status: job.status,
-    progress: job.progress,
-    createdAt: job.createdAt,
-    startedAt: job.startedAt,
-    finishedAt: job.finishedAt,
-    failedReason: job.failedReason,
-  };
-}
-
-/**
- * Get job by history ID
- */
-export function getJobByHistoryId(historyId: string): JobInfo | null {
-  const job = scrapeQueue.getJobByHistoryId(historyId);
-  if (!job) return null;
-
-  return {
-    id: job.id,
-    historyId: job.data.historyId,
-    status: job.status,
-    progress: job.progress,
-    createdAt: job.createdAt,
-    startedAt: job.startedAt,
-    finishedAt: job.finishedAt,
-    failedReason: job.failedReason,
-  };
-}
-
-/**
- * Cancel job
- */
-export async function cancelJob(jobId: string): Promise<boolean> {
-  return scrapeQueue.cancel(jobId);
-}
-
-/**
- * Cancel job by history ID (used by socket cancel handler)
- */
-export async function cancelJobByHistoryId(historyId: string): Promise<boolean> {
-  const job = scrapeQueue.getJobByHistoryId(historyId);
-  if (!job) return false;
-  return scrapeQueue.cancel(job.id);
-}
-
-/**
- * Get queue statistics
+ * Get aggregate queue statistics.
+ * Reads from the in-memory registry so it remains synchronous.
  */
 export function getQueueStats(): QueueStats {
-  return scrapeQueue.getStats();
+  let waiting = 0,
+    active = 0,
+    completed = 0,
+    failed = 0,
+    delayed = 0;
+
+  for (const entry of jobRegistry.values()) {
+    switch (entry.status) {
+      case "waiting":
+        waiting++;
+        break;
+      case "active":
+        active++;
+        break;
+      case "completed":
+        completed++;
+        break;
+      case "failed":
+        failed++;
+        break;
+      case "delayed":
+        delayed++;
+        break;
+    }
+  }
+
+  return { waiting, active, completed, failed, delayed };
 }
 
 /**
- * Get all jobs
+ * Get all job infos.
+ * Reads from the in-memory registry so it remains synchronous.
  */
 export function getAllJobs(): JobInfo[] {
-  return scrapeQueue.getAllJobs();
+  return Array.from(jobRegistry.values()).map((e) => ({
+    id: e.id,
+    historyId: e.historyId,
+    status: e.status,
+    progress: e.progress,
+    createdAt: e.createdAt,
+    startedAt: e.startedAt,
+    finishedAt: e.finishedAt,
+    failedReason: e.failedReason,
+  }));
 }
 
 /**
- * Register job processor
+ * Register the scrape job processor and start both BullMQ workers.
+ * Must be called once on startup (ScraperService constructor does this).
  */
 export function registerProcessor(handler: (job: InMemoryJob) => Promise<ScrapeJobResult>): void {
-  scrapeQueue.process(handler);
+  processorHandler = handler;
+  createWorkers();
+  console.log("[Queue] Processor registered — dual-lane BullMQ workers are live");
 }
 
 /**
- * Check if a user already has an active/waiting job
+ * Check whether a user already has an active or waiting job.
+ * Prevents a single user from flooding the queue.
  */
 export function userHasActiveJob(userId: string): boolean {
-  return scrapeQueue.hasActiveJob(userId);
+  for (const entry of jobRegistry.values()) {
+    if (entry.userId === userId && (entry.status === "active" || entry.status === "waiting")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
- * Update job progress
+ * Update job progress from within the scraper and emit a socket event.
  */
-export function updateJobProgress(jobId: string, progress: number, message?: string): void {
-  scrapeQueue.updateProgress(jobId, progress, message);
+export function updateJobProgress(historyId: string, progress: number, message?: string): void {
+  const entry = jobRegistry.get(historyId);
+  if (entry) entry.progress = progress;
+
+  const bullJob = activeJobRefs.get(historyId);
+  if (bullJob) {
+    // Fire-and-forget — failure here must not crash the scraper
+    bullJob.updateProgress(progress).catch(() => {});
+
+    emitScrapeProgress(entry?.userId ?? "", {
+      historyId,
+      phase: "extracting",
+      progress,
+      commentsFound: 0,
+      message: message ?? `Progress: ${progress}%`,
+      timestamp: new Date(),
+    });
+  }
 }
