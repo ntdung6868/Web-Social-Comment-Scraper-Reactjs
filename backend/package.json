@@ -14,7 +14,8 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "npx prisma generate && npx playwright install chromium"
   },
   "dependencies": {
     "@prisma/client": "^5.8.1",
