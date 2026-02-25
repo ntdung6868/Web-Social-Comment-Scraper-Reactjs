@@ -75,7 +75,7 @@ interface LogEntry {
 }
 
 interface CompletedScrape {
-  historyId: number;
+  historyId: string;
   totalComments: number;
   duration: number;
   platform: string;
@@ -150,7 +150,7 @@ export default function ScraperPage() {
       (data: ScrapeStartedEvent) => {
         addScrape({
           id: data.historyId,
-          userId: 0,
+          userId: "",
           platform: data.platform as "TIKTOK" | "FACEBOOK",
           url: data.url,
           totalComments: 0,
@@ -250,8 +250,8 @@ export default function ScraperPage() {
       const urlValue = document.querySelector<HTMLInputElement>('input[name="url"]')?.value || "";
       const platform = urlValue.includes("tiktok.com") ? "TIKTOK" : "FACEBOOK";
       addScrape({
-        id: historyId,
-        userId: 0,
+        id: String(historyId),
+        userId: "",
         platform: platform as "TIKTOK" | "FACEBOOK",
         url: urlValue,
         totalComments: 0,
@@ -289,7 +289,7 @@ export default function ScraperPage() {
     startScrapeMutation.mutate(data);
   };
 
-  const handleCancel = (historyId: number) => {
+  const handleCancel = (historyId: string) => {
     cancelScrape(historyId);
     addLog("info", `🚫 Cancel requested for scrape #${historyId}`);
   };

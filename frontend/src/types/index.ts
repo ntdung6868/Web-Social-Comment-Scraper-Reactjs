@@ -109,8 +109,8 @@ export interface SubscriptionInfo {
 // ===========================================
 
 export interface ScrapeJob {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   platform: Platform;
   url: string;
   totalComments: number;
@@ -136,7 +136,7 @@ export interface Comment {
 // ===========================================
 
 export interface ScrapeStartedEvent {
-  historyId: number;
+  historyId: string;
   url: string;
   platform: string;
   message: string;
@@ -144,7 +144,7 @@ export interface ScrapeStartedEvent {
 }
 
 export interface ScrapeProgress {
-  historyId: number;
+  historyId: string;
   phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving";
   progress: number;
   commentsFound: number;
@@ -153,7 +153,7 @@ export interface ScrapeProgress {
 }
 
 export interface ScrapeCompletedEvent {
-  historyId: number;
+  historyId: string;
   totalComments: number;
   duration: number;
   message: string;
@@ -161,7 +161,7 @@ export interface ScrapeCompletedEvent {
 }
 
 export interface ScrapeFailedEvent {
-  historyId: number;
+  historyId: string;
   error: string;
   code: string;
   retryable: boolean;
@@ -169,7 +169,7 @@ export interface ScrapeFailedEvent {
 }
 
 export interface QueuePositionEvent {
-  historyId: number;
+  historyId: string;
   position: number;
   estimatedWait: number;
 }

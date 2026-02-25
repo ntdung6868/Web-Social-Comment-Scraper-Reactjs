@@ -132,35 +132,35 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
 
     const handleStarted = (data: ScrapeStartedEvent) => {
       if (isDuplicate(`started:${data.historyId}`)) return;
-      if (!historyId || data.historyId === Number(historyId)) {
+      if (!historyId || String(data.historyId) === String(historyId)) {
         optionsRef.current?.onStarted?.(data);
       }
     };
 
     const handleProgress = (data: ScrapeProgress) => {
       if (isDuplicate(`progress:${data.historyId}:${data.progress}`)) return;
-      if (!historyId || data.historyId === Number(historyId)) {
+      if (!historyId || String(data.historyId) === String(historyId)) {
         optionsRef.current?.onProgress?.(data);
       }
     };
 
     const handleCompleted = (data: ScrapeCompletedEvent) => {
       if (isDuplicate(`completed:${data.historyId}`)) return;
-      if (!historyId || data.historyId === Number(historyId)) {
+      if (!historyId || String(data.historyId) === String(historyId)) {
         optionsRef.current?.onCompleted?.(data);
       }
     };
 
     const handleFailed = (data: ScrapeFailedEvent) => {
       if (isDuplicate(`failed:${data.historyId}`)) return;
-      if (!historyId || data.historyId === Number(historyId)) {
+      if (!historyId || String(data.historyId) === String(historyId)) {
         optionsRef.current?.onFailed?.(data);
       }
     };
 
     const handleQueuePosition = (data: QueuePositionEvent) => {
       if (isDuplicate(`queue:${data.historyId}:${data.position}`)) return;
-      if (!historyId || data.historyId === Number(historyId)) {
+      if (!historyId || String(data.historyId) === String(historyId)) {
         optionsRef.current?.onQueuePosition?.(data);
       }
     };

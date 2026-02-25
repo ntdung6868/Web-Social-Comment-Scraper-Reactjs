@@ -22,9 +22,9 @@ interface ServerToClientEvents {
 }
 
 interface ClientToServerEvents {
-  "scrape:subscribe": (historyId: number) => void;
-  "scrape:unsubscribe": (historyId: number) => void;
-  "scrape:cancel": (historyId: number) => void;
+  "scrape:subscribe": (historyId: string) => void;
+  "scrape:unsubscribe": (historyId: string) => void;
+  "scrape:cancel": (historyId: string) => void;
 }
 
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -33,7 +33,19 @@ export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 // Socket Instance
 // ===========================================
 
-const SOCKET_URL = import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL || "http://localhost:5000";
+// Socket.io connects to the server root — not the /api/v1 path.
+// When VITE_WS_URL is not set, extract just the origin from VITE_API_URL
+// so Socket.io doesn't treat the path as a namespace ("Invalid namespace" error).
+function resolveSocketUrl(): string {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  try {
+    return new URL(apiUrl).origin;
+  } catch {
+    return apiUrl;
+  }
+}
+const SOCKET_URL = resolveSocketUrl();
 
 let socket: AppSocket | null = null;
 
@@ -107,9 +119,8 @@ export function reconnectSocket(token: string): void {
  * Backend uses room-based events: socket joins `scrape:{historyId}` room
  */
 export function subscribeToScrape(historyId: number | string): void {
-  const id = typeof historyId === "string" ? parseInt(historyId, 10) : historyId;
-  if (socket?.connected && !isNaN(id)) {
-    socket.emit("scrape:subscribe", id);
+  if (socket?.connected && historyId) {
+    socket.emit("scrape:subscribe", String(historyId));
   }
 }
 
@@ -117,9 +128,8 @@ export function subscribeToScrape(historyId: number | string): void {
  * Unsubscribe from scrape updates
  */
 export function unsubscribeFromScrape(historyId: number | string): void {
-  const id = typeof historyId === "string" ? parseInt(historyId, 10) : historyId;
-  if (socket?.connected && !isNaN(id)) {
-    socket.emit("scrape:unsubscribe", id);
+  if (socket?.connected && historyId) {
+    socket.emit("scrape:unsubscribe", String(historyId));
   }
 }
 
@@ -127,8 +137,7 @@ export function unsubscribeFromScrape(historyId: number | string): void {
  * Request to cancel a scrape job
  */
 export function cancelScrape(historyId: number | string): void {
-  const id = typeof historyId === "string" ? parseInt(historyId, 10) : historyId;
-  if (socket?.connected && !isNaN(id)) {
-    socket.emit("scrape:cancel", id);
+  if (socket?.connected && historyId) {
+    socket.emit("scrape:cancel", String(historyId));
   }
 }

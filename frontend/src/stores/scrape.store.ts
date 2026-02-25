@@ -3,16 +3,16 @@ import type { ScrapeJob, ScrapeProgress } from "@/types";
 
 interface ScrapeState {
   // State
-  activeScrapes: Map<number, ScrapeJob>;
-  scrapeProgress: Map<number, ScrapeProgress>;
+  activeScrapes: Map<string, ScrapeJob>;
+  scrapeProgress: Map<string, ScrapeProgress>;
   isScrapingInProgress: boolean;
 
   // Actions
   addScrape: (scrape: ScrapeJob) => void;
-  updateScrape: (id: number, updates: Partial<ScrapeJob>) => void;
-  removeScrape: (id: number) => void;
+  updateScrape: (id: string, updates: Partial<ScrapeJob>) => void;
+  removeScrape: (id: string) => void;
   updateProgress: (progress: ScrapeProgress) => void;
-  clearProgress: (id: number) => void;
+  clearProgress: (id: string) => void;
   clearAllScrapes: () => void;
 }
 
