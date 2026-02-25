@@ -1,0 +1,21 @@
+FROM node:20-bookworm
+
+WORKDIR /app
+
+# Install dependencies first (layer-cached unless package.json changes)
+COPY package*.json ./
+RUN npm install
+
+# Install Chromium browser + all required Linux system libraries
+RUN npx playwright install --with-deps chromium
+
+# Copy the rest of the source code
+COPY . .
+
+# Generate Prisma client and compile TypeScript
+RUN npx prisma generate
+RUN npm run build
+
+EXPOSE 5000
+
+CMD ["npm", "start"]
