@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Card,
@@ -329,6 +330,7 @@ function SettingCard({
 
 // ── Main Component ───────────────────────────────
 export default function AdminSettingsPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [localSettings, setLocalSettings] = useState<SettingsMap>({});
 
@@ -369,11 +371,11 @@ export default function AdminSettingsPage() {
       }
     },
     onSuccess: () => {
-      toast.success("Settings saved successfully");
+      toast.success(t("admin.settingsSaved"));
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.settings?.() ?? ["admin", "settings"] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to save settings");
+      toast.error(error.message || t("admin.saveSettingsFailed"));
     },
   });
 
@@ -395,7 +397,7 @@ export default function AdminSettingsPage() {
     });
 
     if (changes.length === 0) {
-      toast("No changes to save");
+      toast(t("admin.noChangesToSave"));
       return;
     }
 
@@ -414,7 +416,7 @@ export default function AdminSettingsPage() {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading settings..." />;
+    return <LoadingSpinner message={t("common.loading")} />;
   }
 
   // Group settings by category
@@ -435,10 +437,10 @@ export default function AdminSettingsPage() {
       >
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
-            System Settings
+            {t("nav.adminSettings")}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Configure global system behavior, limits, and features
+            {t("admin.settingsDescription")}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1.5}>
@@ -450,7 +452,7 @@ export default function AdminSettingsPage() {
               handleReset();
             }}
           >
-            Refresh
+            {t("common.refresh")}
           </Button>
           <Button
             variant="contained"
@@ -458,7 +460,7 @@ export default function AdminSettingsPage() {
             onClick={handleSave}
             disabled={!hasChanges || saveMutation.isPending}
           >
-            Save Changes
+            {t("common.saveChanges")}
           </Button>
         </Stack>
       </Box>
@@ -470,11 +472,11 @@ export default function AdminSettingsPage() {
           sx={{ mb: 3 }}
           action={
             <Button color="inherit" size="small" onClick={handleReset}>
-              Discard
+              {t("admin.discard")}
             </Button>
           }
         >
-          You have unsaved changes. Click <strong>Save Changes</strong> to apply.
+          {t("admin.unsavedChanges")}
         </Alert>
       )}
 

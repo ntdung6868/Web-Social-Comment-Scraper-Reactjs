@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Card,
@@ -40,12 +41,6 @@ import type { PlanType } from "@/types";
 
 const PLAN_RANK: Record<PlanType, number> = { FREE: 0, PERSONAL: 1, PREMIUM: 2 };
 
-const PLAN_LABELS: Record<PlanType, string> = {
-  FREE: "Free",
-  PERSONAL: "Personal",
-  PREMIUM: "Premium",
-};
-
 interface PlanFeature {
   text: string;
   tooltip?: string;
@@ -58,6 +53,7 @@ interface PricingPlan {
   period: string;
   features: PlanFeature[];
   buttonText: string;
+  buttonTextCurrent?: string;
   highlighted?: boolean;
   badge?: string;
   gradient: string;
@@ -76,7 +72,7 @@ interface PricingData {
   contact: { email: string; phone: string };
 }
 
-function buildPlans(data?: PricingData): PricingPlan[] {
+function buildPlans(data?: PricingData, t?: ReturnType<typeof useTranslation>["t"]): PricingPlan[] {
   const p = data?.pricing;
   const mc = data?.maxComments;
   const ret = data?.retention;
@@ -96,72 +92,77 @@ function buildPlans(data?: PricingData): PricingPlan[] {
   const personalRet = ret?.PERSONAL ?? 3;
   const premiumRet = ret?.PREMIUM ?? 5;
 
-  const fmtDuration = (d: number) => (d === 30 ? "/ mo" : d === 1 ? "/ day" : `/ ${d} days`);
+  const fmtDuration = (d: number) => (d === 30 ? t ? t("pricing.perMonth") : "/ mo" : d === 1 ? t ? t("pricing.perDay") : "/ day" : t ? t("pricing.perDays", { days: d }) : `/ ${d} days`);
+
+  const tt = (key: string, options?: Record<string, unknown>) => t ? t(key, options) : key;
 
   return [
     {
       id: "FREE",
-      name: "FREE",
+      name: tt("pricing.freePlan"),
       price: `$${freePrice}`,
       period: "",
       gradient: "linear-gradient(135deg, #e8eaf6 0%, #f5f5f5 100%)",
       chipColor: "default",
       features: [
-        { text: `Up to ${freeMax.toLocaleString()} comments / export` },
-        { text: `${trials} trial scrapes`, tooltip: `You get ${trials} scrape attempts in total` },
-        { text: "Limited support", tooltip: "Community support only" },
+        { text: tt("pricing.freeComments", { count: freeMax.toLocaleString() }) },
+        { text: tt("pricing.trialScrapes", { count: trials }), tooltip: tt("pricing.trialScrapesTooltip", { count: trials }) },
+        { text: tt("pricing.limitedSupport"), tooltip: tt("pricing.limitedSupportTooltip") },
         {
-          text: `Data retention for ${freeRet} day${freeRet > 1 ? "s" : ""}`,
-          tooltip: `Scrape history auto-deleted after ${freeRet} day${freeRet > 1 ? "s" : ""}`,
+          text: tt("pricing.dataRetention", { days: freeRet }),
+          tooltip: tt("pricing.dataRetentionTooltip", { days: freeRet }),
         },
       ],
-      buttonText: "Get started",
+      buttonText: tt("pricing.getStarted"),
+      buttonTextCurrent: tt("pricing.currentPlan"),
     },
     {
       id: "PERSONAL",
-      name: "PERSONAL",
+      name: tt("pricing.personalPlan"),
       price: `$${personalPrice}`,
       period: fmtDuration(personalDuration),
       gradient: "linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%)",
       chipColor: "primary",
       features: [
-        { text: `Up to ${personalMax.toLocaleString()} comments / export` },
-        { text: "Unlimited exports", tooltip: "No limit on the number of exports" },
-        { text: "No recurring payment", tooltip: "One-time payment, no auto-renewal" },
-        { text: "Standard support", tooltip: "Email support with 24h response time" },
-        { text: "All platforms", tooltip: "Access to TikTok, Facebook, and more" },
+        { text: tt("pricing.personalComments", { count: personalMax.toLocaleString() }) },
+        { text: tt("pricing.unlimitedExports"), tooltip: tt("pricing.unlimitedExportsTooltip") },
+        { text: tt("pricing.noRecurring"), tooltip: tt("pricing.noRecurringTooltip") },
+        { text: tt("pricing.standardSupport"), tooltip: tt("pricing.standardSupportTooltip") },
+        { text: tt("pricing.allPlatforms"), tooltip: tt("pricing.allPlatformsTooltip") },
         {
-          text: `Data retention for ${personalRet} day${personalRet > 1 ? "s" : ""}`,
-          tooltip: `Scrape history kept for ${personalRet} day${personalRet > 1 ? "s" : ""}`,
+          text: tt("pricing.dataRetention", { days: personalRet }),
+          tooltip: tt("pricing.dataRetentionTooltip", { days: personalRet }),
         },
       ],
-      buttonText: "Buy now",
+      buttonText: tt("pricing.buyNow"),
+      buttonTextCurrent: tt("pricing.currentPlan"),
     },
     {
       id: "PREMIUM",
-      name: "PREMIUM",
+      name: tt("pricing.premiumPlan"),
       price: `$${premiumPrice}`,
       period: fmtDuration(premiumDuration),
       highlighted: true,
-      badge: "Most Popular",
+      badge: tt("pricing.mostPopular"),
       gradient: "linear-gradient(135deg, #7c4dff 0%, #536dfe 50%, #448aff 100%)",
       chipColor: "secondary",
       features: [
-        { text: `Up to ${premiumMax.toLocaleString()} comments / export` },
-        { text: "Unlimited exports", tooltip: "No limit on the number of exports" },
-        { text: "Scheduled Exports", tooltip: "Set up automatic scheduled scraping" },
+        { text: tt("pricing.premiumComments", { count: premiumMax.toLocaleString() }) },
+        { text: tt("pricing.unlimitedExports"), tooltip: tt("pricing.unlimitedExportsTooltip") },
+        { text: tt("pricing.scheduledExports"), tooltip: tt("pricing.scheduledExportsTooltip") },
         {
-          text: premiumDuration === 30 ? "Billed monthly" : `Valid for ${premiumDuration} days`,
-          tooltip: "Cancel anytime",
+          text: premiumDuration === 30 ? tt("pricing.billedMonthly") : tt("pricing.validForDays", { days: premiumDuration }),
+          tooltip: tt("pricing.cancelAnytime"),
         },
-        { text: "Priority support", tooltip: "Priority email & chat support" },
-        { text: "All platforms", tooltip: "Access to TikTok, Facebook, and more" },
+        { text: tt("pricing.prioritySupport"), tooltip: tt("pricing.prioritySupportTooltip") },
+        { text: tt("pricing.allPlatforms"), tooltip: tt("pricing.allPlatformsTooltip") },
         {
-          text: `Data retention for ${premiumRet} day${premiumRet > 1 ? "s" : ""}`,
-          tooltip: `Scrape history kept for ${premiumRet} day${premiumRet > 1 ? "s" : ""}`,
+          text: tt("pricing.dataRetention", { days: premiumRet }),
+          tooltip: tt("pricing.dataRetentionTooltip", { days: premiumRet }),
         },
       ],
-      buttonText: "Buy now",
+      buttonText: tt("pricing.buyNow"),
+      buttonTextCurrent: tt("pricing.currentPlan"),
     },
   ];
 }
@@ -197,6 +198,7 @@ function PricingCard({
   isExpired,
   onBuyClick,
   onDowngradeClick,
+  t,
 }: {
   plan: PricingPlan;
   isCurrentPlan: boolean;
@@ -204,6 +206,7 @@ function PricingCard({
   isExpired: boolean;
   onBuyClick: (planName: string) => void;
   onDowngradeClick: (planId: PlanType) => void;
+  t: ReturnType<typeof useTranslation>["t"];
 }) {
   const isHighlighted = plan.highlighted;
 
@@ -255,7 +258,7 @@ function PricingCard({
                 <CheckIcon sx={{ fontSize: 16, color: "#fff !important" }} />
               )
             }
-            label={isExpired ? "Expired" : "Current Plan"}
+            label={isExpired ? t("pricing.expired") : t("pricing.currentPlan")}
             size="small"
             sx={{
               fontWeight: 700,
@@ -381,7 +384,7 @@ function PricingCard({
                 },
               }}
             >
-              Current Plan
+              {t("pricing.currentPlan")}
             </Button>
           ) : isCurrentPlan && isExpired && plan.id === "FREE" ? (
             <Button
@@ -402,7 +405,7 @@ function PricingCard({
                 },
               }}
             >
-              Trial Ended
+              {t("pricing.trialEnded")}
             </Button>
           ) : isCurrentPlan && isExpired ? (
             <Button
@@ -422,7 +425,7 @@ function PricingCard({
                 },
               }}
             >
-              Renew Plan
+              {t("pricing.renewPlan")}
             </Button>
           ) : isLowerPlan ? (
             <Button
@@ -446,12 +449,12 @@ function PricingCard({
                 },
               }}
             >
-              Downgrade
+              {t("pricing.downgrade")}
             </Button>
           ) : (
             <Button
               fullWidth
-              variant={isHighlighted ? "contained" : plan.name === "PERSONAL" ? "outlined" : "text"}
+              variant={isHighlighted ? "contained" : plan.name === t("pricing.personalPlan") ? "outlined" : "text"}
               size="large"
               endIcon={<ArrowForwardIcon />}
               onClick={() => onBuyClick(plan.name)}
@@ -467,7 +470,7 @@ function PricingCard({
                     background: "linear-gradient(135deg, #651fff 0%, #304ffe 100%)",
                   },
                 }),
-                ...(plan.name === "PERSONAL" && {
+                ...(plan.name === t("pricing.personalPlan") && {
                   borderColor: "primary.main",
                   borderWidth: 2,
                   "&:hover": {
@@ -494,11 +497,13 @@ function AdminContactModal({
   onClose,
   contactEmail,
   contactPhone,
+  t,
 }: {
   open: boolean;
   onClose: () => void;
   contactEmail: string;
   contactPhone: string;
+  t: ReturnType<typeof useTranslation>["t"];
 }) {
   const displayEmail = contactEmail || "ntdungdev73@gmail.com";
   const displayPhone = contactPhone || "0373 527 362";
@@ -530,7 +535,7 @@ function AdminContactModal({
         <Stack direction="row" alignItems="center" spacing={1.5}>
           <SupportIcon sx={{ color: "#fff", fontSize: 28 }} />
           <Typography variant="h6" sx={{ fontWeight: 700, color: "#fff" }}>
-            Contact Admin
+            {t("pricing.contactAdminModal")}
           </Typography>
         </Stack>
         <IconButton onClick={onClose} sx={{ color: alpha("#fff", 0.8), "&:hover": { color: "#fff" } }}>
@@ -540,7 +545,7 @@ function AdminContactModal({
 
       <DialogContent sx={{ p: 3 }}>
         <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mb: 3 }}>
-          Contact Admin for quick support
+          {t("pricing.contactAdminSubtitle")}
         </Typography>
 
         {/* Email */}
@@ -569,7 +574,7 @@ function AdminContactModal({
           </Avatar>
           <Box sx={{ ml: 2, flex: 1 }}>
             <Typography variant="caption" color="text.secondary">
-              Email
+              {t("common.email")}
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600, color: "info.main" }}>
               {displayEmail}
@@ -603,7 +608,7 @@ function AdminContactModal({
           </Avatar>
           <Box sx={{ ml: 2, flex: 1 }}>
             <Typography variant="caption" color="text.secondary">
-              Phone
+              {t("pricing.phone")}
             </Typography>
             <Typography variant="body1" sx={{ fontWeight: 600, color: "success.main" }}>
               {displayPhone}
@@ -618,7 +623,7 @@ function AdminContactModal({
           onClick={onClose}
           sx={{ mt: 1, py: 1.2, borderRadius: 2, fontWeight: 600, textTransform: "none" }}
         >
-          Close
+          {t("common.close")}
         </Button>
       </DialogContent>
     </Dialog>
@@ -629,6 +634,7 @@ function AdminContactModal({
 // Pricing Page
 // ===========================================
 export default function PricingPage() {
+  const { t } = useTranslation();
   const { user, refreshUser } = useAuthStore();
   const [contactOpen, setContactOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; plan: string }>({ open: false, plan: "" });
@@ -650,7 +656,7 @@ export default function PricingPage() {
     staleTime: 5 * 60 * 1000, // 5 min cache
   });
 
-  const plans = buildPlans(pricingData?.data);
+  const plans = buildPlans(pricingData?.data, t);
 
   const handleBuyClick = (planName: string) => {
     setSnackbar({ open: true, plan: planName });
@@ -668,13 +674,13 @@ export default function PricingPage() {
       await refreshUser();
       setResultSnackbar({
         open: true,
-        message: `Successfully downgraded to ${PLAN_LABELS[downgradeTarget]} plan`,
+        message: t("pricing.downgradeSuccess", { plan: t(`pricing.${downgradeTarget.toLowerCase()}Plan`) }),
         severity: "success",
       });
     } catch {
       setResultSnackbar({
         open: true,
-        message: "Failed to downgrade plan. Please try again.",
+        message: t("pricing.downgradeFailed"),
         severity: "error",
       });
     } finally {
@@ -697,10 +703,10 @@ export default function PricingPage() {
             WebkitTextFillColor: "transparent",
           }}
         >
-          Choose Your Plan
+          {t("pricing.title")}
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 500, mx: "auto" }}>
-          Start for free and upgrade when you need more power. All plans include core scraping features.
+          {t("pricing.subtitle")}
         </Typography>
       </Box>
 
@@ -715,6 +721,7 @@ export default function PricingPage() {
               isExpired={isExpired}
               onBuyClick={handleBuyClick}
               onDowngradeClick={handleDowngradeClick}
+              t={t}
             />
           </Grid>
         ))}
@@ -723,17 +730,17 @@ export default function PricingPage() {
       {/* FAQ / Note */}
       <Box sx={{ textAlign: "center", mt: 6 }}>
         <Typography variant="body2" color="text.secondary">
-          All plans include access to the web dashboard, export to Excel / CSV, and real-time scraping logs.
+          {t("pricing.allPlans")}
         </Typography>
         <Typography variant="body2" color="text.disabled" sx={{ mt: 1 }}>
-          Prices are in USD. Need a custom plan?{" "}
+          {t("pricing.priceNote")}{" "}
           <Typography
             component="span"
             variant="body2"
             sx={{ color: "primary.main", cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
             onClick={() => setContactOpen(true)}
           >
-            Contact Admin
+            {t("pricing.contactAdmin")}
           </Typography>
         </Typography>
       </Box>
@@ -744,6 +751,7 @@ export default function PricingPage() {
         onClose={() => setContactOpen(false)}
         contactEmail={pricingData?.data?.contact?.email ?? ""}
         contactPhone={pricingData?.data?.contact?.phone ?? ""}
+        t={t}
       />
 
       {/* Downgrade Confirmation Dialog */}
@@ -763,16 +771,16 @@ export default function PricingPage() {
             color: "warning.main",
           }}
         >
-          <WarningIcon /> Confirm Downgrade
+          <WarningIcon /> {t("pricing.confirmDowngrade")}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 1 }}>
-            Are you sure you want to downgrade to the{" "}
-            <strong>{downgradeTarget ? PLAN_LABELS[downgradeTarget] : ""}</strong> plan?
+            {t("pricing.downgradeMessage1")}{" "}
+            <strong>{downgradeTarget ? t(`pricing.${downgradeTarget.toLowerCase()}Plan`) : ""}</strong>{" "}
+            {t("pricing.downgradeMessage2")}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            You will lose access to your current plan's features immediately. This action cannot be undone automatically
-            — contact Admin to upgrade again.
+            {t("pricing.downgradeWarning")}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
@@ -781,7 +789,7 @@ export default function PricingPage() {
             disabled={downgrading}
             sx={{ textTransform: "none", fontWeight: 600 }}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             variant="contained"
@@ -791,7 +799,7 @@ export default function PricingPage() {
             startIcon={downgrading ? <CircularProgress size={18} color="inherit" /> : <DowngradeIcon />}
             sx={{ textTransform: "none", fontWeight: 600 }}
           >
-            {downgrading ? "Downgrading..." : "Confirm Downgrade"}
+            {downgrading ? t("pricing.downgradingButton") : t("pricing.downgradeButton")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -809,7 +817,7 @@ export default function PricingPage() {
           variant="filled"
           sx={{ width: "100%", fontWeight: 600 }}
         >
-          Please contact Admin to switch to {snackbar.plan} plan
+          {t("pricing.switchPlanAlert", { plan: snackbar.plan })}
         </Alert>
       </Snackbar>
 

@@ -12,6 +12,7 @@ import { invalidateMaintenanceCache } from "../middlewares/maintenance.middlewar
 import { checkDatabaseHealth } from "../config/database.js";
 import { getQueueStats, getAllJobs } from "../lib/queue.js";
 import { getConnectedUserCount, getConnectedSocketCount } from "../lib/socket.js";
+import { getRedisClient } from "../lib/redis.js";
 import { hashPassword } from "../utils/password.js";
 import type {
   SystemHealth,
@@ -70,9 +71,7 @@ export class AdminService {
           status: dbHealthy ? "up" : "down",
           latency: dbLatency,
         },
-        redis: {
-          status: "unknown", // Redis not implemented yet
-        },
+        redis: await this.getRedisHealth(),
         scraper: {
           status: "up", // Assuming scraper is running locally
         },
@@ -87,6 +86,26 @@ export class AdminService {
         loadAverage: cpuLoad,
       },
     };
+  }
+
+  /**
+   * Get Redis health status
+   */
+  async getRedisHealth(): Promise<{ status: "up" | "down" | "disabled"; latency?: number }> {
+    const { env } = await import("../config/env.js");
+    if (!env.rateLimit.useRedis) {
+      return { status: "disabled" };
+    }
+
+    try {
+      const redis = getRedisClient();
+      const start = Date.now();
+      await redis.ping();
+      const latency = Date.now() - start;
+      return { status: "up", latency };
+    } catch {
+      return { status: "down" };
+    }
   }
 
   /**
@@ -157,7 +176,7 @@ export class AdminService {
   /**
    * Get user detail
    */
-  async getUserDetail(userId: number): Promise<AdminUserDetail> {
+  async getUserDetail(userId: string): Promise<AdminUserDetail> {
     const user = await adminRepository.getUserDetail(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -168,7 +187,7 @@ export class AdminService {
   /**
    * Update user
    */
-  async updateUser(userId: number, data: AdminUserUpdateInput): Promise<AdminUserDetail> {
+  async updateUser(userId: string, data: AdminUserUpdateInput): Promise<AdminUserDetail> {
     // Check user exists
     const existingUser = await userRepository.findById(userId);
     if (!existingUser) {
@@ -213,7 +232,7 @@ export class AdminService {
   /**
    * Ban a user
    */
-  async banUser(userId: number, data: BanUserInput, adminId: number): Promise<AdminUserDetail> {
+  async banUser(userId: string, data: BanUserInput, adminId: string): Promise<AdminUserDetail> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -234,7 +253,7 @@ export class AdminService {
   /**
    * Unban a user
    */
-  async unbanUser(userId: number): Promise<AdminUserDetail> {
+  async unbanUser(userId: string): Promise<AdminUserDetail> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -251,7 +270,7 @@ export class AdminService {
   /**
    * Delete a user
    */
-  async deleteUser(userId: number, adminId: number): Promise<void> {
+  async deleteUser(userId: string, adminId: string): Promise<void> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -271,7 +290,7 @@ export class AdminService {
   /**
    * Reset user trial uses (reads default from global settings)
    */
-  async resetTrialUses(userId: number, trialCount?: number): Promise<AdminUserDetail> {
+  async resetTrialUses(userId: string, trialCount?: number): Promise<AdminUserDetail> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -296,7 +315,7 @@ export class AdminService {
    * Grant paid subscription to user
    */
   async grantProSubscription(
-    userId: number,
+    userId: string,
     durationDays: number,
     planType: "PERSONAL" | "PREMIUM" = "PREMIUM",
   ): Promise<AdminUserDetail> {
@@ -320,7 +339,7 @@ export class AdminService {
   /**
    * Downgrade user to FREE plan
    */
-  async downgradeToFree(userId: number): Promise<AdminUserDetail> {
+  async downgradeToFree(userId: string): Promise<AdminUserDetail> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -380,7 +399,7 @@ export class AdminService {
   /**
    * Update global setting
    */
-  async updateSetting(key: string, value: string | null, adminId: number): Promise<void> {
+  async updateSetting(key: string, value: string | null, adminId: string): Promise<void> {
     await adminRepository.setSetting(key, value, adminId);
     // Invalidate caches when relevant settings change
     if (key === "maintenanceMode") {
@@ -399,7 +418,7 @@ export class AdminService {
   /**
    * Toggle maintenance mode
    */
-  async toggleMaintenanceMode(enabled: boolean, adminId: number): Promise<void> {
+  async toggleMaintenanceMode(enabled: boolean, adminId: string): Promise<void> {
     await adminRepository.setSetting("maintenanceMode", enabled ? "true" : "false", adminId);
     invalidateMaintenanceCache();
   }
@@ -418,14 +437,14 @@ export class AdminService {
   /**
    * Revoke a specific session
    */
-  async revokeSession(sessionId: number): Promise<void> {
+  async revokeSession(sessionId: string): Promise<void> {
     await adminRepository.revokeSession(sessionId);
   }
 
   /**
    * Revoke all sessions for a user
    */
-  async revokeAllUserSessions(userId: number): Promise<number> {
+  async revokeAllUserSessions(userId: string): Promise<number> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");
@@ -436,7 +455,7 @@ export class AdminService {
   /**
    * Get user scrape history (admin view)
    */
-  async getUserScrapeHistory(userId: number, page = 1, limit = 10) {
+  async getUserScrapeHistory(userId: string, page = 1, limit = 10) {
     return adminRepository.getUserScrapeHistory(userId, page, limit);
   }
 }

@@ -1,8 +1,11 @@
 import { Link as RouterLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Box, Typography, Button, alpha } from "@mui/material";
 import { Home as HomeIcon, Search as SearchIcon } from "@mui/icons-material";
 
 export default function NotFoundPage() {
+  const { t } = useTranslation();
+
   return (
     <Box
       sx={{
@@ -20,7 +23,7 @@ export default function NotFoundPage() {
       <Box sx={{ display: "flex", alignItems: "center", mb: 4 }}>
         <SearchIcon sx={{ fontSize: 40, color: "primary.main", mr: 1 }} />
         <Typography
-          variant="h4"
+          variant="h6"
           sx={{
             fontWeight: 700,
             background: "linear-gradient(135deg, #5c6bc0 0%, #42a5f5 100%)",
@@ -28,7 +31,7 @@ export default function NotFoundPage() {
             WebkitTextFillColor: "transparent",
           }}
         >
-          CrawlComments
+          {t("common.crawlComments")}
         </Typography>
       </Box>
 
@@ -43,19 +46,19 @@ export default function NotFoundPage() {
           mb: 2,
         }}
       >
-        404
+        {t("notFound.title")}
       </Typography>
 
       <Typography variant="h4" fontWeight={600} gutterBottom>
-        Page Not Found
+        {t("notFound.heading")}
       </Typography>
 
       <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 400, mb: 4 }}>
-        The page you&apos;re looking for doesn&apos;t exist or has been moved.
+        {t("notFound.message")}
       </Typography>
 
       <Button component={RouterLink} to="/dashboard" variant="contained" size="large" startIcon={<HomeIcon />}>
-        Go to Dashboard
+        {t("notFound.goToDashboard")}
       </Button>
     </Box>
   );

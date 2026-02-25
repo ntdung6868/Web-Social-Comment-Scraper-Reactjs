@@ -9,8 +9,8 @@ import type { Platform } from "./enums.js";
  * Scrape job data for queue
  */
 export interface ScrapeJobData {
-  historyId: number;
-  userId: number;
+  historyId: string;
+  userId: string;
   url: string;
   platform: Platform;
   planType: "FREE" | "PERSONAL" | "PREMIUM";
@@ -28,7 +28,7 @@ export interface ScrapeJobData {
  * Scrape job result
  */
 export interface ScrapeJobResult {
-  historyId: number;
+  historyId: string;
   success: boolean;
   totalComments: number;
   duration: number;
@@ -56,7 +56,7 @@ export interface QueueStats {
  */
 export interface JobInfo {
   id: string;
-  historyId: number;
+  historyId: string;
   status: JobStatus;
   progress: number;
   createdAt: Date;

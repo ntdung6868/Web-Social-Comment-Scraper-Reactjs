@@ -20,6 +20,7 @@ import {
   Delete as DeleteIcon,
   Notifications as NotificationsIcon,
 } from "@mui/icons-material";
+import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
 import { useNotificationStore } from "@/stores/notification.store";
 import type { Notification } from "@/types";
@@ -44,6 +45,7 @@ const getNotificationIcon = (type: Notification["type"]) => {
 };
 
 export default function NotificationMenu({ anchorEl, open, onClose }: NotificationMenuProps) {
+  const { t } = useTranslation();
   const { notifications, markAsRead, markAllAsRead, removeNotification, clearNotifications } = useNotificationStore();
 
   const handleMarkAsRead = (id: string) => {
@@ -84,11 +86,11 @@ export default function NotificationMenu({ anchorEl, open, onClose }: Notificati
         }}
       >
         <Typography variant="h6" fontWeight={600}>
-          Notifications
+          {t("common.notifications")}
         </Typography>
         {notifications.length > 0 && (
           <Button size="small" startIcon={<DoneAllIcon />} onClick={markAllAsRead} sx={{ textTransform: "none" }}>
-            Mark all read
+            {t("components.markAllRead")}
           </Button>
         )}
       </Box>
@@ -104,7 +106,7 @@ export default function NotificationMenu({ anchorEl, open, onClose }: Notificati
           }}
         >
           <NotificationsIcon sx={{ fontSize: 48, color: "text.disabled", mb: 1 }} />
-          <Typography color="text.secondary">No notifications yet</Typography>
+          <Typography color="text.secondary">{t("common.noNotifications")}</Typography>
         </Box>
       ) : (
         <List sx={{ py: 0, maxHeight: 340, overflow: "auto" }}>
@@ -172,7 +174,7 @@ export default function NotificationMenu({ anchorEl, open, onClose }: Notificati
           <Divider />
           <Box sx={{ p: 1 }}>
             <Button fullWidth size="small" color="error" onClick={clearNotifications} sx={{ textTransform: "none" }}>
-              Clear all notifications
+              {t("components.clearAll")}
             </Button>
           </Box>
         </>

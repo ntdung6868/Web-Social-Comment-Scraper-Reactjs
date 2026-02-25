@@ -16,8 +16,8 @@ export interface ScrapeRequestPayload {
  * Scrape job status
  */
 export interface ScrapeJob {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   platform: Platform;
   url: string;
   totalComments: number;
@@ -30,7 +30,7 @@ export interface ScrapeJob {
  * Comment data structure
  */
 export interface CommentData {
-  id: number;
+  id: string;
   username: string;
   content: string;
   timestamp: string | null;
@@ -56,7 +56,7 @@ export interface ScrapeHistoryItem extends ScrapeJob {
  * Scraping progress update
  */
 export interface ScrapeProgress {
-  historyId: number;
+  historyId: string;
   total: number;
   status: "idle" | "running" | "completed" | "failed";
   message: string;
@@ -77,8 +77,8 @@ export interface UrlValidationResult {
 export interface ScraperServiceRequest {
   url: string;
   platform: Platform;
-  userId: number;
-  historyId: number;
+  userId: string;
+  historyId: string;
   cookies: string | null;
   proxy: string | null;
   headless: boolean;
@@ -113,7 +113,7 @@ export type ExportFormat = "xlsx" | "csv" | "json";
  * Export request payload
  */
 export interface ExportRequestPayload {
-  historyId: number;
+  historyId: string;
   format: ExportFormat;
 }
 

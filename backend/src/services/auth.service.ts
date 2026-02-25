@@ -254,7 +254,7 @@ export class AuthService {
   /**
    * Logout from all devices
    */
-  async logoutAll(userId: number): Promise<number> {
+  async logoutAll(userId: string): Promise<number> {
     return authRepository.revokeAllUserTokens(userId);
   }
 
@@ -328,7 +328,7 @@ export class AuthService {
   /**
    * Change password (authenticated)
    */
-  async changePassword(userId: number, data: ChangePasswordInput): Promise<void> {
+  async changePassword(userId: string, data: ChangePasswordInput): Promise<void> {
     const user = await authRepository.findUserById(userId);
 
     if (!user) {
@@ -370,7 +370,7 @@ export class AuthService {
   /**
    * Get active sessions for a user
    */
-  async getSessions(userId: number) {
+  async getSessions(userId: string) {
     const tokens = await authRepository.getUserSessions(userId);
     return tokens.map((t) => ({
       id: t.id,

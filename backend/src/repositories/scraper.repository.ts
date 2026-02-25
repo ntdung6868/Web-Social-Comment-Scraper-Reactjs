@@ -13,13 +13,13 @@ import type { ScrapedComment, PaginatedResponse, ScrapeHistoryItem } from "../ty
 // ===========================================
 
 export interface CreateHistoryData {
-  userId: number;
+  userId: string;
   platform: Platform;
   url: string;
 }
 
 export interface HistoryFilters {
-  userId?: number;
+  userId?: string;
   platform?: Platform;
   status?: ScrapeStatus;
 }
@@ -58,7 +58,7 @@ export class ScraperRepository {
   /**
    * Get history by ID
    */
-  async getHistoryById(id: number): Promise<ScrapeHistory | null> {
+  async getHistoryById(id: string): Promise<ScrapeHistory | null> {
     return prisma.scrapeHistory.findUnique({
       where: { id },
     });
@@ -68,7 +68,7 @@ export class ScraperRepository {
    * Get history by ID with comments
    */
   async getHistoryWithComments(
-    id: number,
+    id: string,
     commentLimit = 1000,
   ): Promise<(ScrapeHistory & { comments: Comment[] }) | null> {
     return prisma.scrapeHistory.findUnique({
@@ -85,7 +85,7 @@ export class ScraperRepository {
   /**
    * Update history status
    */
-  async updateHistoryStatus(id: number, status: ScrapeStatus, errorMessage?: string): Promise<ScrapeHistory> {
+  async updateHistoryStatus(id: string, status: ScrapeStatus, errorMessage?: string): Promise<ScrapeHistory> {
     return prisma.scrapeHistory.update({
       where: { id },
       data: {
@@ -98,7 +98,7 @@ export class ScraperRepository {
   /**
    * Update history with comment count
    */
-  async updateHistoryCommentCount(id: number, count: number): Promise<ScrapeHistory> {
+  async updateHistoryCommentCount(id: string, count: number): Promise<ScrapeHistory> {
     return prisma.scrapeHistory.update({
       where: { id },
       data: {
@@ -173,7 +173,7 @@ export class ScraperRepository {
   /**
    * Delete history and associated comments
    */
-  async deleteHistory(id: number): Promise<void> {
+  async deleteHistory(id: string): Promise<void> {
     await prisma.scrapeHistory.delete({
       where: { id },
     });
@@ -182,7 +182,7 @@ export class ScraperRepository {
   /**
    * Check if history belongs to user
    */
-  async isHistoryOwner(historyId: number, userId: number): Promise<boolean> {
+  async isHistoryOwner(historyId: string, userId: string): Promise<boolean> {
     const history = await prisma.scrapeHistory.findFirst({
       where: { id: historyId, userId },
       select: { id: true },
@@ -197,7 +197,7 @@ export class ScraperRepository {
   /**
    * Save scraped comments in batch
    */
-  async saveComments(historyId: number, comments: ScrapedComment[]): Promise<number> {
+  async saveComments(historyId: string, comments: ScrapedComment[]): Promise<number> {
     if (comments.length === 0) return 0;
 
     const result = await prisma.comment.createMany({
@@ -219,7 +219,7 @@ export class ScraperRepository {
   /**
    * Get comments for history with pagination
    */
-  async getComments(historyId: number, page: number, limit: number): Promise<PaginatedResponse<Comment>> {
+  async getComments(historyId: string, page: number, limit: number): Promise<PaginatedResponse<Comment>> {
     const skip = (page - 1) * limit;
 
     const [comments, totalItems] = await Promise.all([
@@ -252,7 +252,7 @@ export class ScraperRepository {
   /**
    * Get all comments for export (no pagination)
    */
-  async getAllCommentsForExport(historyId: number, limit?: number): Promise<Comment[]> {
+  async getAllCommentsForExport(historyId: string, limit?: number): Promise<Comment[]> {
     return prisma.comment.findMany({
       where: { scrapeHistoryId: historyId },
       orderBy: { scrapedAt: "asc" },
@@ -267,7 +267,7 @@ export class ScraperRepository {
   /**
    * Get dashboard statistics for user
    */
-  async getUserStats(userId: number): Promise<{
+  async getUserStats(userId: string): Promise<{
     totalScrapes: number;
     totalComments: number;
     successScrapes: number;
@@ -298,7 +298,7 @@ export class ScraperRepository {
   /**
    * Get recent scrapes for user
    */
-  async getRecentScrapes(userId: number, limit = 5): Promise<ScrapeHistory[]> {
+  async getRecentScrapes(userId: string, limit = 5): Promise<ScrapeHistory[]> {
     return prisma.scrapeHistory.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },

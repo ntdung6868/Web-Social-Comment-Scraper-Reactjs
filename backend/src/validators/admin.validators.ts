@@ -85,10 +85,7 @@ export const adminScrapeListQuerySchema = z.object({
     .optional()
     .default("20")
     .transform((val) => Math.min(100, Math.max(1, parseInt(val, 10) || 20))),
-  userId: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined)),
+  userId: z.string().optional(),
   platform: z.enum(["TIKTOK", "FACEBOOK"]).optional(),
   status: z.enum(["PENDING", "RUNNING", "SUCCESS", "FAILED"]).optional(),
   dateFrom: z
@@ -123,12 +120,7 @@ export type GlobalSettingsUpdateInput = z.infer<typeof globalSettingsUpdateSchem
 // ===========================================
 
 export const userIdParamSchema = z.object({
-  id: z
-    .string()
-    .transform((val) => parseInt(val, 10))
-    .refine((val) => !isNaN(val) && val > 0, {
-      message: "Invalid user ID",
-    }),
+  id: z.string().min(1, "Invalid user ID"),
 });
 
 export type UserIdParamInput = z.infer<typeof userIdParamSchema>;

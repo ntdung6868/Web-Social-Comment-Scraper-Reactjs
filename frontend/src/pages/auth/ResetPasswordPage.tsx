@@ -3,6 +3,7 @@ import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-d
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Card,
@@ -25,27 +26,32 @@ import {
 import { authService } from "@/services/auth.service";
 import { AxiosError } from "axios";
 
-const resetPasswordSchema = z
-  .object({
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain at least one uppercase letter, one lowercase letter, and one number",
-      ),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+const resetPasswordSchema = (t: (key: string) => string) =>
+  z
+    .object({
+      password: z
+        .string()
+        .min(8, t("auth.passwordTooShort"))
+        .regex(
+          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+          t("auth.passwordWeak"),
+        ),
+      confirmPassword: z.string(),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t("errors.passwordMismatch"),
+      path: ["confirmPassword"],
+    });
 
-type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
+type ResetPasswordFormData = {
+  password: string;
+  confirmPassword: string;
+};
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const token = searchParams.get("token");
 
   const [showPassword, setShowPassword] = useState(false);
@@ -59,7 +65,7 @@ export default function ResetPasswordPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<ResetPasswordFormData>({
-    resolver: zodResolver(resetPasswordSchema),
+    resolver: zodResolver(resetPasswordSchema(t)),
     defaultValues: {
       password: "",
       confirmPassword: "",
@@ -68,7 +74,7 @@ export default function ResetPasswordPage() {
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {
-      setError("Invalid or missing reset token");
+      setError(t("auth.invalidToken"));
       return;
     }
 
@@ -79,7 +85,7 @@ export default function ResetPasswordPage() {
       setIsSuccess(true);
     } catch (err) {
       const axiosError = err as AxiosError<{ error: string }>;
-      setError(axiosError.response?.data?.error || "Failed to reset password. Please try again.");
+      setError(axiosError.response?.data?.error || t("auth.resetPasswordFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -108,10 +114,10 @@ export default function ResetPasswordPage() {
         >
           <CardContent sx={{ p: 4, textAlign: "center" }}>
             <Alert severity="error" sx={{ mb: 3 }}>
-              Invalid or missing reset token
+              {t("auth.invalidToken")}
             </Alert>
             <Button component={RouterLink} to="/forgot-password" variant="contained">
-              Request New Reset Link
+              {t("auth.requestNewLink")}
             </Button>
           </CardContent>
         </Card>
@@ -163,7 +169,7 @@ export default function ResetPasswordPage() {
               </Typography>
             </Box>
             <Typography variant="body1" color="text.secondary">
-              {isSuccess ? "Password reset successful" : "Set your new password"}
+              {isSuccess ? t("auth.passwordResetSuccess") : t("auth.setNewPassword")}
             </Typography>
           </Box>
 
@@ -186,10 +192,10 @@ export default function ResetPasswordPage() {
                 <CheckCircleIcon sx={{ fontSize: 32, color: "success.main" }} />
               </Box>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                Your password has been reset successfully. You can now log in with your new password.
+                {t("auth.passwordResetSuccessMessage")}
               </Typography>
               <Button onClick={() => navigate("/login")} fullWidth variant="contained">
-                Go to Login
+                {t("auth.goToLogin")}
               </Button>
             </Box>
           ) : (
@@ -207,7 +213,7 @@ export default function ResetPasswordPage() {
                 <TextField
                   {...register("password")}
                   fullWidth
-                  label="New Password"
+                  label={t("auth.newPasswordLabel")}
                   type={showPassword ? "text" : "password"}
                   error={!!errors.password}
                   helperText={errors.password?.message}
@@ -231,7 +237,7 @@ export default function ResetPasswordPage() {
                 <TextField
                   {...register("confirmPassword")}
                   fullWidth
-                  label="Confirm New Password"
+                  label={t("auth.confirmNewPassword")}
                   type={showConfirmPassword ? "text" : "password"}
                   error={!!errors.confirmPassword}
                   helperText={errors.confirmPassword?.message}
@@ -253,7 +259,7 @@ export default function ResetPasswordPage() {
                 />
 
                 <Button type="submit" fullWidth variant="contained" size="large" disabled={isLoading}>
-                  {isLoading ? "Resetting Password..." : "Reset Password"}
+                  {isLoading ? t("auth.resettingPassword") : t("auth.resetPassword")}
                 </Button>
               </form>
             </>

@@ -14,8 +14,8 @@ import { isJunkLine, extractFbUserId } from "../../utils/scraper.utils.js";
 // ===========================================
 
 export interface FacebookScraperConfig {
-  userId: number;
-  historyId: number;
+  userId: string;
+  historyId: string;
   cookies: { data: string | null; userAgent: string | null };
   proxy: string | null;
   headless: boolean;

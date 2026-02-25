@@ -81,7 +81,13 @@ export const env = {
   // Rate Limiting
   rateLimit: {
     windowMs: getIntEnvVar("RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000), // 15 minutes
-    maxRequests: getIntEnvVar("RATE_LIMIT_MAX_REQUESTS", 100),
+    maxRequests: getIntEnvVar("RATE_LIMIT_MAX_REQUESTS", 500), // Increased from 100 to 500
+    useRedis: getBoolEnvVar("RATE_LIMIT_USE_REDIS", true), // Use Redis by default
+  },
+
+  // Redis
+  redis: {
+    url: getOptionalEnvVar("REDIS_URL", "redis://localhost:6379"),
   },
 
   // Security

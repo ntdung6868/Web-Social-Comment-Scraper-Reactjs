@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   AppBar,
   Toolbar,
@@ -29,6 +30,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useNotificationStore } from "@/stores/notification.store";
 import NotificationMenu from "@/components/common/NotificationMenu";
 import ThemeToggle from "@/components/common/ThemeToggle";
+import LanguageSwitcher from "@/components/common/LanguageSwitcher";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -36,6 +38,7 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const { unreadCount, systemHealth } = useNotificationStore();
 
@@ -85,19 +88,19 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const getHealthLabel = () => {
     switch (systemHealth?.status) {
       case "healthy":
-        return "System Healthy";
+        return t("header.systemHealthy");
       case "degraded":
-        return "System Degraded";
+        return t("header.systemDegraded");
       case "unhealthy":
-        return "System Down";
+        return t("header.systemDown");
       default:
-        return "Unknown";
+        return t("common.unknown");
     }
   };
 
   // Logic hiển thị Plan
   const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
-  const planLabel = user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Plan";
+  const planLabel = user?.planType === "PREMIUM" ? t("header.premiumPlan") : user?.planType === "PERSONAL" ? t("header.personalPlan") : t("header.freePlan");
   const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
 
   return (
@@ -114,7 +117,20 @@ export default function Header({ onMenuClick }: HeaderProps) {
       <Toolbar sx={{ justifyContent: "space-between" }}>
         {/* Left side */}
         <Box sx={{ display: "flex", alignItems: "center" }}>
-          <IconButton edge="start" color="inherit" onClick={onMenuClick} sx={{ mr: 2 }}>
+          <IconButton
+            edge="start"
+            onClick={onMenuClick}
+            sx={{
+              mr: 2,
+              color: (theme) => theme.palette.text.primary,
+              "&:hover": {
+                backgroundColor: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 255, 255, 0.12)"
+                    : "rgba(0, 0, 0, 0.06)",
+              },
+            }}
+          >
             <MenuIcon />
           </IconButton>
 
@@ -157,8 +173,19 @@ export default function Header({ onMenuClick }: HeaderProps) {
           )}
 
           {/* Notifications */}
-          <Tooltip title="Notifications">
-            <IconButton color="inherit" onClick={handleNotificationOpen}>
+          <Tooltip title={t("common.notifications")}>
+            <IconButton
+              onClick={handleNotificationOpen}
+              sx={{
+                color: (theme) => theme.palette.text.primary,
+                "&:hover": {
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? "rgba(255, 255, 255, 0.12)"
+                      : "rgba(0, 0, 0, 0.06)",
+                },
+              }}
+            >
               <Badge badgeContent={unreadCount} color="error" max={99}>
                 <NotificationsIcon />
               </Badge>
@@ -168,9 +195,24 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {/* Theme Toggle */}
           <ThemeToggle />
 
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+
           {/* Profile */}
-          <Tooltip title="Account">
-            <IconButton onClick={handleProfileOpen} sx={{ ml: 1 }}>
+          <Tooltip title={t("common.account")}>
+            <IconButton
+              onClick={handleProfileOpen}
+              sx={{
+                ml: 1,
+                color: (theme) => theme.palette.text.primary,
+                "&:hover": {
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? "rgba(255, 255, 255, 0.12)"
+                      : "rgba(0, 0, 0, 0.06)",
+                },
+              }}
+            >
               <Avatar
                 sx={{
                   width: 36,
@@ -207,7 +249,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <Box sx={{ px: 2, py: 1.5 }}>
             <Typography variant="subtitle1" fontWeight={600}>
               {/* HIỂN THỊ USERNAME */}
-              {user?.username || "Guest"}
+              {user?.username || t("common.guest")}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {user?.email}
@@ -230,14 +272,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <ListItemIcon>
               <PersonIcon fontSize="small" />
             </ListItemIcon>
-            Profile
+            {t("common.profile")}
           </MenuItem>
 
           <MenuItem onClick={() => handleNavigate("/settings")}>
             <ListItemIcon>
               <SettingsIcon fontSize="small" />
             </ListItemIcon>
-            Settings
+            {t("common.settings")}
           </MenuItem>
 
           <Divider sx={{ my: 1 }} />
@@ -246,7 +288,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <ListItemIcon>
               <LogoutIcon fontSize="small" sx={{ color: "error.main" }} />
             </ListItemIcon>
-            Logout
+            {t("common.logout")}
           </MenuItem>
         </Menu>
 

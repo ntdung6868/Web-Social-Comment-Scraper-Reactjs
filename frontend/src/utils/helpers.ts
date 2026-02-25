@@ -1,13 +1,35 @@
-import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
+import { format, formatDistanceToNow, isValid, parseISO, Locale } from "date-fns";
+import { vi as viLocale, enUS as enLocale } from "date-fns/locale";
+
+/**
+ * Get locale based on language code
+ */
+export function getDateLocale(language: string): Locale {
+  return language === "vi" ? viLocale : enLocale;
+}
 
 /**
  * Format a date string to a human-readable format
  */
-export function formatDate(date: string | Date | null | undefined, formatStr = "MMM dd, yyyy"): string {
+export function formatDate(
+  date: string | Date | null | undefined,
+  formatStr = "MMM dd, yyyy",
+  language = "en",
+): string {
   if (!date) return "-";
   const dateObj = typeof date === "string" ? parseISO(date) : date;
   if (!isValid(dateObj)) return "-";
-  return format(dateObj, formatStr);
+  return format(dateObj, formatStr, { locale: getDateLocale(language) });
+}
+
+/**
+ * Format date with locale support (new function)
+ */
+export function formatDateByLang(date: string | Date | null | undefined, formatStr: string, language = "en"): string {
+  if (!date) return "-";
+  const dateObj = typeof date === "string" ? parseISO(date) : date;
+  if (!isValid(dateObj)) return "-";
+  return format(dateObj, formatStr, { locale: getDateLocale(language) });
 }
 
 /**
@@ -87,6 +109,34 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
     }
     timeoutId = setTimeout(() => func(...args), wait);
   };
+}
+
+/**
+ * Format date for Vietnamese locale (dd/MM/yyyy)
+ */
+export function formatDateVi(date: string | Date | null | undefined): string {
+  if (!date) return "-";
+  const dateObj = typeof date === "string" ? parseISO(date) : date;
+  if (!isValid(dateObj)) return "-";
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const year = dateObj.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Format date for Vietnamese locale with time (dd/MM/yyyy HH:mm)
+ */
+export function formatDateTimeVi(date: string | Date | null | undefined): string {
+  if (!date) return "-";
+  const dateObj = typeof date === "string" ? parseISO(date) : date;
+  if (!isValid(dateObj)) return "-";
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const year = dateObj.getFullYear();
+  const hours = String(dateObj.getHours()).padStart(2, "0");
+  const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 /**

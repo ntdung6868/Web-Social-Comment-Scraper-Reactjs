@@ -22,7 +22,7 @@ export interface SystemHealth {
 }
 
 export interface ServiceHealth {
-  status: "up" | "down" | "unknown";
+  status: "up" | "down" | "unknown" | "disabled";
   latency?: number;
   error?: string;
 }
@@ -74,7 +74,7 @@ export interface AdminDashboardStats {
  * User list item for admin view
  */
 export interface AdminUserListItem {
-  id: number;
+  id: string;
   username: string;
   email: string;
   createdAt: Date;
@@ -128,8 +128,8 @@ export interface BanUserPayload {
  * Scrape log for admin view
  */
 export interface AdminScrapeLog {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   username: string;
   platform: Platform;
   url: string;
@@ -155,7 +155,7 @@ export interface AdminUserFilters {
 }
 
 export interface AdminScrapeFilters {
-  userId?: number;
+  userId?: string;
   platform?: Platform;
   status?: ScrapeStatus;
   dateFrom?: Date;

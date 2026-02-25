@@ -76,7 +76,7 @@ export class UserRepository {
   /**
    * Find user by ID with selected fields
    */
-  async findById(id: number): Promise<User | null> {
+  async findById(id: string): Promise<User | null> {
     return prisma.user.findUnique({
       where: { id },
     });
@@ -85,7 +85,7 @@ export class UserRepository {
   /**
    * Find user by ID with profile fields only
    */
-  async findProfileById(id: number): Promise<Prisma.UserGetPayload<{
+  async findProfileById(id: string): Promise<Prisma.UserGetPayload<{
     select: typeof userProfileSelect;
   }> | null> {
     return prisma.user.findUnique({
@@ -97,7 +97,7 @@ export class UserRepository {
   /**
    * Find user by ID with settings fields
    */
-  async findSettingsById(id: number): Promise<Prisma.UserGetPayload<{
+  async findSettingsById(id: string): Promise<Prisma.UserGetPayload<{
     select: typeof userSettingsSelect;
   }> | null> {
     return prisma.user.findUnique({
@@ -109,7 +109,7 @@ export class UserRepository {
   /**
    * Update user profile
    */
-  async updateProfile(userId: number, data: { username?: string; email?: string }): Promise<User> {
+  async updateProfile(userId: string, data: { username?: string; email?: string }): Promise<User> {
     const updateData: Prisma.UserUpdateInput = {};
 
     if (data.username) {
@@ -130,7 +130,7 @@ export class UserRepository {
   /**
    * Check if username is taken by another user
    */
-  async isUsernameTaken(username: string, excludeUserId?: number): Promise<boolean> {
+  async isUsernameTaken(username: string, excludeUserId?: string): Promise<boolean> {
     const user = await prisma.user.findFirst({
       where: {
         username,
@@ -144,7 +144,7 @@ export class UserRepository {
   /**
    * Check if email is taken by another user
    */
-  async isEmailTaken(email: string, excludeUserId?: number): Promise<boolean> {
+  async isEmailTaken(email: string, excludeUserId?: string): Promise<boolean> {
     const user = await prisma.user.findFirst({
       where: {
         email: email.toLowerCase(),
@@ -162,7 +162,7 @@ export class UserRepository {
   /**
    * Update TikTok cookie data
    */
-  async updateTiktokCookie(userId: number, data: CookieUpdateData): Promise<User> {
+  async updateTiktokCookie(userId: string, data: CookieUpdateData): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -179,7 +179,7 @@ export class UserRepository {
   /**
    * Update TikTok cookie status (after validation)
    */
-  async updateTiktokCookieStatus(userId: number, status: CookieStatus): Promise<User> {
+  async updateTiktokCookieStatus(userId: string, status: CookieStatus): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -192,7 +192,7 @@ export class UserRepository {
   /**
    * Toggle TikTok cookie usage
    */
-  async toggleTiktokCookie(userId: number, enabled: boolean): Promise<User> {
+  async toggleTiktokCookie(userId: string, enabled: boolean): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: { useTiktokCookie: enabled },
@@ -202,7 +202,7 @@ export class UserRepository {
   /**
    * Delete TikTok cookie
    */
-  async deleteTiktokCookie(userId: number): Promise<User> {
+  async deleteTiktokCookie(userId: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -219,7 +219,7 @@ export class UserRepository {
   /**
    * Get TikTok cookie data for scraping
    */
-  async getTiktokCookieData(userId: number): Promise<{
+  async getTiktokCookieData(userId: string): Promise<{
     cookieData: string | null;
     userAgent: string | null;
     isEnabled: boolean;
@@ -247,7 +247,7 @@ export class UserRepository {
   /**
    * Update Facebook cookie data
    */
-  async updateFacebookCookie(userId: number, data: CookieUpdateData): Promise<User> {
+  async updateFacebookCookie(userId: string, data: CookieUpdateData): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -264,7 +264,7 @@ export class UserRepository {
   /**
    * Update Facebook cookie status
    */
-  async updateFacebookCookieStatus(userId: number, status: CookieStatus): Promise<User> {
+  async updateFacebookCookieStatus(userId: string, status: CookieStatus): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -277,7 +277,7 @@ export class UserRepository {
   /**
    * Toggle Facebook cookie usage
    */
-  async toggleFacebookCookie(userId: number, enabled: boolean): Promise<User> {
+  async toggleFacebookCookie(userId: string, enabled: boolean): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: { useFacebookCookie: enabled },
@@ -287,7 +287,7 @@ export class UserRepository {
   /**
    * Delete Facebook cookie
    */
-  async deleteFacebookCookie(userId: number): Promise<User> {
+  async deleteFacebookCookie(userId: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -308,7 +308,7 @@ export class UserRepository {
   /**
    * Update proxy settings
    */
-  async updateProxySettings(userId: number, data: ProxyUpdateData): Promise<User> {
+  async updateProxySettings(userId: string, data: ProxyUpdateData): Promise<User> {
     // Count valid proxies
     const proxyCount = data.proxyList.split("\n").filter((line) => line.trim()).length;
 
@@ -326,7 +326,7 @@ export class UserRepository {
   /**
    * Toggle proxy usage
    */
-  async toggleProxy(userId: number, enabled: boolean): Promise<User> {
+  async toggleProxy(userId: string, enabled: boolean): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: { proxyEnabled: enabled },
@@ -336,7 +336,7 @@ export class UserRepository {
   /**
    * Delete all proxies
    */
-  async deleteProxies(userId: number): Promise<User> {
+  async deleteProxies(userId: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -350,7 +350,7 @@ export class UserRepository {
   /**
    * Get next proxy for rotation
    */
-  async getNextProxy(userId: number): Promise<string | null> {
+  async getNextProxy(userId: string): Promise<string | null> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -399,7 +399,7 @@ export class UserRepository {
   /**
    * Update scraper settings
    */
-  async updateScraperSettings(userId: number, headlessMode: boolean): Promise<User> {
+  async updateScraperSettings(userId: string, headlessMode: boolean): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: { headlessMode },
@@ -413,7 +413,7 @@ export class UserRepository {
   /**
    * Check if user can scrape (has trial uses or active subscription)
    */
-  async canScrape(userId: number): Promise<{
+  async canScrape(userId: string): Promise<{
     canScrape: boolean;
     message: string;
     trialUsesRemaining?: number;
@@ -472,7 +472,7 @@ export class UserRepository {
   /**
    * Use one trial scrape
    */
-  async useTrialScrape(userId: number): Promise<number> {
+  async useTrialScrape(userId: string): Promise<number> {
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -495,7 +495,7 @@ export class UserRepository {
   /**
    * Get download limit based on plan (reads from global settings)
    */
-  async getDownloadLimit(userId: number): Promise<number | null> {
+  async getDownloadLimit(userId: string): Promise<number | null> {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { planType: true },

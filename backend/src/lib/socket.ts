@@ -28,10 +28,10 @@ import type {
 let io: SocketServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData> | null = null;
 
 // Track subscriptions: historyId -> Set of socket ids
-const scrapeSubscriptions = new Map<number, Set<string>>();
+const scrapeSubscriptions = new Map<string, Set<string>>();
 
 // Track user sockets: userId -> Set of socket ids
-const userSockets = new Map<number, Set<string>>();
+const userSockets = new Map<string, Set<string>>();
 
 // ===========================================
 // Initialize Socket.io
@@ -187,7 +187,7 @@ export function getSocketServer(): SocketServer | null {
 /**
  * Emit scrape started event
  */
-export function emitScrapeStarted(userId: number, event: ScrapeStartedEvent): void {
+export function emitScrapeStarted(userId: string, event: ScrapeStartedEvent): void {
   if (!io) return;
 
   // Chained .to() deduplicates — a socket in both rooms receives the event only once
@@ -199,7 +199,7 @@ export function emitScrapeStarted(userId: number, event: ScrapeStartedEvent): vo
 /**
  * Emit scrape progress event
  */
-export function emitScrapeProgress(userId: number, event: ScrapeProgressEvent): void {
+export function emitScrapeProgress(userId: string, event: ScrapeProgressEvent): void {
   if (!io) return;
 
   io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:progress", event);
@@ -208,7 +208,7 @@ export function emitScrapeProgress(userId: number, event: ScrapeProgressEvent): 
 /**
  * Emit scrape completed event
  */
-export function emitScrapeCompleted(userId: number, event: ScrapeCompletedEvent): void {
+export function emitScrapeCompleted(userId: string, event: ScrapeCompletedEvent): void {
   if (!io) return;
 
   io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:completed", event);
@@ -219,7 +219,7 @@ export function emitScrapeCompleted(userId: number, event: ScrapeCompletedEvent)
 /**
  * Emit scrape failed event
  */
-export function emitScrapeFailed(userId: number, event: ScrapeFailedEvent): void {
+export function emitScrapeFailed(userId: string, event: ScrapeFailedEvent): void {
   if (!io) return;
 
   io.to(`user:${userId}`).to(`scrape:${event.historyId}`).emit("scrape:failed", event);
@@ -230,7 +230,7 @@ export function emitScrapeFailed(userId: number, event: ScrapeFailedEvent): void
 /**
  * Emit queue position update
  */
-export function emitQueuePosition(userId: number, event: QueuePositionEvent): void {
+export function emitQueuePosition(userId: string, event: QueuePositionEvent): void {
   if (!io) return;
 
   io.to(`user:${userId}`).emit("queue:position", event);
@@ -248,7 +248,7 @@ export function emitAdminNotification(event: SystemNotificationEvent): void {
 /**
  * Emit system notification to specific user
  */
-export function emitUserNotification(userId: number, event: SystemNotificationEvent): void {
+export function emitUserNotification(userId: string, event: SystemNotificationEvent): void {
   if (!io) return;
 
   io.to(`user:${userId}`).emit("system:notification", event);
@@ -257,7 +257,7 @@ export function emitUserNotification(userId: number, event: SystemNotificationEv
 /**
  * Check if user is connected
  */
-export function isUserConnected(userId: number): boolean {
+export function isUserConnected(userId: string): boolean {
   return userSockets.has(userId) && userSockets.get(userId)!.size > 0;
 }
 

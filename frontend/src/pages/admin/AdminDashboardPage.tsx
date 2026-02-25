@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip, Stack } from "@mui/material";
+import { useTranslation } from "react-i18next";
 import {
   People as PeopleIcon,
   PersonAdd as PersonAddIcon,
@@ -146,6 +147,8 @@ function formatAvgTime(seconds: number): string {
 
 // ── Main Component ───────────────────────────────
 export default function AdminDashboardPage() {
+  const { t } = useTranslation();
+
   const { data: healthData, isLoading: healthLoading } = useQuery({
     queryKey: queryKeys.admin.health(),
     queryFn: () => apiRequest.get<{ success: boolean; data: SystemHealth }>("/admin/health"),
@@ -189,10 +192,10 @@ export default function AdminDashboardPage() {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          Admin Dashboard
+          {t("admin.dashboard")}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          System overview and monitoring
+          {t("admin.overview")}
         </Typography>
       </Box>
 
@@ -220,30 +223,30 @@ export default function AdminDashboardPage() {
                 }}
               />
               <Typography variant="h6" fontWeight={600}>
-                System{" "}
+                {t("admin.systemStatus")}{" "}
                 <Typography component="span" sx={{ color: healthColor, fontWeight: 700 }}>
-                  {health?.status?.toUpperCase() || "CHECKING..."}
+                  {health?.status?.toUpperCase() || t("admin.checking")}
                 </Typography>
               </Typography>
             </Box>
             <Stack direction="row" spacing={1} flexWrap="wrap">
               <Chip
                 icon={<StorageIcon />}
-                label={`DB: ${health?.services?.database?.status || "..."}`}
+                label={`${t("admin.database")}: ${health?.services?.database?.status || "..."}`}
                 color={health?.services?.database?.status === "up" ? "success" : "error"}
                 size="small"
                 variant="outlined"
               />
               <Chip
                 icon={<QueueIcon />}
-                label={`Redis: ${health?.services?.redis?.status || "..."}`}
+                label={`${t("admin.redis")}: ${health?.services?.redis?.status || "..."}`}
                 color={health?.services?.redis?.status === "up" ? "success" : "error"}
                 size="small"
                 variant="outlined"
               />
               <Chip
                 icon={<SpeedIcon />}
-                label={`Scraper: ${health?.services?.scraper?.status || "..."}`}
+                label={`${t("admin.scraperEngine")}: ${health?.services?.scraper?.status || "..."}`}
                 color={health?.services?.scraper?.status === "up" ? "success" : "error"}
                 size="small"
                 variant="outlined"
@@ -255,7 +258,7 @@ export default function AdminDashboardPage() {
             {/* Memory */}
             <Grid item xs={12} sm={4}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Memory Usage
+                {t("admin.memoryUsage")}
               </Typography>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
                 <Typography variant="h6" fontWeight={600}>
@@ -282,7 +285,7 @@ export default function AdminDashboardPage() {
             {/* CPU */}
             <Grid item xs={12} sm={4}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                CPU Load
+                {t("admin.cpuLoad")}
               </Typography>
               <Typography variant="h6" fontWeight={600}>
                 {healthLoading ? "..." : `${stats?.system?.cpuUsage ?? 0}%`}
@@ -304,13 +307,13 @@ export default function AdminDashboardPage() {
             {/* Uptime */}
             <Grid item xs={12} sm={4}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Uptime
+                {t("admin.uptime")}
               </Typography>
               <Typography variant="h6" fontWeight={600}>
                 {healthLoading ? "..." : formatUptime(health?.uptime || 0)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Since last restart
+                {t("admin.sinceLastRestart")}
               </Typography>
             </Grid>
           </Grid>
@@ -318,11 +321,11 @@ export default function AdminDashboardPage() {
       </Card>
 
       {/* ── Real-Time Stats ── */}
-      <SectionHeader title="Real-Time" icon={<WifiIcon color="primary" />} />
+      <SectionHeader title={t("admin.realTime")} icon={<WifiIcon color="primary" />} />
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
         <Grid item xs={6} sm={3}>
           <StatCard
-            title="Online Users"
+            title={t("admin.onlineUsers")}
             value={realtime?.connectedUsers ?? 0}
             icon={<PeopleIcon sx={{ color: "#66bb6a" }} />}
             color="#66bb6a"
@@ -331,7 +334,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={3}>
           <StatCard
-            title="Connections"
+            title={t("admin.connections")}
             value={realtime?.connectedSockets ?? 0}
             icon={<ComputerIcon sx={{ color: "#42a5f5" }} />}
             color="#42a5f5"
@@ -340,7 +343,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={3}>
           <StatCard
-            title="Active Jobs"
+            title={t("admin.activeJobs")}
             value={realtime?.queueStats?.active ?? 0}
             icon={<ActiveIcon sx={{ color: "#ffa726" }} />}
             color="#ffa726"
@@ -349,7 +352,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={3}>
           <StatCard
-            title="Queued Jobs"
+            title={t("admin.queuedJobs")}
             value={realtime?.queueStats?.waiting ?? 0}
             icon={<QueueIcon sx={{ color: "#ab47bc" }} />}
             color="#ab47bc"
@@ -359,11 +362,11 @@ export default function AdminDashboardPage() {
       </Grid>
 
       {/* ── Users Section ── */}
-      <SectionHeader title="Users" icon={<PeopleIcon color="primary" />} />
+      <SectionHeader title={t("admin.users")} icon={<PeopleIcon color="primary" />} />
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
         <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="Total Users"
+            title={t("admin.totalUsers")}
             value={stats?.users?.total ?? 0}
             icon={<PeopleIcon sx={{ color: "#5c6bc0" }} />}
             color="#5c6bc0"
@@ -372,7 +375,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="Active"
+            title={t("admin.active")}
             value={stats?.users?.active ?? 0}
             icon={<SuccessIcon sx={{ color: "#66bb6a" }} />}
             color="#66bb6a"
@@ -381,7 +384,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="Banned"
+            title={t("admin.banned")}
             value={stats?.users?.banned ?? 0}
             icon={<BanIcon sx={{ color: "#ef5350" }} />}
             color="#ef5350"
@@ -390,7 +393,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="New Today"
+            title={t("admin.newToday")}
             value={stats?.users?.newToday ?? 0}
             icon={<PersonAddIcon sx={{ color: "#42a5f5" }} />}
             color="#42a5f5"
@@ -399,7 +402,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2.4}>
           <StatCard
-            title="This Week"
+            title={t("admin.thisWeek")}
             value={stats?.users?.newThisWeek ?? 0}
             icon={<PersonAddIcon sx={{ color: "#ab47bc" }} />}
             color="#ab47bc"
@@ -409,11 +412,11 @@ export default function AdminDashboardPage() {
       </Grid>
 
       {/* ── Subscriptions Section ── */}
-      <SectionHeader title="Subscriptions" icon={<ProIcon color="primary" />} />
+      <SectionHeader title={t("admin.subscriptions")} icon={<ProIcon color="primary" />} />
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
         <Grid item xs={6} sm={4}>
           <StatCard
-            title="Free Plan"
+            title={t("admin.freePlan")}
             value={stats?.subscriptions?.free ?? 0}
             icon={<PeopleIcon sx={{ color: "#78909c" }} />}
             color="#78909c"
@@ -422,7 +425,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4}>
           <StatCard
-            title="Paid Plans"
+            title={t("admin.paidPlans")}
             value={stats?.subscriptions?.pro ?? 0}
             icon={<ProIcon sx={{ color: "#ffa726" }} />}
             color="#ffa726"
@@ -431,7 +434,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4}>
           <StatCard
-            title="Expired"
+            title={t("admin.expired")}
             value={stats?.subscriptions?.expired ?? 0}
             icon={<UptimeIcon sx={{ color: "#ef5350" }} />}
             color="#ef5350"
@@ -441,11 +444,11 @@ export default function AdminDashboardPage() {
       </Grid>
 
       {/* ── Scraping Section ── */}
-      <SectionHeader title="Scraping" icon={<CommentIcon color="primary" />} />
+      <SectionHeader title={t("admin.scraping")} icon={<CommentIcon color="primary" />} />
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="Total Jobs"
+            title={t("admin.totalJobs")}
             value={stats?.scraping?.totalJobs ?? 0}
             icon={<StorageIcon sx={{ color: "#5c6bc0" }} />}
             color="#5c6bc0"
@@ -454,7 +457,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="Successful"
+            title={t("admin.successful")}
             value={stats?.scraping?.successfulJobs ?? 0}
             subtitle={`${successRate}% rate`}
             icon={<SuccessIcon sx={{ color: "#66bb6a" }} />}
@@ -464,7 +467,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="Failed"
+            title={t("admin.failed")}
             value={stats?.scraping?.failedJobs ?? 0}
             icon={<FailedIcon sx={{ color: "#ef5350" }} />}
             color="#ef5350"
@@ -473,7 +476,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="Active"
+            title={t("admin.active")}
             value={stats?.scraping?.activeJobs ?? 0}
             icon={<ActiveIcon sx={{ color: "#42a5f5" }} />}
             color="#42a5f5"
@@ -482,7 +485,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="In Queue"
+            title={t("admin.inQueue")}
             value={stats?.scraping?.queuedJobs ?? 0}
             icon={<QueueIcon sx={{ color: "#ffa726" }} />}
             color="#ffa726"
@@ -491,7 +494,7 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="Comments"
+            title={t("admin.totalComments")}
             value={stats?.scraping?.totalComments ?? 0}
             icon={<CommentIcon sx={{ color: "#ab47bc" }} />}
             color="#ab47bc"
@@ -500,9 +503,9 @@ export default function AdminDashboardPage() {
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
           <StatCard
-            title="Avg Speed"
+            title={t("admin.avgSpeed")}
             value={formatAvgTime(stats?.scraping?.avgCompletionTime ?? 0)}
-            subtitle="per job"
+            subtitle={t("admin.perJob")}
             icon={<TimerIcon sx={{ color: "#26a69a" }} />}
             color="#26a69a"
             loading={loading}

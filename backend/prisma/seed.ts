@@ -53,12 +53,22 @@ async function main() {
 
   // Create default global settings
   const defaultSettings = [
-    { key: "global_proxy_enabled", value: "false" },
-    { key: "global_proxy_list", value: "" },
-    { key: "maintenance_mode", value: "false" },
-    { key: "max_comments_free", value: "100" },
-    { key: "max_comments_personal", value: "5000" },
-    { key: "max_comments_premium", value: "0" }, // 0 = unlimited
+    { key: "maintenanceMode", value: "false" },
+    { key: "registrationEnabled", value: "true" },
+    { key: "maxTrialUses", value: "3" },
+    { key: "freeMaxComments", value: "100" },
+    { key: "personalMaxComments", value: "5000" },
+    { key: "premiumMaxComments", value: "50000" },
+    { key: "freeConcurrency", value: "1" },
+    { key: "jobTimeout", value: "300" },
+    { key: "freePrice", value: "0" },
+    { key: "personalPrice", value: "23" },
+    { key: "premiumPrice", value: "45" },
+    { key: "personalDuration", value: "3" },
+    { key: "premiumDuration", value: "30" },
+    { key: "freeRetentionDays", value: "1" },
+    { key: "personalRetentionDays", value: "3" },
+    { key: "premiumRetentionDays", value: "5" },
   ];
 
   for (const setting of defaultSettings) {

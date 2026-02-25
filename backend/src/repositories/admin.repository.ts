@@ -29,7 +29,7 @@ export interface UserPagination {
 }
 
 export interface ScrapeFilters {
-  userId?: number;
+  userId?: string;
   platform?: Platform;
   status?: ScrapeStatus;
   dateFrom?: Date;
@@ -62,8 +62,10 @@ export class AdminRepository {
     const where: Prisma.UserWhereInput = {};
 
     if (filters.search) {
-      // SQLite LIKE is case-insensitive by default for ASCII
-      where.OR = [{ username: { contains: filters.search } }, { email: { contains: filters.search } }];
+      where.OR = [
+        { username: { contains: filters.search, mode: "insensitive" } },
+        { email: { contains: filters.search, mode: "insensitive" } },
+      ];
     }
     if (filters.planType) {
       where.planType = filters.planType;
@@ -78,17 +80,9 @@ export class AdminRepository {
       where.isAdmin = filters.isAdmin;
     }
 
-    // Handle sortBy for scrapeCount
-    let orderBy: Prisma.UserOrderByWithRelationInput;
-    if (sortBy === "scrapeCount") {
-      orderBy = {
-        scrapeHistories: {
-          _count: sortOrder,
-        },
-      };
-    } else {
-      orderBy = { [sortBy]: sortOrder };
-    }
+    // MongoDB Prisma doesn't support ordering by relation count; fall back to createdAt
+    const effectiveSortBy = sortBy === "scrapeCount" ? "createdAt" : sortBy;
+    const orderBy: Prisma.UserOrderByWithRelationInput = { [effectiveSortBy]: sortOrder };
 
     const [users, totalItems] = await Promise.all([
       prisma.user.findMany({
@@ -105,20 +99,24 @@ export class AdminRepository {
       prisma.user.count({ where }),
     ]);
 
-    // Get distinct IP counts for these users
+    // Get distinct IP counts for these users using Prisma
     const userIds = users.map((u) => u.id);
-    let ipCountMap: Record<number, number> = {};
+    const ipCountMap: Record<string, number> = {};
+
     if (userIds.length > 0) {
-      const ipCounts = await prisma.$queryRawUnsafe<{ user_id: number; ip_count: number }[]>(
-        `SELECT user_id, COUNT(DISTINCT ip_address) as ip_count FROM refresh_tokens WHERE user_id IN (${userIds.join(",")}) AND ip_address IS NOT NULL GROUP BY user_id`,
-      );
-      ipCountMap = ipCounts.reduce(
-        (acc, row) => {
-          acc[row.user_id] = Number(row.ip_count);
-          return acc;
+      // Fetch tokens with distinct IPs per user
+      const tokenIpData = await prisma.refreshToken.findMany({
+        where: {
+          userId: { in: userIds },
+          ipAddress: { not: null },
         },
-        {} as Record<number, number>,
-      );
+        select: { userId: true, ipAddress: true },
+        distinct: ["userId", "ipAddress"],
+      });
+
+      for (const row of tokenIpData) {
+        ipCountMap[row.userId] = (ipCountMap[row.userId] ?? 0) + 1;
+      }
     }
 
     const totalPages = Math.ceil(totalItems / limit);
@@ -153,8 +151,8 @@ export class AdminRepository {
   /**
    * Get detailed user info for admin
    */
-  async getUserDetail(userId: number): Promise<AdminUserDetail | null> {
-    const [user, ipResult] = await Promise.all([
+  async getUserDetail(userId: string): Promise<AdminUserDetail | null> {
+    const [user, distinctIpTokens] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         include: {
@@ -163,9 +161,11 @@ export class AdminRepository {
           },
         },
       }),
-      prisma.$queryRaw<
-        { ip_count: number }[]
-      >`SELECT COUNT(DISTINCT ip_address) as ip_count FROM refresh_tokens WHERE user_id = ${userId} AND ip_address IS NOT NULL`,
+      prisma.refreshToken.findMany({
+        where: { userId, ipAddress: { not: null } },
+        select: { ipAddress: true },
+        distinct: ["ipAddress"],
+      }),
     ]);
 
     if (!user) return null;
@@ -183,7 +183,7 @@ export class AdminRepository {
       maxTrialUses: user.maxTrialUses,
       isBanned: user.isBanned,
       scrapeCount: user._count.scrapeHistories,
-      distinctIpCount: Number(ipResult[0]?.ip_count ?? 0),
+      distinctIpCount: distinctIpTokens.length,
       banReason: user.banReason,
       bannedAt: user.bannedAt,
       subscriptionStart: user.subscriptionStart,
@@ -201,7 +201,7 @@ export class AdminRepository {
    * Update user (admin only fields)
    */
   async updateUser(
-    userId: number,
+    userId: string,
     data: {
       username?: string;
       email?: string;
@@ -224,7 +224,7 @@ export class AdminRepository {
   /**
    * Ban a user
    */
-  async banUser(userId: number, reason: string): Promise<User> {
+  async banUser(userId: string, reason: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -238,7 +238,7 @@ export class AdminRepository {
   /**
    * Unban a user
    */
-  async unbanUser(userId: number): Promise<User> {
+  async unbanUser(userId: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -252,7 +252,7 @@ export class AdminRepository {
   /**
    * Delete a user and all related data
    */
-  async deleteUser(userId: number): Promise<void> {
+  async deleteUser(userId: string): Promise<void> {
     await prisma.user.delete({
       where: { id: userId },
     });
@@ -467,7 +467,7 @@ export class AdminRepository {
   /**
    * Update or create setting
    */
-  async setSetting(key: string, value: string | null, updatedBy: number): Promise<void> {
+  async setSetting(key: string, value: string | null, updatedBy: string): Promise<void> {
     await prisma.globalSettings.upsert({
       where: { key },
       create: { key, value, updatedBy },
@@ -529,7 +529,7 @@ export class AdminRepository {
   /**
    * Revoke a specific session
    */
-  async revokeSession(sessionId: number): Promise<void> {
+  async revokeSession(sessionId: string): Promise<void> {
     await prisma.refreshToken.update({
       where: { id: sessionId },
       data: { isRevoked: true, revokedAt: new Date() },
@@ -539,7 +539,7 @@ export class AdminRepository {
   /**
    * Revoke all sessions for a user
    */
-  async revokeAllUserSessions(userId: number): Promise<number> {
+  async revokeAllUserSessions(userId: string): Promise<number> {
     const result = await prisma.refreshToken.updateMany({
       where: { userId, isRevoked: false },
       data: { isRevoked: true, revokedAt: new Date() },
@@ -551,7 +551,7 @@ export class AdminRepository {
    * Get user's scrape history for admin
    */
   async getUserScrapeHistory(
-    userId: number,
+    userId: string,
     page: number,
     limit: number,
   ): Promise<{ data: AdminScrapeLog[]; total: number }> {

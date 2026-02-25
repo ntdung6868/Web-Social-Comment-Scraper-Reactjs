@@ -1,5 +1,6 @@
 import { Box, Typography, alpha } from "@mui/material";
 import { FolderOff as EmptyIcon } from "@mui/icons-material";
+import { useTranslation } from "react-i18next";
 
 interface EmptyStateProps {
   title?: string;
@@ -9,11 +10,12 @@ interface EmptyStateProps {
 }
 
 export default function EmptyState({
-  title = "No data",
-  message = "There is nothing to display here.",
+  title = "",
+  message = "",
   icon,
   action,
 }: EmptyStateProps) {
+  const { t } = useTranslation();
   return (
     <Box
       sx={{
@@ -41,11 +43,11 @@ export default function EmptyState({
       </Box>
 
       <Typography variant="h6" fontWeight={600} gutterBottom>
-        {title}
+        {title || t("components.noData")}
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400, mb: action ? 3 : 0 }}>
-        {message}
+        {message || t("components.noDataMessage")}
       </Typography>
 
       {action}

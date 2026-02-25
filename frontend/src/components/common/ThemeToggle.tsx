@@ -9,11 +9,15 @@ export default function ThemeToggle() {
   return (
     <Tooltip title={isDark ? "Light Mode" : "Dark Mode"}>
       <IconButton
-        color="inherit"
         onClick={toggleTheme}
         sx={{
+          color: (theme) => theme.palette.text.primary,
           transition: "all 0.3s ease",
           "&:hover": {
+            backgroundColor: (theme) =>
+              theme.palette.mode === "dark"
+                ? "rgba(255, 255, 255, 0.12)"
+                : "rgba(0, 0, 0, 0.06)",
             transform: "scale(1.1)",
           },
         }}

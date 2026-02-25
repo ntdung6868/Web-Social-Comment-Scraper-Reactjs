@@ -20,7 +20,7 @@ export interface CreateUserData {
 }
 
 export interface RefreshTokenData {
-  userId: number;
+  userId: string;
   expiresAt: Date;
   userAgent?: string;
   ipAddress?: string;
@@ -76,7 +76,7 @@ export class AuthRepository {
   /**
    * Find user by ID
    */
-  async findUserById(id: number): Promise<User | null> {
+  async findUserById(id: string): Promise<User | null> {
     return prisma.user.findUnique({
       where: { id },
     });
@@ -138,7 +138,7 @@ export class AuthRepository {
   /**
    * Update user password
    */
-  async updatePassword(userId: number, passwordHash: string): Promise<User> {
+  async updatePassword(userId: string, passwordHash: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -154,7 +154,7 @@ export class AuthRepository {
   /**
    * Set password reset token
    */
-  async setResetToken(userId: number, token: string, expiresAt: Date): Promise<User> {
+  async setResetToken(userId: string, token: string, expiresAt: Date): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -168,7 +168,7 @@ export class AuthRepository {
   /**
    * Clear password reset token
    */
-  async clearResetToken(userId: number): Promise<User> {
+  async clearResetToken(userId: string): Promise<User> {
     return prisma.user.update({
       where: { id: userId },
       data: {
@@ -285,7 +285,7 @@ export class AuthRepository {
   /**
    * Revoke all refresh tokens for a user
    */
-  async revokeAllUserTokens(userId: number): Promise<number> {
+  async revokeAllUserTokens(userId: string): Promise<number> {
     const result = await prisma.refreshToken.updateMany({
       where: {
         userId,
@@ -317,7 +317,7 @@ export class AuthRepository {
   /**
    * Get active sessions for a user
    */
-  async getUserSessions(userId: number): Promise<RefreshToken[]> {
+  async getUserSessions(userId: string): Promise<RefreshToken[]> {
     return prisma.refreshToken.findMany({
       where: {
         userId,
@@ -331,7 +331,7 @@ export class AuthRepository {
   /**
    * Count active sessions for a user
    */
-  async countUserSessions(userId: number): Promise<number> {
+  async countUserSessions(userId: string): Promise<number> {
     return prisma.refreshToken.count({
       where: {
         userId,

@@ -53,115 +53,122 @@ const AdminSessionsPage = lazy(() => import("@/pages/admin/AdminSessionsPage"));
 // Error page
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 
-const router = createBrowserRouter([
-  // Public routes (guest only)
-  {
-    element: <GuestRoute />,
-    children: [
-      {
-        path: "/login",
-        element: withSuspense(LoginPage),
-      },
-      {
-        path: "/register",
-        element: withSuspense(RegisterPage),
-      },
-      {
-        path: "/forgot-password",
-        element: withSuspense(ForgotPasswordPage),
-      },
-      {
-        path: "/reset-password",
-        element: withSuspense(ResetPasswordPage),
-      },
-    ],
-  },
+const router = createBrowserRouter(
+  [
+    // Public routes (guest only)
+    {
+      element: <GuestRoute />,
+      children: [
+        {
+          path: "/login",
+          element: withSuspense(LoginPage),
+        },
+        {
+          path: "/register",
+          element: withSuspense(RegisterPage),
+        },
+        {
+          path: "/forgot-password",
+          element: withSuspense(ForgotPasswordPage),
+        },
+        {
+          path: "/reset-password",
+          element: withSuspense(ResetPasswordPage),
+        },
+      ],
+    },
 
-  // Protected routes
-  {
-    element: <ProtectedRoute />,
-    children: [
-      {
-        element: <DashboardLayout />,
-        children: [
-          {
-            index: true,
-            element: <Navigate to="/dashboard" replace />,
-          },
-          {
-            path: "/dashboard",
-            element: withSuspense(DashboardPage),
-          },
-          {
-            path: "/scraper",
-            element: withSuspense(ScraperPage),
-          },
-          {
-            path: "/history",
-            element: withSuspense(HistoryPage),
-          },
-          {
-            path: "/history/:id",
-            element: withSuspense(HistoryDetailPage),
-          },
-          {
-            path: "/profile",
-            element: withSuspense(ProfilePage),
-          },
-          {
-            path: "/settings",
-            element: withSuspense(SettingsPage),
-          },
-          {
-            path: "/guide",
-            element: withSuspense(GuidePage),
-          },
-          {
-            path: "/pricing",
-            element: withSuspense(PricingPage),
-          },
-        ],
-      },
-    ],
-  },
+    // Protected routes
+    {
+      element: <ProtectedRoute />,
+      children: [
+        {
+          element: <DashboardLayout />,
+          children: [
+            {
+              index: true,
+              element: <Navigate to="/dashboard" replace />,
+            },
+            {
+              path: "/dashboard",
+              element: withSuspense(DashboardPage),
+            },
+            {
+              path: "/scraper",
+              element: withSuspense(ScraperPage),
+            },
+            {
+              path: "/history",
+              element: withSuspense(HistoryPage),
+            },
+            {
+              path: "/history/:id",
+              element: withSuspense(HistoryDetailPage),
+            },
+            {
+              path: "/profile",
+              element: withSuspense(ProfilePage),
+            },
+            {
+              path: "/settings",
+              element: withSuspense(SettingsPage),
+            },
+            {
+              path: "/guide",
+              element: withSuspense(GuidePage),
+            },
+            {
+              path: "/pricing",
+              element: withSuspense(PricingPage),
+            },
+          ],
+        },
+      ],
+    },
 
-  // Admin routes
-  {
-    element: <ProtectedRoute adminOnly />,
-    children: [
-      {
-        element: <DashboardLayout />,
-        children: [
-          {
-            path: "/admin",
-            element: withSuspense(AdminDashboardPage),
-          },
-          {
-            path: "/admin/users",
-            element: withSuspense(UserManagementPage),
-          },
-          {
-            path: "/admin/logs",
-            element: withSuspense(SystemLogsPage),
-          },
-          {
-            path: "/admin/settings",
-            element: withSuspense(AdminSettingsPage),
-          },
-          {
-            path: "/admin/sessions",
-            element: withSuspense(AdminSessionsPage),
-          },
-        ],
-      },
-    ],
-  },
+    // Admin routes
+    {
+      element: <ProtectedRoute adminOnly />,
+      children: [
+        {
+          element: <DashboardLayout />,
+          children: [
+            {
+              path: "/admin",
+              element: withSuspense(AdminDashboardPage),
+            },
+            {
+              path: "/admin/users",
+              element: withSuspense(UserManagementPage),
+            },
+            {
+              path: "/admin/logs",
+              element: withSuspense(SystemLogsPage),
+            },
+            {
+              path: "/admin/settings",
+              element: withSuspense(AdminSettingsPage),
+            },
+            {
+              path: "/admin/sessions",
+              element: withSuspense(AdminSessionsPage),
+            },
+          ],
+        },
+      ],
+    },
 
-  // Catch-all route
+    // Catch-all route
+    {
+      path: "*",
+      element: withSuspense(NotFoundPage),
+    },
+  ],
   {
-    path: "*",
-    element: withSuspense(NotFoundPage),
-  },
-]);
+    future: {
+      v7_startTransition: true,
+    },
+  }
+);
 
 export default router;

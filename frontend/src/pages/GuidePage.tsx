@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Typography,
@@ -10,7 +11,6 @@ import {
   Chip,
   Stack,
   Alert,
-  Link,
   Stepper,
   Step,
   StepLabel,
@@ -20,20 +20,19 @@ import {
   Apple as AppleIcon,
   SmartToy as CaptchaIcon,
   ContentCopy as CopyIcon,
-  OpenInNew as OpenInNewIcon,
   CheckCircle as CheckIcon,
   Warning as WarningIcon,
 } from "@mui/icons-material";
 import toast from "react-hot-toast";
 
 // ── Copy helper ──
-const copyToClipboard = (text: string) => {
+const copyToClipboard = (text: string, t: ReturnType<typeof useTranslation>["t"]) => {
   navigator.clipboard.writeText(text);
-  toast.success("Copied!");
+  toast.success(t("common.copied"));
 };
 
 // ── Code Block Component ──
-function CodeBlock({ code }: { code: string }) {
+function CodeBlock({ code, t }: { code: string; t: ReturnType<typeof useTranslation>["t"] }) {
   return (
     <Box
       sx={{
@@ -51,7 +50,7 @@ function CodeBlock({ code }: { code: string }) {
       }}
     >
       <Box sx={{ flex: 1, whiteSpace: "nowrap" }}>{code}</Box>
-      <Button size="small" onClick={() => copyToClipboard(code)} sx={{ minWidth: 32, p: 0.5, color: "grey.400" }}>
+      <Button size="small" onClick={() => copyToClipboard(code, t)} sx={{ minWidth: 32, p: 0.5, color: "grey.400" }}>
         <CopyIcon fontSize="small" />
       </Button>
     </Box>
@@ -110,15 +109,32 @@ function SectionCard({
 // MAIN GUIDE PAGE
 // ══════════════════════════════════════════════════
 export default function GuidePage() {
+  const { t } = useTranslation();
+
+  const guideSteps = [
+    t("guide.step1"),
+    t("guide.step2"),
+    t("guide.step3"),
+    t("guide.step4"),
+  ];
+
+  const guideTips = [
+    t("guide.tip1"),
+    t("guide.tip2"),
+    t("guide.tip3"),
+    t("guide.tip4"),
+    t("guide.tip5"),
+  ];
+
   return (
     <Box>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          User Guide
+          {t("guide.title")}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          How to set up cookies and handle captcha issues when scraping
+          {t("guide.subtitle")}
         </Typography>
       </Box>
 
@@ -128,8 +144,8 @@ export default function GuidePage() {
         {/* ════════════════════════════════════════════ */}
         <SectionCard
           icon={<CookieIcon sx={{ fontSize: 36 }} />}
-          title="How to Get Cookies"
-          subtitle="Export cookies from TikTok/Facebook and upload them to the system"
+          title={t("guide.howToGetCookies")}
+          subtitle={t("guide.exportCookies")}
           gradientFrom="#f59e0b"
           gradientTo="#d97706"
         >
@@ -139,11 +155,11 @@ export default function GuidePage() {
             sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}
           >
             <CookieIcon color="warning" />
-            Using J2TEAM Cookies Extension
+            {t("guide.usingJ2Team")}
           </Typography>
 
           <Stepper alternativeLabel sx={{ mb: 3 }}>
-            {["Install Extension", "Log in to platform", "Export Cookies", "Upload to Settings"].map((label) => (
+            {guideSteps.map((label) => (
               <Step key={label} completed>
                 <StepLabel>{label}</StepLabel>
               </Step>
@@ -152,45 +168,25 @@ export default function GuidePage() {
 
           <Box component="ol" sx={{ pl: 2, "& li": { mb: 2, fontSize: "0.875rem", color: "text.secondary" } }}>
             <li>
-              <strong>Install the extension:</strong> Download{" "}
-              <Link
-                href="https://chromewebstore.google.com/detail/j2team-cookies/okpidcojinmlaakglciglbpcpajaibco"
-                target="_blank"
-                rel="noopener"
-                sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
-              >
-                J2TEAM Cookies <OpenInNewIcon sx={{ fontSize: 14 }} />
-              </Link>{" "}
-              from the Chrome Web Store.
+              <strong>{t("guide.step1")}:</strong> {t("guide.step1Description")}
             </li>
             <li>
-              <strong>Log in:</strong> Go to{" "}
-              <Link href="https://www.tiktok.com" target="_blank" rel="noopener">
-                TikTok
-              </Link>{" "}
-              or{" "}
-              <Link href="https://www.facebook.com" target="_blank" rel="noopener">
-                Facebook
-              </Link>{" "}
-              and log in to your account.
+              <strong>{t("guide.step2")}:</strong> {t("guide.step2Description")}
             </li>
             <li>
-              <strong>Export cookies:</strong> Click the J2TEAM Cookies icon in the toolbar → select{" "}
-              <strong>Export Cookies</strong>.
+              <strong>{t("guide.step3")}:</strong> {t("guide.step3Description")}
             </li>
             <li>
-              <strong>Upload:</strong> Go to <strong>Settings → Cookies</strong> tab in this app → upload the
-              JSON file.
+              <strong>{t("guide.step4")}:</strong> {t("guide.step4Description")}
             </li>
           </Box>
 
           <Alert severity="warning" sx={{ mt: 2 }}>
             <Typography variant="body2" fontWeight={600}>
-              Security Notice
+              {t("guide.securityNotice")}
             </Typography>
             <Typography variant="body2">
-              Cookies contain sensitive login data. Never share your cookie files with others. The system encrypts
-              cookies when stored and only you can access them.
+              {t("guide.securityMessage")}
             </Typography>
           </Alert>
         </SectionCard>
@@ -200,15 +196,14 @@ export default function GuidePage() {
         {/* ════════════════════════════════════════════ */}
         <SectionCard
           icon={<CaptchaIcon sx={{ fontSize: 36 }} />}
-          title="Handling TikTok Captcha"
-          subtitle="How to solve captcha issues when scraping TikTok comments"
+          title={t("guide.handlingCaptcha")}
+          subtitle={t("guide.captchaDescription")}
           gradientFrom="#ef4444"
           gradientTo="#dc2626"
         >
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
-              TikTok uses captcha to prevent bots. When captcha appears, the scraping process will pause. Below are
-              effective ways to handle it.
+              {t("guide.captchaWarning")}
             </Typography>
           </Alert>
 
@@ -220,16 +215,15 @@ export default function GuidePage() {
               sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
             >
               <Chip label="1" size="small" color="primary" />
-              Upload Logged-in Cookies
+              {t("guide.uploadLoggedInCookies")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ pl: 4 }}>
-              The most effective method is using cookies from a logged-in TikTok account. Cookies help the system appear
-              as a real user, significantly reducing captcha frequency.
+              {t("guide.uploadCookiesDescription")}
             </Typography>
             <Box sx={{ pl: 4, mt: 1 }}>
               <Stack direction="row" spacing={1}>
-                <Chip label="Highly effective" size="small" color="success" variant="outlined" />
-                <Chip label="Recommended" size="small" color="primary" variant="outlined" />
+                <Chip label={t("guide.highlyEffective")} size="small" color="success" variant="outlined" />
+                <Chip label={t("guide.recommended")} size="small" color="primary" variant="outlined" />
               </Stack>
             </Box>
           </Box>
@@ -242,11 +236,10 @@ export default function GuidePage() {
               sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
             >
               <Chip label="2" size="small" color="primary" />
-              Use CookieForge to Solve Captcha
+              {t("guide.useCookieForge")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ pl: 4, mb: 2 }}>
-              CookieForge is a desktop tool that lets you import your cookies and manually solve captcha challenges.
-              After solving, the optimized cookies are exported for upload.
+              {t("guide.cookieForgeDescription")}
             </Typography>
 
             {/* Download buttons */}
@@ -259,18 +252,21 @@ export default function GuidePage() {
                   href="/downloads/CookieForge-arm64.dmg"
                   download
                   sx={{
-                    bgcolor: "#1a1a2e",
-                    "&:hover": { bgcolor: "#16213e" },
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "#1a1a2e" : "#1a1a2e",
+                    color: "#fff",
+                    "&:hover": { bgcolor: (theme) => theme.palette.mode === "dark" ? "#16213e" : "#2d2d4a" },
                     textTransform: "none",
                     px: 2.5,
-                    py: 1,
+                    py: 1.5,
+                    borderRadius: 2,
+                    boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 8px rgba(26,26,46,0.3)",
                   }}
                 >
                   <Box sx={{ textAlign: "left" }}>
-                    <Typography variant="caption" sx={{ opacity: 0.7, display: "block", lineHeight: 1 }}>
-                      Download for
+                    <Typography variant="caption" sx={{ opacity: 0.7, display: "block", lineHeight: 1, color: "#fff" }}>
+                      {t("guide.downloadFor")}
                     </Typography>
-                    <Typography variant="body2" fontWeight={700}>
+                    <Typography variant="body2" fontWeight={700} sx={{ color: "#fff" }}>
                       macOS (Apple Silicon)
                     </Typography>
                   </Box>
@@ -287,18 +283,21 @@ export default function GuidePage() {
                   href="/downloads/CookieForge.exe"
                   download
                   sx={{
-                    bgcolor: "#0078d4",
-                    "&:hover": { bgcolor: "#106ebe" },
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "#0078d4" : "#0078d4",
+                    color: "#fff",
+                    "&:hover": { bgcolor: (theme) => theme.palette.mode === "dark" ? "#106ebe" : "#005a9e" },
                     textTransform: "none",
                     px: 2.5,
-                    py: 1,
+                    py: 1.5,
+                    borderRadius: 2,
+                    boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 8px rgba(0,120,212,0.3)",
                   }}
                 >
                   <Box sx={{ textAlign: "left" }}>
-                    <Typography variant="caption" sx={{ opacity: 0.7, display: "block", lineHeight: 1 }}>
-                      Download for
+                    <Typography variant="caption" sx={{ opacity: 0.7, display: "block", lineHeight: 1, color: "#fff" }}>
+                      {t("guide.downloadFor")}
                     </Typography>
-                    <Typography variant="body2" fontWeight={700}>
+                    <Typography variant="body2" fontWeight={700} sx={{ color: "#fff" }}>
                       Windows
                     </Typography>
                   </Box>
@@ -317,41 +316,37 @@ export default function GuidePage() {
                     }}
                   >
                     <Typography variant="caption" fontWeight={700} display="block" gutterBottom>
-                      macOS Installation
+                      {t("guide.macOSInstallation")}
                     </Typography>
                     <Box
                       component="ul"
                       sx={{ pl: 2, mb: 0, "& li": { mb: 0.5, fontSize: "0.8rem", color: "text.secondary" } }}
                     >
-                      <li>
-                        Double-click the <code>.dmg</code> file
-                      </li>
-                      <li>Drag the app to the Applications folder</li>
-                      <li>Open from Applications</li>
+                      <li>{t("guide.macOSStep1")}</li>
+                      <li>{t("guide.macOSStep2")}</li>
+                      <li>{t("guide.macOSStep3")}</li>
                     </Box>
                     <Alert
                       severity="warning"
                       variant="outlined"
                       sx={{ mt: 1.5, "& .MuiAlert-message": { fontSize: "0.75rem" } }}
                     >
-                      <strong>If blocked by macOS:</strong>
+                      <strong>{t("guide.macOSBlocked")}</strong>
                       <Box component="ol" sx={{ pl: 2, mt: 0.5, mb: 0, "& li": { mb: 0.5 } }}>
                         <li>
-                          <strong>(Recommended)</strong> Right-click the app → select <em>Open</em> → click{" "}
-                          <em>Open</em> again.
+                          <strong>{t("guide.recommended")}</strong> {t("guide.macOSSolution1")}
                         </li>
                         <li>
-                          Open <em>System Settings → Privacy & Security</em> → scroll down and click{" "}
-                          <em>Open Anyway</em>.
+                          {t("guide.macOSSolution2")}
                         </li>
                         <li>
-                          Terminal (temporary):
-                          <CodeBlock code="sudo spctl --master-disable" />
+                          {t("guide.terminal")}:
+                          <CodeBlock code="sudo spctl --master-disable" t={t} />
                         </li>
                         <li>
-                          Re-sign the app (drag the .app file after the space):
-                          <CodeBlock code="sudo codesign --force --deep --sign - /path/to/App.app" />
-                          <CodeBlock code="sudo xattr -r -c /path/to/App.app" />
+                          {t("guide.resignApp")}
+                          <CodeBlock code="sudo codesign --force --deep --sign - /path/to/App.app" t={t} />
+                          <CodeBlock code="sudo xattr -r -c /path/to/App.app" t={t} />
                         </li>
                       </Box>
                     </Alert>
@@ -367,24 +362,21 @@ export default function GuidePage() {
                     }}
                   >
                     <Typography variant="caption" fontWeight={700} display="block" gutterBottom>
-                      Windows Installation
+                      {t("guide.windowsInstallation")}
                     </Typography>
                     <Box
                       component="ul"
                       sx={{ pl: 2, mb: 0, "& li": { mb: 0.5, fontSize: "0.8rem", color: "text.secondary" } }}
                     >
-                      <li>
-                        Download the <code>.exe</code> file
-                      </li>
-                      <li>Double-click to run</li>
+                      <li>{t("guide.windowsStep1")}</li>
+                      <li>{t("guide.windowsStep2")}</li>
                     </Box>
                     <Alert
                       severity="info"
                       variant="outlined"
                       sx={{ mt: 1.5, "& .MuiAlert-message": { fontSize: "0.75rem" } }}
                     >
-                      <strong>If SmartScreen blocks it:</strong> Click <strong>More info</strong> → then{" "}
-                      <strong>Run anyway</strong>. This is normal for unsigned apps.
+                      {t("guide.smartScreenWarning")}
                     </Alert>
                   </Box>
                 </Grid>
@@ -401,18 +393,16 @@ export default function GuidePage() {
                 }}
               >
                 <Typography variant="caption" fontWeight={700} display="block" gutterBottom>
-                  How to use CookieForge
+                  {t("guide.howToUseCookieForge")}
                 </Typography>
                 <Box
                   component="ol"
                   sx={{ pl: 2, mb: 0, "& li": { mb: 0.5, fontSize: "0.8rem", color: "text.secondary" } }}
                 >
-                  <li>Open the CookieForge app.</li>
-                  <li>Import your TikTok cookies (from J2TEAM Cookies export).</li>
-                  <li>The app will load TikTok with your cookies. Solve the captcha manually when it appears.</li>
-                  <li>
-                    Upload them again in <strong>Settings → Cookies</strong>.
-                  </li>
+                  <li>{t("guide.cookieForgeStep1")}</li>
+                  <li>{t("guide.cookieForgeStep2")}</li>
+                  <li>{t("guide.cookieForgeStep3")}</li>
+                  <li>{t("guide.cookieForgeStep4")}</li>
                 </Box>
               </Box>
             </Box>
@@ -426,11 +416,10 @@ export default function GuidePage() {
               sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
             >
               <Chip label="3" size="small" color="primary" />
-              Space Out Your Scraping Sessions
+              {t("guide.spaceOutScraping")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ pl: 4 }}>
-              Scraping too frequently in a short period triggers captcha. Wait at least 5–10 minutes between scraping
-              sessions to reduce the risk.
+              {t("guide.spaceOutDescription")}
             </Typography>
           </Box>
 
@@ -438,26 +427,26 @@ export default function GuidePage() {
 
           {/* Tips */}
           <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-            Tips to Avoid Captcha
+            {t("guide.tipsToAvoidCaptcha")}
           </Typography>
           <Grid container spacing={1.5}>
             {[
-              { icon: <CheckIcon color="success" fontSize="small" />, text: "Always upload cookies before scraping" },
+              { icon: <CheckIcon color="success" fontSize="small" />, text: guideTips[0] },
               {
                 icon: <CheckIcon color="success" fontSize="small" />,
-                text: "Use CookieForge to solve captcha and refresh cookies",
+                text: guideTips[1],
               },
               {
                 icon: <CheckIcon color="success" fontSize="small" />,
-                text: "Don't scrape more than 5 videos in a row",
+                text: guideTips[2],
               },
               {
                 icon: <WarningIcon color="warning" fontSize="small" />,
-                text: "Avoid scraping videos with millions of comments",
+                text: guideTips[3],
               },
               {
                 icon: <WarningIcon color="warning" fontSize="small" />,
-                text: "Replace cookies if captcha keeps appearing",
+                text: guideTips[4],
               },
             ].map((tip, i) => (
               <Grid item xs={12} sm={6} key={i}>

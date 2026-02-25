@@ -44,7 +44,7 @@ export interface ResetPasswordPayload {
  * JWT Token payload (what's encoded in the token)
  */
 export interface JwtPayload {
-  userId: number;
+  userId: string;
   username: string;
   email: string;
   isAdmin: boolean;
@@ -57,7 +57,7 @@ export interface JwtPayload {
  * Access token payload (minimal info)
  */
 export interface AccessTokenPayload {
-  userId: number;
+  userId: string;
   username: string;
   isAdmin: boolean;
 }
@@ -66,8 +66,8 @@ export interface AccessTokenPayload {
  * Refresh token payload
  */
 export interface RefreshTokenPayload {
-  userId: number;
-  tokenId: number;
+  userId: string;
+  tokenId: string;
 }
 
 /**
@@ -99,9 +99,9 @@ export interface RefreshResponse {
  * Decoded refresh token from database
  */
 export interface StoredRefreshToken {
-  id: number;
+  id: string;
   token: string;
-  userId: number;
+  userId: string;
   expiresAt: Date;
   createdAt: Date;
   isRevoked: boolean;
@@ -113,7 +113,7 @@ export interface StoredRefreshToken {
  * Request user (attached to req by auth middleware)
  */
 export interface RequestUser {
-  userId: number;
+  userId: string;
   username: string;
   email: string;
   isAdmin: boolean;

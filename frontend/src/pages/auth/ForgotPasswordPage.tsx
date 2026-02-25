@@ -3,6 +3,7 @@ import { Link as RouterLink } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslation } from "react-i18next";
 import { Box, Card, CardContent, TextField, Button, Typography, InputAdornment, Alert, alpha } from "@mui/material";
 import {
   Email as EmailIcon,
@@ -13,13 +14,17 @@ import {
 import { authService } from "@/services/auth.service";
 import { AxiosError } from "axios";
 
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
-});
+const forgotPasswordSchema = (t: (key: string) => string) =>
+  z.object({
+    email: z.string().email(t("errors.invalidEmail")),
+  });
 
-type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
+type ForgotPasswordFormData = {
+  email: string;
+};
 
 export default function ForgotPasswordPage() {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -29,7 +34,7 @@ export default function ForgotPasswordPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<ForgotPasswordFormData>({
-    resolver: zodResolver(forgotPasswordSchema),
+    resolver: zodResolver(forgotPasswordSchema(t)),
     defaultValues: {
       email: "",
     },
@@ -43,7 +48,7 @@ export default function ForgotPasswordPage() {
       setIsSuccess(true);
     } catch (err) {
       const axiosError = err as AxiosError<{ error: string }>;
-      setError(axiosError.response?.data?.error || "Failed to send reset email. Please try again.");
+      setError(axiosError.response?.data?.error || t("auth.resetEmailFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -93,7 +98,7 @@ export default function ForgotPasswordPage() {
               </Typography>
             </Box>
             <Typography variant="body1" color="text.secondary">
-              {isSuccess ? "Check your email" : "Reset your password"}
+              {isSuccess ? t("auth.resetSuccess") : t("auth.resetPassword")}
             </Typography>
           </Box>
 
@@ -116,10 +121,10 @@ export default function ForgotPasswordPage() {
                 <CheckCircleIcon sx={{ fontSize: 32, color: "success.main" }} />
               </Box>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                We&apos;ve sent a password reset link to your email address. Please check your inbox.
+                {t("auth.resetSuccessMessage")}
               </Typography>
               <Button component={RouterLink} to="/login" startIcon={<ArrowBackIcon />} fullWidth variant="outlined">
-                Back to Login
+                {t("auth.backToLogin")}
               </Button>
             </Box>
           ) : (
@@ -133,7 +138,7 @@ export default function ForgotPasswordPage() {
               )}
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Enter your email address and we&apos;ll send you a link to reset your password.
+                {t("auth.resetDescription")}
               </Typography>
 
               {/* Form */}
@@ -141,7 +146,7 @@ export default function ForgotPasswordPage() {
                 <TextField
                   {...register("email")}
                   fullWidth
-                  label="Email"
+                  label={t("common.email")}
                   type="email"
                   error={!!errors.email}
                   helperText={errors.email?.message}
@@ -156,11 +161,11 @@ export default function ForgotPasswordPage() {
                 />
 
                 <Button type="submit" fullWidth variant="contained" size="large" disabled={isLoading} sx={{ mb: 2 }}>
-                  {isLoading ? "Sending..." : "Send Reset Link"}
+                  {isLoading ? t("auth.sending") : t("auth.resetLink")}
                 </Button>
 
                 <Button component={RouterLink} to="/login" fullWidth variant="text" startIcon={<ArrowBackIcon />}>
-                  Back to Login
+                  {t("auth.backToLogin")}
                 </Button>
               </form>
             </>

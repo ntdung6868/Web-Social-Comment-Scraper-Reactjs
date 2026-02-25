@@ -8,6 +8,7 @@ import { createApp } from "./app.js";
 import { env, connectDatabase, disconnectDatabase } from "./config/index.js";
 import { initializeSocket } from "./lib/socket.js";
 import { startCleanupJob, stopCleanupJob } from "./lib/cleanup.js";
+import { connectRedis, closeRedis } from "./lib/redis.js";
 
 /**
  * Start the server
@@ -16,6 +17,16 @@ async function bootstrap(): Promise<void> {
   try {
     console.log("🚀 Starting Web Scraper Backend...");
     console.log(`📍 Environment: ${env.nodeEnv}`);
+
+    // Connect to Redis (optional - will fall back to memory if fails)
+    if (env.rateLimit.useRedis) {
+      try {
+        await connectRedis();
+        console.log("✅ Redis connected for rate limiting");
+      } catch (error) {
+        console.warn("⚠️ Redis connection failed, falling back to in-memory rate limiting");
+      }
+    }
 
     // Connect to database
     await connectDatabase();
@@ -54,6 +65,9 @@ async function bootstrap(): Promise<void> {
       // Close HTTP server
       httpServer.close(async () => {
         console.log("🔌 HTTP server closed");
+
+        // Close Redis connection
+        await closeRedis();
 
         // Disconnect database
         await disconnectDatabase();

@@ -2,8 +2,9 @@ import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider, CssBaseline } from "@mui/material";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 import { RouterProvider } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { getTheme } from "@/theme";
 import { queryClient } from "@/lib/query-client";
 import { useAuthStore } from "@/stores/auth.store";
@@ -11,8 +12,9 @@ import { useThemeStore } from "@/stores/theme.store";
 import router from "./routes";
 
 function App() {
+  const { t } = useTranslation();
   const { checkAuth } = useAuthStore();
-  const { theme } = useThemeStore();
+  const theme = useThemeStore((state) => state.theme);
   const isDark = theme === "dark";
 
   // Check authentication status on app load
@@ -29,6 +31,17 @@ function App() {
       root.classList.remove("dark");
     }
   }, [isDark]);
+
+  // Global rate limit error handler
+  useEffect(() => {
+    const handleRateLimitError = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      toast.error(customEvent.detail?.message || t("errors.tooManyRequests"));
+    };
+
+    window.addEventListener("rate-limit-error", handleRateLimitError);
+    return () => window.removeEventListener("rate-limit-error", handleRateLimitError);
+  }, [t]);
 
   return (
     <QueryClientProvider client={queryClient}>

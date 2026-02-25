@@ -9,7 +9,7 @@ import type { PlanType, PlanStatus, ProxyRotation } from "./enums.js";
  * User data returned to frontend (excludes sensitive fields)
  */
 export interface UserPublic {
-  id: number;
+  id: string;
   username: string;
   email: string;
   createdAt: Date;

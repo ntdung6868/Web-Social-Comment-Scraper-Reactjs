@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Card,
@@ -47,6 +48,8 @@ import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
 import toast from "react-hot-toast";
 import type { User } from "@/types";
+import { useLanguageStore } from "@/stores/language.store";
+import { formatDateVi, formatDateTimeVi } from "@/utils/helpers";
 
 // ── Types for admin user detail ──────────────────
 interface AdminUserDetail extends User {
@@ -79,6 +82,8 @@ function InfoRow({ label, value, chip }: { label: string; value?: React.ReactNod
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════
 export default function UserManagementPage() {
+  const { t } = useTranslation();
+  const { language } = useLanguageStore();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -153,63 +158,63 @@ export default function UserManagementPage() {
     mutationFn: ({ userId, reason }: { userId: number; reason: string }) =>
       apiRequest.post(`/admin/users/${userId}/ban`, { reason }),
     onSuccess: () => {
-      toast.success("User banned");
+      toast.success(t("admin.userBanned"));
       closeConfirm();
       refreshAll();
     },
-    onError: () => toast.error("Failed to ban user"),
+    onError: () => toast.error(t("admin.banFailed")),
   });
 
   const unbanMutation = useMutation({
     mutationFn: (userId: number) => apiRequest.post(`/admin/users/${userId}/unban`),
     onSuccess: () => {
-      toast.success("User unbanned");
+      toast.success(t("admin.userUnbanned"));
       closeConfirm();
       refreshAll();
     },
-    onError: () => toast.error("Failed to unban user"),
+    onError: () => toast.error(t("admin.unbanFailed")),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (userId: number) => apiRequest.delete(`/admin/users/${userId}`),
     onSuccess: () => {
-      toast.success("User deleted");
+      toast.success(t("admin.userDeleted"));
       closeConfirm();
       setDetailUserId(null);
       refreshAll();
     },
-    onError: () => toast.error("Failed to delete user"),
+    onError: () => toast.error(t("admin.deleteFailed")),
   });
 
   const resetTrialMutation = useMutation({
     mutationFn: (userId: number) => apiRequest.post(`/admin/users/${userId}/reset-trial`, {}),
     onSuccess: () => {
-      toast.success("Trial uses reset");
+      toast.success(t("admin.trialReset"));
       closeConfirm();
       refreshAll();
     },
-    onError: () => toast.error("Failed to reset trial"),
+    onError: () => toast.error(t("admin.resetFailed")),
   });
 
   const grantProMutation = useMutation({
     mutationFn: ({ userId, durationDays, planType }: { userId: number; durationDays: number; planType: string }) =>
       apiRequest.post(`/admin/users/${userId}/grant-pro`, { durationDays, planType }),
     onSuccess: () => {
-      toast.success("Plan updated");
+      toast.success(t("admin.planUpdated"));
       closeConfirm();
       refreshAll();
     },
-    onError: () => toast.error("Failed to update plan"),
+    onError: () => toast.error(t("admin.updatePlanFailed")),
   });
 
   const updateUserMutation = useMutation({
     mutationFn: ({ userId, data }: { userId: number; data: Record<string, unknown> }) =>
       apiRequest.patch(`/admin/users/${userId}`, data),
     onSuccess: () => {
-      toast.success("User updated");
+      toast.success(t("admin.userUpdated"));
       refreshAll();
     },
-    onError: () => toast.error("Failed to update user"),
+    onError: () => toast.error(t("admin.updateUserFailed")),
   });
 
   // ── Handlers ──
@@ -274,7 +279,7 @@ export default function UserManagementPage() {
     updateUserMutation.isPending;
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading users..." />;
+    return <LoadingSpinner message={t("common.loading")} />;
   }
 
   const users = data?.data?.data ?? [];
@@ -286,14 +291,14 @@ export default function UserManagementPage() {
       <Box sx={{ mb: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
-            User Management
+            {t("nav.adminUsers")}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage user accounts and permissions
+            {t("admin.manageUsers")}
           </Typography>
         </Box>
         <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => refetch()}>
-          Refresh
+          {t("common.refresh")}
         </Button>
       </Box>
 
@@ -301,7 +306,7 @@ export default function UserManagementPage() {
       <Card sx={{ mb: 3, p: 2 }}>
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
           <TextField
-            placeholder="Search by username or email..."
+            placeholder={t("admin.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -319,7 +324,7 @@ export default function UserManagementPage() {
           />
           <TextField
             select
-            label="Plan"
+            label={t("admin.plan")}
             value={roleFilter}
             onChange={(e) => {
               setRoleFilter(e.target.value);
@@ -328,10 +333,10 @@ export default function UserManagementPage() {
             size="small"
             sx={{ minWidth: 150 }}
           >
-            <MenuItem value="">All Plans</MenuItem>
-            <MenuItem value="FREE">Free</MenuItem>
-            <MenuItem value="PERSONAL">Personal</MenuItem>
-            <MenuItem value="PREMIUM">Premium</MenuItem>
+            <MenuItem value="">{t("admin.allPlans")}</MenuItem>
+            <MenuItem value="FREE">{t("pricing.freePlan")}</MenuItem>
+            <MenuItem value="PERSONAL">{t("pricing.personalPlan")}</MenuItem>
+            <MenuItem value="PREMIUM">{t("pricing.premiumPlan")}</MenuItem>
           </TextField>
         </Box>
       </Card>
@@ -339,18 +344,18 @@ export default function UserManagementPage() {
       {/* Table */}
       <Card>
         {users.length === 0 ? (
-          <EmptyState title="No users found" message="No users match your search criteria." />
+          <EmptyState title={t("admin.noUsers")} message={t("admin.noUsersMessage")} />
         ) : (
           <>
             <TableContainer>
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>User</TableCell>
-                    <TableCell>Plan</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Trial Uses</TableCell>
-                    <TableCell>Joined</TableCell>
+                    <TableCell>{t("common.user")}</TableCell>
+                    <TableCell>{t("admin.plan")}</TableCell>
+                    <TableCell>{t("common.status")}</TableCell>
+                    <TableCell>{t("admin.trialUses")}</TableCell>
+                    <TableCell>{t("admin.joined")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -379,7 +384,7 @@ export default function UserManagementPage() {
                       </TableCell>
                       <TableCell>
                         {user.isBanned ? (
-                          <Chip label="Banned" size="small" color="error" />
+                          <Chip label={t("admin.banned")} size="small" color="error" />
                         ) : (
                           <Stack direction="row" spacing={0.5} alignItems="center">
                             <Chip label={user.planStatus} size="small" color="success" variant="outlined" />
@@ -387,7 +392,7 @@ export default function UserManagementPage() {
                               (user as unknown as { distinctIpCount: number }).distinctIpCount > 3 && (
                                 <Chip
                                   icon={<WarningIcon />}
-                                  label={`${(user as unknown as { distinctIpCount: number }).distinctIpCount} IPs`}
+                                  label={`${(user as unknown as { distinctIpCount: number }).distinctIpCount} ${t("admin.ips")}`}
                                   size="small"
                                   color="warning"
                                   variant="filled"
@@ -402,7 +407,7 @@ export default function UserManagementPage() {
                           {user.trialUses} / {maxTrialUses}
                         </Typography>
                       </TableCell>
-                      <TableCell>{format(new Date(user.createdAt), "MMM dd, yyyy")}</TableCell>
+                      <TableCell>{language === "vi" ? formatDateVi(user.createdAt) : format(new Date(user.createdAt), "MMM dd, yyyy")}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -462,7 +467,7 @@ export default function UserManagementPage() {
               <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
                 <Chip
                   icon={<PersonIcon />}
-                  label={detailUser.isAdmin ? "Admin" : "User"}
+                  label={detailUser.isAdmin ? t("common.admin") : t("common.user")}
                   size="small"
                   color={detailUser.isAdmin ? "primary" : "default"}
                   variant="outlined"
@@ -478,11 +483,11 @@ export default function UserManagementPage() {
                         : "default"
                   }
                 />
-                {detailUser.isBanned && <Chip label="Banned" size="small" color="error" />}
+                {detailUser.isBanned && <Chip label={t("admin.banned")} size="small" color="error" />}
                 {detailUser.distinctIpCount !== undefined && detailUser.distinctIpCount > 3 && (
                   <Chip
                     icon={<WarningIcon />}
-                    label={`${detailUser.distinctIpCount} IPs detected`}
+                    label={`${detailUser.distinctIpCount} ${t("admin.ipsDetected")}`}
                     size="small"
                     color="warning"
                     variant="filled"
@@ -493,12 +498,12 @@ export default function UserManagementPage() {
 
               {/* Editable Fields */}
               <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-                Edit User Info
+                {t("admin.editUserInfo")}
               </Typography>
               <Grid container spacing={1.5} sx={{ mb: 2 }}>
                 <Grid item xs={6}>
                   <TextField
-                    label="Username"
+                    label={t("common.username")}
                     size="small"
                     fullWidth
                     defaultValue={detailUser.username}
@@ -507,7 +512,7 @@ export default function UserManagementPage() {
                 </Grid>
                 <Grid item xs={6}>
                   <TextField
-                    label="Email"
+                    label={t("common.email")}
                     size="small"
                     fullWidth
                     defaultValue={detailUser.email}
@@ -516,11 +521,11 @@ export default function UserManagementPage() {
                 </Grid>
                 <Grid item xs={6}>
                   <TextField
-                    label="New Password"
+                    label={t("admin.newPassword")}
                     size="small"
                     fullWidth
                     type="password"
-                    placeholder="Leave empty to keep"
+                    placeholder={t("admin.leaveEmpty")}
                     value={editPassword}
                     onChange={(e) => setEditPassword(e.target.value)}
                   />
@@ -539,14 +544,14 @@ export default function UserManagementPage() {
                       if (editEmail && editEmail !== detailUser.email) payload.email = editEmail;
                       if (editPassword) payload.password = editPassword;
                       if (Object.keys(payload).length === 0) {
-                        toast.error("No changes to save");
+                        toast.error(t("admin.noChanges"));
                         return;
                       }
                       setPendingPayload(payload);
                       openConfirm("save-changes", detailUser.id, detailUser.username);
                     }}
                   >
-                    {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+                    {updateUserMutation.isPending ? t("common.saving") : t("common.save")}
                   </Button>
                 </Grid>
               </Grid>
@@ -562,27 +567,27 @@ export default function UserManagementPage() {
                 }}
               >
                 <InfoRow
-                  label="Plan Status"
+                  label={t("admin.planStatus")}
                   chip={<Chip label={detailUser.planStatus} size="small" color="info" variant="outlined" />}
                 />
                 <Divider />
-                <InfoRow label="Trial Uses" value={`${detailUser.trialUses} / ${maxTrialUses}`} />
+                <InfoRow label={t("admin.trialUses")} value={`${detailUser.trialUses} / ${maxTrialUses}`} />
                 <Divider />
                 <InfoRow
-                  label="Subscription End"
+                  label={t("admin.subscriptionEnd")}
                   value={
                     detailUser.subscriptionEnd
-                      ? format(new Date(detailUser.subscriptionEnd), "MMM dd, yyyy HH:mm")
+                      ? (language === "vi" ? formatDateTimeVi(detailUser.subscriptionEnd) : format(new Date(detailUser.subscriptionEnd), "MMM dd, yyyy HH:mm"))
                       : "—"
                   }
                 />
                 <Divider />
-                <InfoRow label="Joined" value={format(new Date(detailUser.createdAt), "MMM dd, yyyy HH:mm")} />
+                <InfoRow label={t("admin.joined")} value={language === "vi" ? formatDateTimeVi(detailUser.createdAt) : format(new Date(detailUser.createdAt), "MMM dd, yyyy HH:mm")} />
                 {detailUser.distinctIpCount !== undefined && (
                   <>
                     <Divider />
                     <InfoRow
-                      label="Distinct IPs"
+                      label={t("admin.distinctIps")}
                       chip={
                         <Chip
                           label={detailUser.distinctIpCount}
@@ -597,24 +602,24 @@ export default function UserManagementPage() {
                 {detailUser.scrapeCount !== undefined && (
                   <>
                     <Divider />
-                    <InfoRow label="Total Scrapes" value={detailUser.scrapeCount} />
+                    <InfoRow label={t("admin.totalScrapes")} value={detailUser.scrapeCount} />
                   </>
                 )}
                 {detailUser.isBanned && (
                   <>
                     <Divider />
-                    <InfoRow label="Ban Reason" value={detailUser.banReason || "No reason"} />
+                    <InfoRow label={t("admin.banReason")} value={detailUser.banReason || t("admin.noReason")} />
                     <Divider />
                     <InfoRow
-                      label="Banned At"
-                      value={detailUser.bannedAt ? format(new Date(detailUser.bannedAt), "MMM dd, yyyy HH:mm") : "—"}
+                      label={t("admin.bannedAt")}
+                      value={detailUser.bannedAt ? (language === "vi" ? formatDateTimeVi(detailUser.bannedAt) : format(new Date(detailUser.bannedAt), "MMM dd, yyyy HH:mm")) : "—"}
                     />
                   </>
                 )}
               </Box>
 
               <Typography variant="subtitle2" sx={{ mb: 1.5, mt: 1 }}>
-                Quick Actions
+                {t("admin.quickActions")}
               </Typography>
               <Grid container spacing={1.5}>
                 {/* Ban / Unban */}
@@ -628,7 +633,7 @@ export default function UserManagementPage() {
                       color="success"
                       onClick={() => openConfirm("unban", detailUser.id, detailUser.username)}
                     >
-                      Unban
+                      {t("admin.unban")}
                     </Button>
                   ) : (
                     <Button
@@ -639,7 +644,7 @@ export default function UserManagementPage() {
                       color="error"
                       onClick={() => openConfirm("ban", detailUser.id, detailUser.username)}
                     >
-                      Ban User
+                      {t("admin.banUser")}
                     </Button>
                   )}
                 </Grid>
@@ -657,7 +662,7 @@ export default function UserManagementPage() {
                       openConfirm("grant-pro", detailUser.id, detailUser.username);
                     }}
                   >
-                    Manage Plan
+                    {t("admin.managePlan")}
                   </Button>
                 </Grid>
 
@@ -670,7 +675,7 @@ export default function UserManagementPage() {
                     startIcon={<ResetIcon />}
                     onClick={() => openConfirm("reset-trial", detailUser.id, detailUser.username)}
                   >
-                    Reset Trial
+                    {t("admin.resetTrial")}
                   </Button>
                 </Grid>
 
@@ -678,7 +683,7 @@ export default function UserManagementPage() {
                 <Grid item xs={6}>
                   <TextField
                     type="date"
-                    label="Subscription End"
+                    label={t("admin.subscriptionEnd")}
                     size="small"
                     fullWidth
                     InputLabelProps={{ shrink: true }}
@@ -707,7 +712,7 @@ export default function UserManagementPage() {
                     color="error"
                     onClick={() => openConfirm("delete", detailUser.id, detailUser.username)}
                   >
-                    Delete User
+                    {t("admin.deleteUser")}
                   </Button>
                 </Grid>
 
@@ -721,13 +726,13 @@ export default function UserManagementPage() {
                     onClick={async () => {
                       try {
                         await apiRequest.delete(`/admin/users/${detailUser.id}/sessions`);
-                        toast.success("All sessions revoked");
+                        toast.success(t("admin.sessionsRevoked"));
                       } catch {
-                        toast.error("Failed to revoke sessions");
+                        toast.error(t("admin.revokeFailed"));
                       }
                     }}
                   >
-                    Revoke Sessions
+                    {t("admin.revokeSessions")}
                   </Button>
                 </Grid>
               </Grid>
@@ -735,7 +740,7 @@ export default function UserManagementPage() {
 
             <DialogActions sx={{ px: 3, py: 2 }}>
               <Button onClick={() => setDetailUserId(null)} color="inherit">
-                Close
+                {t("common.close")}
               </Button>
             </DialogActions>
           </>
@@ -747,29 +752,29 @@ export default function UserManagementPage() {
       {/* ════════════════════════════════════════════════ */}
       <Dialog open={!!confirmAction} onClose={closeConfirm} maxWidth="xs" fullWidth>
         <DialogTitle>
-          {confirmAction?.type === "ban" && "Ban User"}
-          {confirmAction?.type === "unban" && "Unban User"}
-          {confirmAction?.type === "delete" && "Delete User"}
-          {confirmAction?.type === "reset-trial" && "Reset Trial Uses"}
-          {confirmAction?.type === "grant-pro" && "Manage User Plan"}
-          {confirmAction?.type === "save-changes" && "Update User Info"}
+          {confirmAction?.type === "ban" && t("admin.banUser")}
+          {confirmAction?.type === "unban" && t("admin.unbanUser")}
+          {confirmAction?.type === "delete" && t("admin.deleteUser")}
+          {confirmAction?.type === "reset-trial" && t("admin.resetTrialUses")}
+          {confirmAction?.type === "grant-pro" && t("admin.manageUserPlan")}
+          {confirmAction?.type === "save-changes" && t("admin.updateUserInfo")}
         </DialogTitle>
         <DialogContent>
           {/* Ban — needs reason */}
           {confirmAction?.type === "ban" && (
             <>
               <Alert severity="warning" sx={{ mb: 2 }}>
-                <strong>{confirmAction.username}</strong> will be banned and unable to access the platform.
+                <strong>{confirmAction.username}</strong> {t("admin.banWarning")}
               </Alert>
               <TextField
-                label="Ban Reason"
+                label={t("admin.banReason")}
                 fullWidth
                 size="small"
                 multiline
                 rows={2}
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
-                placeholder="Reason for banning this user..."
+                placeholder={t("admin.banReasonPlaceholder")}
               />
             </>
           )}
@@ -777,21 +782,21 @@ export default function UserManagementPage() {
           {/* Unban */}
           {confirmAction?.type === "unban" && (
             <Alert severity="info">
-              <strong>{confirmAction.username}</strong> will be unbanned and regain access.
+              <strong>{confirmAction.username}</strong> {t("admin.unbanWarning")}
             </Alert>
           )}
 
           {/* Delete */}
           {confirmAction?.type === "delete" && (
             <Alert severity="error">
-              Permanently delete <strong>{confirmAction.username}</strong> and all their data? This cannot be undone.
+              {t("admin.deleteWarning")} <strong>{confirmAction.username}</strong>?
             </Alert>
           )}
 
           {/* Reset Trial */}
           {confirmAction?.type === "reset-trial" && (
             <Alert severity="info">
-              Reset trial uses for <strong>{confirmAction.username}</strong> back to {maxTrialUses}?
+              {t("admin.resetTrialMessage")} <strong>{confirmAction.username}</strong> {t("admin.resetTrialBack")} {maxTrialUses}?
             </Alert>
           )}
 
@@ -799,36 +804,36 @@ export default function UserManagementPage() {
           {confirmAction?.type === "grant-pro" && (
             <>
               <Alert severity="info" sx={{ mb: 2 }}>
-                Set plan for <strong>{confirmAction.username}</strong>.
+                {t("admin.setPlanMessage")} <strong>{confirmAction.username}</strong>.
               </Alert>
               <TextField
                 select
-                label="Plan Type"
+                label={t("admin.planType")}
                 fullWidth
                 size="small"
                 value={grantPlanType}
                 onChange={(e) => setGrantPlanType(e.target.value as "FREE" | "PERSONAL" | "PREMIUM")}
                 sx={{ mb: 2 }}
               >
-                <MenuItem value="FREE">FREE</MenuItem>
-                <MenuItem value="PERSONAL">PERSONAL</MenuItem>
-                <MenuItem value="PREMIUM">PREMIUM</MenuItem>
+                <MenuItem value="FREE">{t("pricing.freePlan")}</MenuItem>
+                <MenuItem value="PERSONAL">{t("pricing.personalPlan")}</MenuItem>
+                <MenuItem value="PREMIUM">{t("pricing.premiumPlan")}</MenuItem>
               </TextField>
               {grantPlanType !== "FREE" && (
                 <TextField
-                  label="Duration (days)"
+                  label={t("admin.durationDays")}
                   type="number"
                   fullWidth
                   size="small"
                   value={proDays}
                   onChange={(e) => setProDays(Math.max(1, parseInt(e.target.value) || 1))}
                   inputProps={{ min: 1, max: 365 }}
-                  helperText={`Subscription will be active for ${proDays} day(s)`}
+                  helperText={t("admin.subscriptionDays", { count: proDays })}
                 />
               )}
               {grantPlanType === "FREE" && (
                 <Alert severity="warning" sx={{ mt: 1 }}>
-                  This will remove the paid subscription and revert to the Free plan.
+                  {t("admin.freePlanWarning")}
                 </Alert>
               )}
             </>
@@ -837,23 +842,23 @@ export default function UserManagementPage() {
           {/* Save Changes */}
           {confirmAction?.type === "save-changes" && pendingPayload && (
             <Alert severity="warning">
-              Update <strong>{confirmAction.username}</strong>'s info?
+              {t("admin.updateInfoMessage")} <strong>{confirmAction.username}</strong>?
               {pendingPayload.username && (
                 <>
                   <br />
-                  Username → <strong>{String(pendingPayload.username)}</strong>
+                  {t("common.username")} → <strong>{String(pendingPayload.username)}</strong>
                 </>
               )}
               {pendingPayload.email && (
                 <>
                   <br />
-                  Email → <strong>{String(pendingPayload.email)}</strong>
+                  {t("common.email")} → <strong>{String(pendingPayload.email)}</strong>
                 </>
               )}
               {pendingPayload.password && (
                 <>
                   <br />
-                  Password → <strong>********</strong>
+                  {t("common.password")} → <strong>********</strong>
                 </>
               )}
             </Alert>
@@ -861,7 +866,7 @@ export default function UserManagementPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={closeConfirm} color="inherit">
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             variant="contained"
@@ -869,7 +874,7 @@ export default function UserManagementPage() {
             onClick={executeConfirm}
             disabled={isConfirmPending}
           >
-            {isConfirmPending ? "Processing..." : "Confirm"}
+            {isConfirmPending ? t("common.processing") : t("common.confirm")}
           </Button>
         </DialogActions>
       </Dialog>

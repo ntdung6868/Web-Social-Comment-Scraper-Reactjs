@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
 import {
@@ -13,7 +14,6 @@ import {
   Button,
   Tabs,
   Tab,
-  alpha,
   Chip,
   Stack,
   CircularProgress,
@@ -55,6 +55,7 @@ const validateCookieDomain = (cookies: any[], platform: "TIKTOK" | "FACEBOOK"): 
 };
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const isAdmin = user?.isAdmin || false;
 
@@ -146,7 +147,7 @@ export default function SettingsPage() {
     event.target.value = "";
 
     if (!file.name.toLowerCase().endsWith(".json")) {
-      toast.error("Invalid file format. Please upload a JSON file.");
+      toast.error(t("settings.invalidFileFormat"));
       return;
     }
 
@@ -161,7 +162,7 @@ export default function SettingsPage() {
         try {
           parsedData = JSON.parse(jsonContent);
         } catch (err) {
-          toast.error("Failed to parse JSON file.");
+          toast.error(t("settings.parseJsonFailed"));
           setLoadingPlatform(null);
           return;
         }
@@ -170,13 +171,13 @@ export default function SettingsPage() {
         if (Array.isArray(parsedData)) cookies = parsedData;
         else if (parsedData && Array.isArray(parsedData.cookies)) cookies = parsedData.cookies;
         else {
-          toast.error("Invalid JSON structure.");
+          toast.error(t("settings.invalidJsonStructure"));
           setLoadingPlatform(null);
           return;
         }
 
         if (!validateCookieDomain(cookies, platform)) {
-          toast.error(`Invalid cookies! Domain mismatch for ${platform}.`);
+          toast.error(t("settings.cookiesDomainMismatch", { platform }));
           setLoadingPlatform(null);
           return;
         }
@@ -191,7 +192,7 @@ export default function SettingsPage() {
           const newCookieInfo = responseData.data?.cookie || responseData.cookie;
 
           if (!newCookieInfo) {
-            toast.error("Upload successful but failed to parse response.");
+            toast.error(t("settings.uploadSuccessButParseFailed"));
             setLoadingPlatform(null);
             return;
           }
@@ -207,13 +208,13 @@ export default function SettingsPage() {
             },
           }));
 
-          toast.success(`${platform === "TIKTOK" ? "TikTok" : "Facebook"} cookies uploaded!`);
+          toast.success(t("settings.cookiesUploadedSuccess", { platform: platform === "TIKTOK" ? "TikTok" : "Facebook" }));
         } catch (apiError: any) {
-          const msg = apiError.response?.data?.error?.message || apiError.message || "Upload failed";
-          toast.error(`Error: ${msg}`);
+          const msg = apiError.response?.data?.error?.message || apiError.message || t("settings.uploadFailed");
+          toast.error(`${t("common.error")}: ${msg}`);
         }
       } catch (error) {
-        toast.error("An unexpected error occurred.");
+        toast.error(t("settings.unexpectedError"));
       } finally {
         setLoadingPlatform(null);
       }
@@ -223,7 +224,7 @@ export default function SettingsPage() {
   };
 
   const handleClearCookies = async (platform: "TIKTOK" | "FACEBOOK") => {
-    if (!confirm(`Are you sure you want to clear ${platform === "TIKTOK" ? "TikTok" : "Facebook"} cookies?`)) return;
+    if (!confirm(t("settings.clearConfirm", { platform: platform === "TIKTOK" ? "TikTok" : "Facebook" }))) return;
 
     setLoadingPlatform(platform);
     try {
@@ -234,9 +235,9 @@ export default function SettingsPage() {
         [key]: { active: false, count: 0, date: "", filename: "" },
       }));
 
-      toast.success("Cookies cleared successfully.");
+      toast.success(t("settings.cookiesCleared"));
     } catch (error) {
-      toast.error("Failed to clear cookies.");
+      toast.error(t("settings.clearCookiesFailed"));
     } finally {
       setLoadingPlatform(null);
     }
@@ -254,12 +255,12 @@ export default function SettingsPage() {
       await userService.updateProxies(settings.proxyList, "RANDOM");
       await userService.toggleProxy(settings.proxyEnabled);
 
-      toast.success("Settings saved successfully!");
+      toast.success(t("settings.settingsSaved"));
       setOriginalSettings(settings);
     } catch (error: any) {
       console.error("Save Error Details:", error);
       const errorMsg =
-        error.response?.data?.error?.message || error.response?.data?.message || "Failed to save settings";
+        error.response?.data?.error?.message || error.response?.data?.message || t("settings.saveFailed");
       toast.error(errorMsg);
     } finally {
       setIsSaving(false);
@@ -274,32 +275,33 @@ export default function SettingsPage() {
         sx={{
           mb: 3,
           p: 2,
-          bgcolor: "rgba(76, 175, 80, 0.08)",
-          borderRadius: 1,
-          border: "1px solid rgba(76, 175, 80, 0.2)",
+          bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.12)" : "rgba(46, 125, 50, 0.08)",
+          borderRadius: 2,
+          border: "1px solid",
+          borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.3)" : "rgba(46, 125, 50, 0.2)",
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
-          <CookieIcon sx={{ color: "#2e7d32", fontSize: 20 }} />
-          <Typography variant="subtitle2" fontWeight={700} sx={{ color: "#fff" }}>
-            {stats.count} cookies loaded
+          <CheckCircleIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#81c784" : "#2e7d32", fontSize: 20 }} />
+          <Typography variant="subtitle2" fontWeight={600} sx={{ color: (theme) => theme.palette.mode === "dark" ? "#e8f5e9" : "#1b5e20" }}>
+            {t("settings.cookiesLoaded", { count: stats.count })}
           </Typography>
         </Stack>
         {stats.filename && (
           <Typography
             variant="caption"
             sx={{
-              color: "rgba(255,255,255,0.8)",
+              color: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
               pl: 3.5,
               display: "block",
               fontStyle: "italic",
             }}
           >
-            File: {stats.filename}
+            {t("settings.file")}: {stats.filename}
           </Typography>
         )}
-        <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.6)", pl: 3.5, display: "block" }}>
-          Last updated: {stats.date}
+        <Typography variant="caption" sx={{ color: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", pl: 3.5, display: "block" }}>
+          {t("settings.lastUpdated")}: {stats.date}
         </Typography>
       </Box>
     );
@@ -309,10 +311,10 @@ export default function SettingsPage() {
     <Box>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          Settings
+          {t("settings.title")}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Manage your scraper configuration, cookies, and proxies.
+          {t("settings.subtitle")}
         </Typography>
       </Box>
 
@@ -332,13 +334,31 @@ export default function SettingsPage() {
         onChange={(e) => handleFileUpload(e, "FACEBOOK")}
       />
 
-      <Card>
+      <Card
+        sx={{
+          bgcolor: (theme) => theme.palette.mode === "dark" ? "background.paper" : "#ffffff",
+          boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 16px rgba(0,0,0,0.08)",
+        }}
+      >
         <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="settings tabs">
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            aria-label="settings tabs"
+            sx={{
+              px: 2,
+              "& .MuiTab-root": {
+                minHeight: 56,
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "0.95rem",
+              },
+            }}
+          >
             {/* Tab General chỉ dành cho Admin */}
-            {isAdmin && <Tab icon={<GeneralIcon />} iconPosition="start" label="General" />}
-            <Tab icon={<CookieIcon />} iconPosition="start" label="Cookies" />
-            <Tab icon={<ProxyIcon />} iconPosition="start" label="Proxies" />
+            {isAdmin && <Tab icon={<GeneralIcon />} iconPosition="start" label={t("settings.generalTab")} />}
+            <Tab icon={<CookieIcon />} iconPosition="start" label={t("settings.cookiesTab")} />
+            <Tab icon={<ProxyIcon />} iconPosition="start" label={t("settings.proxiesTab")} />
           </Tabs>
         </Box>
 
@@ -355,7 +375,7 @@ export default function SettingsPage() {
                 <Grid item xs={12} md={8}>
                   <Stack direction="row" alignItems="center" spacing={1} mb={2}>
                     <AdminIcon color="primary" />
-                    <Typography variant="h6">Scraper Behavior (Admin Only)</Typography>
+                    <Typography variant="h6">{t("settings.scraperBehavior")}</Typography>
                   </Stack>
                   <Box sx={{ mb: 3 }}>
                     <FormControlLabel
@@ -367,9 +387,9 @@ export default function SettingsPage() {
                       }
                       label={
                         <Box>
-                          <Typography variant="body1">Headless Mode</Typography>
+                          <Typography variant="body1">{t("settings.headlessMode")}</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            Run browser in background (Recommended for performance)
+                            {t("settings.headlessModeHelper")}
                           </Typography>
                         </Box>
                       }
@@ -385,19 +405,75 @@ export default function SettingsPage() {
             <Grid container spacing={3}>
               {/* TikTok Cookie Card */}
               <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: "100%", bgcolor: alpha("#000", 0.2) }}>
-                  <CardContent>
+                <Card
+                  variant="outlined"
+                  sx={{
+                    height: "100%",
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "#1a237e" : "#ffffff",
+                    borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+                    boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 12px rgba(0,0,0,0.08)",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      borderColor: (theme) => theme.palette.primary.main,
+                      boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 4px 20px rgba(0,0,0,0.12)",
+                    },
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                      <Typography variant="h6">TikTok Cookies</Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 2,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                          }}
+                        >
+                          <CookieIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#b39ddb" : "#5c6bc0", fontSize: 24 }} />
+                        </Box>
+                        <Typography variant="h6" fontWeight={600}>{t("settings.tiktokCookies")}</Typography>
+                      </Box>
                       {cookieStats.tiktok.active ? (
-                        <Chip icon={<CheckCircleIcon />} label="Active" color="success" size="small" variant="filled" />
+                        <Chip
+                          icon={<CheckCircleIcon />}
+                          label={t("settings.active")}
+                          size="small"
+                          sx={{
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.1)",
+                            color: (theme) => theme.palette.mode === "dark" ? "#81c784" : "#2e7d32",
+                            borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.4)" : "rgba(46, 125, 50, 0.3)",
+                            fontWeight: 600,
+                            "& .MuiChip-icon": {
+                              color: (theme) => theme.palette.mode === "dark" ? "#81c784" : "#2e7d32",
+                            },
+                          }}
+                          variant="outlined"
+                        />
                       ) : (
-                        <Chip icon={<ErrorIcon />} label="Missing" color="default" size="small" variant="outlined" />
+                        <Chip
+                          icon={<ErrorIcon />}
+                          label={t("settings.missing")}
+                          size="small"
+                          sx={{
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                            color: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.38)",
+                            borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+                            fontWeight: 500,
+                            "& .MuiChip-icon": {
+                              color: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)",
+                            },
+                          }}
+                          variant="outlined"
+                        />
                       )}
                     </Stack>
 
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                      Upload cookies to access age-restricted content.
+                    <Typography variant="body2" color="text.secondary" paragraph sx={{ mb: 3 }}>
+                      {t("settings.tiktokCookiesHelper")}
                     </Typography>
 
                     {renderCookieInfo(cookieStats.tiktok)}
@@ -410,21 +486,31 @@ export default function SettingsPage() {
                         }
                         onClick={() => tiktokInputRef.current?.click()}
                         disabled={loadingPlatform === "TIKTOK"}
-                        sx={{ bgcolor: "#3f51b5", textTransform: "none" }}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 600,
+                          px: 3,
+                          py: 1,
+                          borderRadius: 2,
+                        }}
                       >
-                        Upload JSON
+                        {t("settings.uploadJson")}
                       </Button>
 
                       {cookieStats.tiktok.active && (
                         <Button
-                          variant="text"
+                          variant="outlined"
                           color="error"
                           startIcon={<DeleteIcon />}
                           onClick={() => handleClearCookies("TIKTOK")}
                           disabled={loadingPlatform === "TIKTOK"}
-                          sx={{ textTransform: "none" }}
+                          sx={{
+                            textTransform: "none",
+                            fontWeight: 500,
+                            borderRadius: 2,
+                          }}
                         >
-                          Clear
+                          {t("settings.clearCookies")}
                         </Button>
                       )}
                     </Stack>
@@ -434,19 +520,75 @@ export default function SettingsPage() {
 
               {/* Facebook Cookie Card */}
               <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: "100%", bgcolor: alpha("#000", 0.2) }}>
-                  <CardContent>
+                <Card
+                  variant="outlined"
+                  sx={{
+                    height: "100%",
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "#1a237e" : "#ffffff",
+                    borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+                    boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 12px rgba(0,0,0,0.08)",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      borderColor: (theme) => theme.palette.primary.main,
+                      boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 4px 20px rgba(0,0,0,0.12)",
+                    },
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                      <Typography variant="h6">Facebook Cookies</Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 2,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
+                          }}
+                        >
+                          <CookieIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#b39ddb" : "#5c6bc0", fontSize: 24 }} />
+                        </Box>
+                        <Typography variant="h6" fontWeight={600}>{t("settings.facebookCookies")}</Typography>
+                      </Box>
                       {cookieStats.facebook.active ? (
-                        <Chip icon={<CheckCircleIcon />} label="Active" color="success" size="small" variant="filled" />
+                        <Chip
+                          icon={<CheckCircleIcon />}
+                          label={t("settings.active")}
+                          size="small"
+                          sx={{
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.1)",
+                            color: (theme) => theme.palette.mode === "dark" ? "#81c784" : "#2e7d32",
+                            borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.4)" : "rgba(46, 125, 50, 0.3)",
+                            fontWeight: 600,
+                            "& .MuiChip-icon": {
+                              color: (theme) => theme.palette.mode === "dark" ? "#81c784" : "#2e7d32",
+                            },
+                          }}
+                          variant="outlined"
+                        />
                       ) : (
-                        <Chip icon={<ErrorIcon />} label="Missing" color="default" size="small" variant="outlined" />
+                        <Chip
+                          icon={<ErrorIcon />}
+                          label={t("settings.missing")}
+                          size="small"
+                          sx={{
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                            color: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.38)",
+                            borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+                            fontWeight: 500,
+                            "& .MuiChip-icon": {
+                              color: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)",
+                            },
+                          }}
+                          variant="outlined"
+                        />
                       )}
                     </Stack>
 
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                      Required for scraping Facebook comments.
+                    <Typography variant="body2" color="text.secondary" paragraph sx={{ mb: 3 }}>
+                      {t("settings.facebookCookiesHelper")}
                     </Typography>
 
                     {renderCookieInfo(cookieStats.facebook)}
@@ -463,21 +605,31 @@ export default function SettingsPage() {
                         }
                         onClick={() => facebookInputRef.current?.click()}
                         disabled={loadingPlatform === "FACEBOOK"}
-                        sx={{ bgcolor: "#3f51b5", textTransform: "none" }}
+                        sx={{
+                          textTransform: "none",
+                          fontWeight: 600,
+                          px: 3,
+                          py: 1,
+                          borderRadius: 2,
+                        }}
                       >
-                        Upload JSON
+                        {t("settings.uploadJson")}
                       </Button>
 
                       {cookieStats.facebook.active && (
                         <Button
-                          variant="text"
+                          variant="outlined"
                           color="error"
                           startIcon={<DeleteIcon />}
                           onClick={() => handleClearCookies("FACEBOOK")}
                           disabled={loadingPlatform === "FACEBOOK"}
-                          sx={{ textTransform: "none" }}
+                          sx={{
+                            textTransform: "none",
+                            fontWeight: 500,
+                            borderRadius: 2,
+                          }}
                         >
-                          Clear
+                          {t("settings.clearCookies")}
                         </Button>
                       )}
                     </Stack>
@@ -494,21 +646,43 @@ export default function SettingsPage() {
               sx={{
                 p: 6,
                 textAlign: "center",
-                bgcolor: alpha("#2196f3", 0.08),
+                bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(33, 150, 243, 0.08)" : "rgba(33, 150, 243, 0.04)",
                 borderRadius: 3,
                 border: "1px dashed",
-                borderColor: "primary.main",
+                borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(33, 150, 243, 0.3)" : "rgba(33, 150, 243, 0.3)",
               }}
             >
-              <ConstructionIcon sx={{ fontSize: 60, color: "primary.main", mb: 2, opacity: 0.8 }} />
-              <Typography variant="h5" fontWeight={600} gutterBottom>
-                Advanced Proxy Management
+              <Box
+                sx={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mx: "auto",
+                  mb: 3,
+                  bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(33, 150, 243, 0.15)" : "rgba(33, 150, 243, 0.1)",
+                }}
+              >
+                <ConstructionIcon sx={{ fontSize: 40, color: (theme) => theme.palette.mode === "dark" ? "#64b5f6" : "#1976d2", opacity: 0.9 }} />
+              </Box>
+              <Typography variant="h5" fontWeight={600} gutterBottom sx={{ color: "text.primary" }}>
+                {t("settings.advancedProxy")}
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 500, mx: "auto", mb: 3 }}>
-                We are building a powerful proxy rotation engine to help you bypass restrictions effortlessly. This
-                feature will be available in the next update.
+                {t("settings.proxyMessage")}
               </Typography>
-              <Chip label="Coming Soon" color="primary" size="small" />
+              <Chip
+                label={t("settings.comingSoon")}
+                size="small"
+                sx={{
+                  bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(33, 150, 243, 0.2)" : "rgba(33, 150, 243, 0.1)",
+                  color: (theme) => theme.palette.mode === "dark" ? "#90caf9" : "#1976d2",
+                  fontWeight: 600,
+                  px: 1,
+                }}
+              />
             </Box>
 
             {/* Hidden Logic */}
@@ -520,7 +694,7 @@ export default function SettingsPage() {
                     onChange={(e) => setSettings({ ...settings, proxyEnabled: e.target.checked })}
                   />
                 }
-                label="Enable Proxy Rotation"
+                label={t("settings.enableProxy")}
               />
               <TextField
                 fullWidth
@@ -546,7 +720,7 @@ export default function SettingsPage() {
                 fontWeight: 600,
               }}
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? t("settings.saving") : t("settings.saveSettings")}
             </Button>
           </Box>
         </CardContent>

@@ -32,6 +32,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/services/api";
 import { LoadingSpinner, EmptyState } from "@/components/common";
 import toast from "react-hot-toast";
+import { useLanguageStore } from "@/stores/language.store";
+import { formatDateTimeVi } from "@/utils/helpers";
 
 // ── Types ────────────────────────────────────────
 interface Session {
@@ -68,6 +70,7 @@ function parseBrowser(ua: string | null): string {
 // ── Main Component ───────────────────────────────
 export default function AdminSessionsPage() {
   const queryClient = useQueryClient();
+  const { language } = useLanguageStore();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [confirmRevoke, setConfirmRevoke] = useState<{ id: number; username: string } | null>(null);
@@ -197,14 +200,14 @@ export default function AdminSessionsPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <Tooltip title={format(new Date(session.createdAt), "PPpp")}>
+                        <Tooltip title={language === "vi" ? formatDateTimeVi(session.createdAt) : format(new Date(session.createdAt), "PPpp")}>
                           <Typography variant="body2" fontSize="0.8rem">
                             {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
                           </Typography>
                         </Tooltip>
                       </TableCell>
                       <TableCell>
-                        <Tooltip title={format(new Date(session.expiresAt), "PPpp")}>
+                        <Tooltip title={language === "vi" ? formatDateTimeVi(session.expiresAt) : format(new Date(session.expiresAt), "PPpp")}>
                           <Typography variant="body2" fontSize="0.8rem">
                             {formatDistanceToNow(new Date(session.expiresAt), { addSuffix: true })}
                           </Typography>

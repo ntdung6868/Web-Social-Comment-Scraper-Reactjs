@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import {
   Box,
@@ -20,10 +21,14 @@ import { scraperService } from "@/services/scraper.service";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, ErrorMessage } from "@/components/common";
 import type { Comment } from "@/types";
+import { useLanguageStore } from "@/stores/language.store";
+import { formatDateVi, formatDateTimeVi } from "@/utils/helpers";
 
 export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const { language } = useLanguageStore();
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.history.detail(id!),
@@ -47,14 +52,14 @@ export default function HistoryDetailPage() {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading scrape details..." />;
+    return <LoadingSpinner message={t("common.loading")} />;
   }
 
   if (error || !data) {
     return (
       <ErrorMessage
-        title="Failed to load details"
-        message="Could not load the scrape details. Please try again."
+        title={t("history.notFound")}
+        message={t("errors.errorOccurred")}
         onRetry={() => navigate("/history")}
       />
     );
@@ -67,7 +72,7 @@ export default function HistoryDetailPage() {
     <Box>
       {/* Back Button */}
       <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/history")} sx={{ mb: 3 }}>
-        Back to History
+        {t("history.backToHistory")}
       </Button>
 
       {/* Scrape Info */}
@@ -76,7 +81,7 @@ export default function HistoryDetailPage() {
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
             <Box>
               <Typography variant="h5" fontWeight={600} gutterBottom>
-                Scrape Details
+                {t("history.details")}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-all" }}>
                 {scrape.url}
@@ -88,7 +93,7 @@ export default function HistoryDetailPage() {
           <Box sx={{ display: "flex", gap: 4, flexWrap: "wrap", mb: 3 }}>
             <Box>
               <Typography variant="caption" color="text.secondary">
-                Platform
+                {t("history.platform")}
               </Typography>
               <Typography variant="body1" fontWeight={500}>
                 {scrape.platform}
@@ -96,7 +101,7 @@ export default function HistoryDetailPage() {
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">
-                Total Comments
+                {t("scraper.totalComments")}
               </Typography>
               <Typography variant="body1" fontWeight={500}>
                 {scrape.totalComments.toLocaleString()}
@@ -104,10 +109,10 @@ export default function HistoryDetailPage() {
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">
-                Created
+                {t("history.date")}
               </Typography>
               <Typography variant="body1" fontWeight={500}>
-                {format(new Date(scrape.createdAt), "MMM dd, yyyy HH:mm")}
+                {language === "vi" ? formatDateTimeVi(scrape.createdAt) : format(new Date(scrape.createdAt), "MMM dd, yyyy HH:mm")}
               </Typography>
             </Box>
           </Box>
@@ -115,13 +120,13 @@ export default function HistoryDetailPage() {
           {/* Export Buttons */}
           <Box sx={{ display: "flex", gap: 1 }}>
             <Button variant="contained" startIcon={<DownloadIcon />} onClick={() => handleExport("xlsx")} size="small">
-              Export XLSX
+              {t("history.exportXlsx")}
             </Button>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => handleExport("csv")} size="small">
-              Export CSV
+              {t("history.exportCsv")}
             </Button>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => handleExport("json")} size="small">
-              Export JSON
+              {t("history.exportJson")}
             </Button>
           </Box>
         </CardContent>
@@ -131,17 +136,17 @@ export default function HistoryDetailPage() {
       <Card>
         <CardContent sx={{ p: 3 }}>
           <Typography variant="h6" fontWeight={600} gutterBottom>
-            Comments ({comments.length})
+            {t("history.comments")} ({comments.length})
           </Typography>
 
           <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Username</TableCell>
-                  <TableCell>Comment</TableCell>
-                  <TableCell align="right">Likes</TableCell>
-                  <TableCell>Date</TableCell>
+                  <TableCell>{t("history.username")}</TableCell>
+                  <TableCell>{t("history.comment")}</TableCell>
+                  <TableCell align="right">{t("history.likes")}</TableCell>
+                  <TableCell>{t("history.date")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -172,7 +177,7 @@ export default function HistoryDetailPage() {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      {comment.timestamp ? format(new Date(comment.timestamp), "MMM dd, yyyy") : "-"}
+                      {comment.timestamp ? (language === "vi" ? formatDateVi(comment.timestamp) : format(new Date(comment.timestamp), "MMM dd, yyyy")) : "-"}
                     </TableCell>
                   </TableRow>
                 ))}

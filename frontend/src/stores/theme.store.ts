@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create }from "zustand";
 
 type ThemeMode = "light" | "dark";
 
@@ -11,6 +11,8 @@ interface ThemeStore {
 const STORAGE_KEY = "app-theme";
 
 const getInitialTheme = (): ThemeMode => {
+  if (typeof window === "undefined") return "dark";
+  
   // Check localStorage
   const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
   if (stored === "light" || stored === "dark") {
@@ -27,14 +29,18 @@ const getInitialTheme = (): ThemeMode => {
 
 export const useThemeStore = create<ThemeStore>((set) => ({
   theme: getInitialTheme(),
-  setTheme: (theme) => {
-    localStorage.setItem(STORAGE_KEY, theme);
+  setTheme: (theme: ThemeMode) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, theme);
+    }
     set({ theme });
   },
   toggleTheme: () => {
     set((state) => {
       const newTheme = state.theme === "dark" ? "light" : "dark";
-      localStorage.setItem(STORAGE_KEY, newTheme);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, newTheme);
+      }
       return { theme: newTheme };
     });
   },

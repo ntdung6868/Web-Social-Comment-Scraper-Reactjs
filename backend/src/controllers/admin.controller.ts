@@ -70,8 +70,8 @@ export const adminController = {
    * Get user detail
    */
   getUserDetail: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -88,8 +88,8 @@ export const adminController = {
    * Update user
    */
   updateUser: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -116,8 +116,8 @@ export const adminController = {
       return;
     }
 
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -136,8 +136,8 @@ export const adminController = {
    * Unban a user
    */
   unbanUser: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -162,8 +162,8 @@ export const adminController = {
       return;
     }
 
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -180,8 +180,8 @@ export const adminController = {
    * Reset user trial uses
    */
   resetTrialUses: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -200,8 +200,8 @@ export const adminController = {
    * Set user plan (upgrade or downgrade)
    */
   grantProSubscription: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -326,8 +326,8 @@ export const adminController = {
    * Revoke a specific session
    */
   revokeSession: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const sessionId = parseInt(req.params.id!, 10);
-    if (isNaN(sessionId)) {
+    const sessionId = req.params.id!;
+    if (!sessionId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid session ID" },
@@ -344,8 +344,8 @@ export const adminController = {
    * Revoke all sessions for a user
    */
   revokeAllUserSessions: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },
@@ -362,8 +362,8 @@ export const adminController = {
    * Get user scrape history
    */
   getUserScrapeHistory: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userId = parseInt(req.params.id!, 10);
-    if (isNaN(userId)) {
+    const userId = req.params.id!;
+    if (!userId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid user ID" },

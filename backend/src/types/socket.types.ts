@@ -38,11 +38,11 @@ export interface ServerToClientEvents {
  */
 export interface ClientToServerEvents {
   // Subscribe to scrape updates
-  "scrape:subscribe": (historyId: number) => void;
-  "scrape:unsubscribe": (historyId: number) => void;
+  "scrape:subscribe": (historyId: string) => void;
+  "scrape:unsubscribe": (historyId: string) => void;
 
   // Cancel scrape
-  "scrape:cancel": (historyId: number) => void;
+  "scrape:cancel": (historyId: string) => void;
 }
 
 /**
@@ -56,7 +56,7 @@ export interface InterServerEvents {
  * Socket data (attached to each socket)
  */
 export interface SocketData {
-  userId: number;
+  userId: string;
   username: string;
   isAdmin: boolean;
 }
@@ -66,7 +66,7 @@ export interface SocketData {
 // ===========================================
 
 export interface ScrapeStartedEvent {
-  historyId: number;
+  historyId: string;
   url: string;
   platform: string;
   message: string;
@@ -74,7 +74,7 @@ export interface ScrapeStartedEvent {
 }
 
 export interface ScrapeProgressEvent {
-  historyId: number;
+  historyId: string;
   phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving" | "error";
   progress: number; // 0-100
   commentsFound: number;
@@ -83,7 +83,7 @@ export interface ScrapeProgressEvent {
 }
 
 export interface ScrapeCompletedEvent {
-  historyId: number;
+  historyId: string;
   totalComments: number;
   duration: number; // milliseconds
   message: string;
@@ -91,7 +91,7 @@ export interface ScrapeCompletedEvent {
 }
 
 export interface ScrapeFailedEvent {
-  historyId: number;
+  historyId: string;
   error: string;
   code: string;
   retryable: boolean;
@@ -99,7 +99,7 @@ export interface ScrapeFailedEvent {
 }
 
 export interface QueuePositionEvent {
-  historyId: number;
+  historyId: string;
   position: number;
   estimatedWait: number; // seconds
 }

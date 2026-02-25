@@ -30,7 +30,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
  * Middleware to check if user owns the resource or is admin
  * @param getUserIdFromRequest - Function to extract resource owner ID from request
  */
-export function requireOwnerOrAdmin(getUserIdFromRequest: (req: Request) => number | null) {
+export function requireOwnerOrAdmin(getUserIdFromRequest: (req: Request) => string | null) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       sendUnauthorized(res, "Authentication required", "UNAUTHORIZED");

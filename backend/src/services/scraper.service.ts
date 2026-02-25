@@ -42,10 +42,10 @@ export class ScraperService {
    * Start a new scrape job
    */
   async startScrape(
-    userId: number,
+    userId: string,
     data: ScrapeRequestInput,
   ): Promise<{
-    historyId: number;
+    historyId: string;
     jobId: string;
     queuePosition: number;
     isPaid: boolean;
@@ -144,8 +144,8 @@ export class ScraperService {
    * Get scrape job status
    */
   async getJobStatus(
-    historyId: number,
-    userId: number,
+    historyId: string,
+    userId: string,
   ): Promise<{
     history: ScrapeHistoryItem;
     job: JobInfo | null;
@@ -186,7 +186,7 @@ export class ScraperService {
   /**
    * Get paginated scrape history for user
    */
-  async getHistory(userId: number, query: HistoryListQueryInput): Promise<PaginatedResponse<ScrapeHistoryItem>> {
+  async getHistory(userId: string, query: HistoryListQueryInput): Promise<PaginatedResponse<ScrapeHistoryItem>> {
     return scraperRepository.getHistoryList(
       {
         userId,
@@ -205,7 +205,7 @@ export class ScraperService {
   /**
    * Get history detail with comments
    */
-  async getHistoryDetail(historyId: number, userId: number, isAdmin = false): Promise<ScrapeHistoryDetail> {
+  async getHistoryDetail(historyId: string, userId: string, isAdmin = false): Promise<ScrapeHistoryDetail> {
     // Verify ownership or admin
     if (!isAdmin) {
       const isOwner = await scraperRepository.isHistoryOwner(historyId, userId);
@@ -242,7 +242,7 @@ export class ScraperService {
   /**
    * Delete scrape history
    */
-  async deleteHistory(historyId: number, userId: number, isAdmin = false): Promise<void> {
+  async deleteHistory(historyId: string, userId: string, isAdmin = false): Promise<void> {
     // Verify ownership or admin
     if (!isAdmin) {
       const isOwner = await scraperRepository.isHistoryOwner(historyId, userId);
@@ -261,14 +261,14 @@ export class ScraperService {
   /**
    * Get dashboard statistics for user
    */
-  async getDashboardStats(userId: number): Promise<DashboardStats> {
+  async getDashboardStats(userId: string): Promise<DashboardStats> {
     return scraperRepository.getUserStats(userId);
   }
 
   /**
    * Get recent scrapes for user
    */
-  async getRecentScrapes(userId: number, limit = 5): Promise<ScrapeHistoryItem[]> {
+  async getRecentScrapes(userId: string, limit = 5): Promise<ScrapeHistoryItem[]> {
     const scrapes = await scraperRepository.getRecentScrapes(userId, limit);
 
     return scrapes.map((s) => ({
@@ -292,8 +292,8 @@ export class ScraperService {
    * Get comments for export
    */
   async getCommentsForExport(
-    historyId: number,
-    userId: number,
+    historyId: string,
+    userId: string,
     isAdmin = false,
   ): Promise<{
     history: { url: string; platform: Platform; createdAt: Date };

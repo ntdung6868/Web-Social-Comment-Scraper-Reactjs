@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Box,
@@ -28,6 +29,8 @@ import {
 import { Delete as DeleteIcon, Search as SearchIcon, FilterList as FilterIcon } from "@mui/icons-material";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
+import { useLanguageStore } from "@/stores/language.store";
+import { formatDateTimeVi } from "@/utils/helpers";
 import { scraperService } from "@/services/scraper.service";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
@@ -43,6 +46,8 @@ const statusColors: Record<string, "default" | "primary" | "success" | "error" |
 export default function HistoryPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const { language } = useLanguageStore();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -105,7 +110,7 @@ export default function HistoryPage() {
   };
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading history..." />;
+    return <LoadingSpinner message={t("common.loading")} />;
   }
 
   // API response: { success: true, data: { data: [...], pagination: { totalItems, ... } } }
@@ -119,10 +124,10 @@ export default function HistoryPage() {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          Scrape History
+          {t("history.title")}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          View and manage your previous scraping jobs
+          {t("history.subtitle")}
         </Typography>
       </Box>
 
@@ -131,7 +136,7 @@ export default function HistoryPage() {
         <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
           <TextField
             select
-            label="Status"
+            label={t("history.status")}
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
@@ -147,16 +152,16 @@ export default function HistoryPage() {
               ),
             }}
           >
-            <MenuItem value="">All Statuses</MenuItem>
-            <MenuItem value="PENDING">Pending</MenuItem>
-            <MenuItem value="RUNNING">Running</MenuItem>
-            <MenuItem value="SUCCESS">Success</MenuItem>
-            <MenuItem value="FAILED">Failed</MenuItem>
+            <MenuItem value="">{t("history.allStatuses")}</MenuItem>
+            <MenuItem value="PENDING">{t("history.pending")}</MenuItem>
+            <MenuItem value="RUNNING">{t("history.running")}</MenuItem>
+            <MenuItem value="SUCCESS">{t("history.success")}</MenuItem>
+            <MenuItem value="FAILED">{t("history.failed")}</MenuItem>
           </TextField>
 
           <TextField
             select
-            label="Platform"
+            label={t("history.platform")}
             value={platformFilter}
             onChange={(e) => {
               setPlatformFilter(e.target.value);
@@ -165,9 +170,9 @@ export default function HistoryPage() {
             size="small"
             sx={{ minWidth: 150 }}
           >
-            <MenuItem value="">All Platforms</MenuItem>
-            <MenuItem value="TIKTOK">TikTok</MenuItem>
-            <MenuItem value="FACEBOOK">Facebook</MenuItem>
+            <MenuItem value="">{t("history.allPlatforms")}</MenuItem>
+            <MenuItem value="TIKTOK">{t("history.tiktok")}</MenuItem>
+            <MenuItem value="FACEBOOK">{t("history.facebook")}</MenuItem>
           </TextField>
         </Box>
       </Card>
@@ -176,8 +181,8 @@ export default function HistoryPage() {
       <Card>
         {scrapes.length === 0 ? (
           <EmptyState
-            title="No scrapes found"
-            message="You haven't performed any scrapes yet, or no results match your filters."
+            title={t("history.noScrapes")}
+            message={t("history.noHistoryMessage")}
             icon={<SearchIcon sx={{ fontSize: 40, color: "primary.main" }} />}
           />
         ) : (
@@ -186,12 +191,12 @@ export default function HistoryPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>URL</TableCell>
-                    <TableCell>Platform</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Comments</TableCell>
-                    <TableCell>Date</TableCell>
-                    <TableCell align="center">Actions</TableCell>
+                    <TableCell>{t("history.url")}</TableCell>
+                    <TableCell>{t("history.platform")}</TableCell>
+                    <TableCell>{t("history.status")}</TableCell>
+                    <TableCell align="right">{t("history.comments")}</TableCell>
+                    <TableCell>{t("history.date")}</TableCell>
+                    <TableCell align="center">{t("history.actions")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -222,9 +227,9 @@ export default function HistoryPage() {
                         <Chip label={scrape.status} size="small" color={statusColors[scrape.status]} />
                       </TableCell>
                       <TableCell align="right">{scrape.totalComments.toLocaleString()}</TableCell>
-                      <TableCell>{format(new Date(scrape.createdAt), "MMM dd, yyyy HH:mm")}</TableCell>
+                      <TableCell>{language === "vi" ? formatDateTimeVi(scrape.createdAt) : format(new Date(scrape.createdAt), "MMM dd, yyyy HH:mm")}</TableCell>
                       <TableCell align="center">
-                        <Tooltip title="Delete">
+                        <Tooltip title={t("history.delete")}>
                           <IconButton size="small" color="error" onClick={(e) => handleDelete(e, scrape)}>
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -251,19 +256,18 @@ export default function HistoryPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Delete Scrape History</DialogTitle>
+        <DialogTitle>{t("history.deleteDialog")}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to delete this scrape? This will permanently remove all associated comments and cannot
-            be undone.
+            {t("history.deleteConfirm")}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteTarget(null)} color="inherit">
-            Cancel
+            {t("history.cancelButton")}
           </Button>
           <Button onClick={confirmDelete} color="error" variant="contained" disabled={deleteMutation.isPending}>
-            {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            {deleteMutation.isPending ? t("history.deleting") : t("history.deleteButton")}
           </Button>
         </DialogActions>
       </Dialog>

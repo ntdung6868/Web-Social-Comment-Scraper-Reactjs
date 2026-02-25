@@ -94,7 +94,7 @@ export class UserService {
   /**
    * Get user profile by ID
    */
-  async getProfile(userId: number): Promise<UserPublic> {
+  async getProfile(userId: string): Promise<UserPublic> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -107,7 +107,7 @@ export class UserService {
   /**
    * Update user profile
    */
-  async updateProfile(userId: number, data: UpdateProfileInput): Promise<UserPublic> {
+  async updateProfile(userId: string, data: UpdateProfileInput): Promise<UserPublic> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -150,7 +150,7 @@ export class UserService {
   /**
    * Get user settings (cookie, proxy, scraper config)
    */
-  async getSettings(userId: number): Promise<UserSettings> {
+  async getSettings(userId: string): Promise<UserSettings> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -190,7 +190,7 @@ export class UserService {
   /**
    * Get detailed cookie info for a platform
    */
-  async getCookieInfo(userId: number, platform: "tiktok" | "facebook"): Promise<CookieInfo> {
+  async getCookieInfo(userId: string, platform: "tiktok" | "facebook"): Promise<CookieInfo> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -225,7 +225,7 @@ export class UserService {
   /**
    * Upload cookie for a platform
    */
-  async uploadCookie(userId: number, data: UploadCookieInput): Promise<CookieInfo> {
+  async uploadCookie(userId: string, data: UploadCookieInput): Promise<CookieInfo> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -279,7 +279,7 @@ export class UserService {
   /**
    * Toggle cookie usage
    */
-  async toggleCookie(userId: number, data: ToggleCookieInput): Promise<CookieInfo> {
+  async toggleCookie(userId: string, data: ToggleCookieInput): Promise<CookieInfo> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -308,7 +308,7 @@ export class UserService {
   /**
    * Delete cookie for a platform
    */
-  async deleteCookie(userId: number, platform: "tiktok" | "facebook"): Promise<void> {
+  async deleteCookie(userId: string, platform: "tiktok" | "facebook"): Promise<void> {
     if (platform === "tiktok") {
       await userRepository.deleteTiktokCookie(userId);
     } else {
@@ -320,7 +320,7 @@ export class UserService {
    * Update cookie validation status
    * Called by the scraper service after validating cookies
    */
-  async updateCookieStatus(userId: number, platform: "tiktok" | "facebook", status: CookieStatus): Promise<void> {
+  async updateCookieStatus(userId: string, platform: "tiktok" | "facebook", status: CookieStatus): Promise<void> {
     if (platform === "tiktok") {
       await userRepository.updateTiktokCookieStatus(userId, status);
     } else {
@@ -336,7 +336,7 @@ export class UserService {
    * Update proxy settings
    */
   async updateProxySettings(
-    userId: number,
+    userId: string,
     data: UpdateProxyInput,
   ): Promise<{
     proxyCount: number;
@@ -360,7 +360,7 @@ export class UserService {
   /**
    * Toggle proxy usage
    */
-  async toggleProxy(userId: number, enabled: boolean): Promise<{ proxyEnabled: boolean }> {
+  async toggleProxy(userId: string, enabled: boolean): Promise<{ proxyEnabled: boolean }> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -379,14 +379,14 @@ export class UserService {
   /**
    * Delete all proxies
    */
-  async deleteProxies(userId: number): Promise<void> {
+  async deleteProxies(userId: string): Promise<void> {
     await userRepository.deleteProxies(userId);
   }
 
   /**
    * Get proxy list (for display)
    */
-  async getProxyList(userId: number): Promise<{
+  async getProxyList(userId: string): Promise<{
     proxies: string[];
     rotation: string;
     enabled: boolean;
@@ -414,7 +414,7 @@ export class UserService {
    * Update scraper settings
    */
   async updateScraperSettings(
-    userId: number,
+    userId: string,
     headlessMode: boolean,
   ): Promise<{
     headlessMode: boolean;
@@ -430,7 +430,7 @@ export class UserService {
   /**
    * Get subscription info
    */
-  async getSubscriptionInfo(userId: number): Promise<SubscriptionInfo> {
+  async getSubscriptionInfo(userId: string): Promise<SubscriptionInfo> {
     const user = await userRepository.findById(userId);
 
     if (!user) {
@@ -456,14 +456,14 @@ export class UserService {
   /**
    * Check if user can scrape
    */
-  async canScrape(userId: number): Promise<{ canScrape: boolean; message: string }> {
+  async canScrape(userId: string): Promise<{ canScrape: boolean; message: string }> {
     return userRepository.canScrape(userId);
   }
 
   /**
    * Use one trial scrape
    */
-  async useTrialScrape(userId: number): Promise<number> {
+  async useTrialScrape(userId: string): Promise<number> {
     return userRepository.useTrialScrape(userId);
   }
 
@@ -471,7 +471,7 @@ export class UserService {
    * Downgrade user's plan (user-initiated)
    * Only allows downgrading to a lower plan
    */
-  async downgradePlan(userId: number, targetPlan: PlanType): Promise<UserPublic> {
+  async downgradePlan(userId: string, targetPlan: PlanType): Promise<UserPublic> {
     const user = await userRepository.findById(userId);
     if (!user) {
       throw createError.notFound("User not found");

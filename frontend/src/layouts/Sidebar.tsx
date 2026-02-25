@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Drawer,
@@ -47,32 +48,37 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   adminOnly?: boolean;
+  translationKey: string;
 }
 
-const navItems: NavItem[] = [
-  { title: "Dashboard", path: "/dashboard", icon: <DashboardIcon /> },
-  { title: "Scraper", path: "/scraper", icon: <SearchIcon /> },
-  { title: "History", path: "/history", icon: <HistoryIcon /> },
-  { title: "Settings", path: "/settings", icon: <SettingsIcon /> },
-  { title: "Guide", path: "/guide", icon: <GuideIcon /> },
-  { title: "Pricing", path: "/pricing", icon: <PaidIcon /> },
+const getNavItems = (t: ReturnType<typeof useTranslation>["t"]): NavItem[] => [
+  { title: t("nav.dashboard"), path: "/dashboard", icon: <DashboardIcon />, translationKey: "nav.dashboard" },
+  { title: t("nav.scraper"), path: "/scraper", icon: <SearchIcon />, translationKey: "nav.scraper" },
+  { title: t("nav.history"), path: "/history", icon: <HistoryIcon />, translationKey: "nav.history" },
+  { title: t("nav.settings"), path: "/settings", icon: <SettingsIcon />, translationKey: "nav.settings" },
+  { title: t("nav.guide"), path: "/guide", icon: <GuideIcon />, translationKey: "nav.guide" },
+  { title: t("nav.pricing"), path: "/pricing", icon: <PaidIcon />, translationKey: "nav.pricing" },
 ];
 
-const adminItems: NavItem[] = [
-  { title: "Admin Dashboard", path: "/admin", icon: <AdminIcon />, adminOnly: true },
-  { title: "User Management", path: "/admin/users", icon: <PersonIcon />, adminOnly: true },
-  { title: "System Logs", path: "/admin/logs", icon: <BugIcon />, adminOnly: true },
-  { title: "Sessions", path: "/admin/sessions", icon: <SessionIcon />, adminOnly: true },
-  { title: "System Settings", path: "/admin/settings", icon: <AdminSettingsIcon />, adminOnly: true },
+const getAdminItems = (t: ReturnType<typeof useTranslation>["t"]): NavItem[] => [
+  { title: t("nav.admin"), path: "/admin", icon: <AdminIcon />, adminOnly: true, translationKey: "nav.admin" },
+  { title: t("nav.adminUsers"), path: "/admin/users", icon: <PersonIcon />, adminOnly: true, translationKey: "nav.adminUsers" },
+  { title: t("nav.adminLogs"), path: "/admin/logs", icon: <BugIcon />, adminOnly: true, translationKey: "nav.adminLogs" },
+  { title: t("nav.adminSessions"), path: "/admin/sessions", icon: <SessionIcon />, adminOnly: true, translationKey: "nav.adminSessions" },
+  { title: t("nav.adminSettings"), path: "/admin/settings", icon: <AdminSettingsIcon />, adminOnly: true, translationKey: "nav.adminSettings" },
 ];
 
 export default function Sidebar({ open, collapsed, onClose, drawerWidth, collapsedWidth, isMobile }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, logout } = useAuthStore();
 
   const isAdmin = user?.isAdmin ?? false;
   const currentWidth = collapsed ? collapsedWidth : drawerWidth;
+
+  const navItems = getNavItems(t);
+  const adminItems = getAdminItems(t);
 
   const filteredNavItems = useMemo(() => {
     const items = [...navItems];
@@ -80,7 +86,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
       items.push(...adminItems);
     }
     return items;
-  }, [isAdmin]);
+  }, [isAdmin, navItems, adminItems]);
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -95,7 +101,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
   };
 
   const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
-  const planLabel = user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Plan";
+  const planLabel = user?.planType === "PREMIUM" ? t("header.premiumPlan") : user?.planType === "PERSONAL" ? t("header.personalPlan") : t("header.freePlan");
   const planColor = user?.planType === "PREMIUM" ? "secondary" : isPaid ? "primary" : "default";
 
   const drawerContent = (
@@ -134,7 +140,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
               WebkitTextFillColor: "transparent",
             }}
           >
-            CrawlComments
+            {t("common.crawlComments")}
           </Typography>
         )}
       </Box>
@@ -177,7 +183,9 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
                     sx={{
                       minWidth: collapsed ? 0 : 40,
                       justifyContent: "center",
-                      color: isActive ? "primary.main" : "text.secondary",
+                      color: (theme) =>
+                        isActive ? theme.palette.primary.main : theme.palette.text.secondary,
+                      transition: "color 0.2s ease",
                     }}
                   >
                     {item.icon}
@@ -241,7 +249,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
                   maxWidth: "90px", // Giới hạn width để không đè lên nút logout
                 }}
               >
-                {user?.username || "Guest"}
+                {user?.username || t("common.guest")}
               </Typography>
 
               <Box sx={{ mt: 0.5 }}>
@@ -262,7 +270,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
             </Box>
 
             {/* NÚT LOGOUT ICON BÊN PHẢI */}
-            <Tooltip title="Logout">
+            <Tooltip title={t("common.logout")}>
               <IconButton
                 onClick={handleLogout}
                 size="small"
@@ -278,7 +286,7 @@ export default function Sidebar({ open, collapsed, onClose, drawerWidth, collaps
           </Box>
         ) : (
           // GIAO DIỆN KHI THU GỌN (Chỉ hiện icon Logout to bên dưới)
-          <Tooltip title="Logout" placement="right" arrow>
+          <Tooltip title={t("common.logout")} placement="right" arrow>
             <ListItemButton
               onClick={handleLogout}
               sx={{

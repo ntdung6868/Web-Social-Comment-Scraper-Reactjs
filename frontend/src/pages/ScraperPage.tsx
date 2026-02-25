@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import {
   Box,
@@ -50,17 +51,17 @@ import type {
   QueuePositionEvent,
 } from "@/types";
 
+// Schema needs static strings for validation, will be handled in component
 const scrapeSchema = z.object({
   url: z
     .string()
-    .url("Please enter a valid URL")
+    .url()
     .refine(
       (url) =>
         url.includes("tiktok.com") ||
         url.includes("facebook.com") ||
         url.includes("fb.watch") ||
         url.includes("fb.com"),
-      "Only TikTok and Facebook URLs are supported",
     ),
 });
 
@@ -82,6 +83,7 @@ interface CompletedScrape {
 }
 
 export default function ScraperPage() {
+  const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
@@ -335,10 +337,10 @@ export default function ScraperPage() {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" fontWeight={700} gutterBottom>
-          Comment Scraper
+          {t("scraper.title")}
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Enter a TikTok or Facebook post URL to extract comments
+          {t("scraper.subtitle")}
         </Typography>
       </Box>
 
@@ -356,10 +358,10 @@ export default function ScraperPage() {
               <TextField
                 {...register("url")}
                 fullWidth
-                label="Post URL"
-                placeholder="https://www.tiktok.com/@username/video/..."
+                label={t("scraper.postUrl")}
+                placeholder={t("scraper.enterUrlPlaceholder")}
                 error={!!errors.url}
-                helperText={errors.url?.message}
+                helperText={errors.url ? t("errors.validUrl") : ""}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }}/>,
                 }}
@@ -373,7 +375,7 @@ export default function ScraperPage() {
                 disabled={startScrapeMutation.isPending}
                 sx={{ height: 56, whiteSpace: "nowrap", flexShrink: 0 }}
               >
-                {startScrapeMutation.isPending ? "Starting..." : "Start Scrape"}
+                {startScrapeMutation.isPending ? t("scraper.starting") : t("scraper.startScraping")}
               </Button>
             </Box>
           </form>
@@ -381,10 +383,10 @@ export default function ScraperPage() {
           {/* Supported platforms */}
           <Box sx={{ mt: 3, display: "flex", gap: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              Supported:
+              {t("scraper.supported")}
             </Typography>
-            <Chip label="TikTok" size="small" color="primary" variant="outlined" />
-            <Chip label="Facebook" size="small" color="primary" variant="outlined" />
+            <Chip label={t("scraper.tiktok")} size="small" color="primary" variant="outlined" />
+            <Chip label={t("scraper.facebook")} size="small" color="primary" variant="outlined" />
           </Box>
         </CardContent>
       </Card>
@@ -394,7 +396,7 @@ export default function ScraperPage() {
         <Card sx={{ mb: 4 }}>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="h6" fontWeight={600} gutterBottom>
-              Active Scrapes
+              {t("scraper.activeScrapes")}
             </Typography>
 
             {activeJobs.map((job) => {
@@ -417,7 +419,7 @@ export default function ScraperPage() {
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Chip label={job.status} size="small" color={job.status === "RUNNING" ? "primary" : "default"} />
                       {job.status === "PENDING" && (
-                        <Tooltip title="Cancel scrape">
+                        <Tooltip title={t("scraper.cancelScrape")}>
                           <IconButton size="small" onClick={() => handleCancel(job.id)} color="error">
                             <CancelIcon fontSize="small" />
                           </IconButton>
@@ -436,10 +438,10 @@ export default function ScraperPage() {
 
                   <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                     <Typography variant="caption" color="text.secondary">
-                      {progress?.message || (job.status === "PENDING" ? "Waiting in queue..." : "Initializing...")}
+                      {progress?.message || (job.status === "PENDING" ? t("scraper.waitingInQueue") : t("scraper.initializing"))}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {progress?.commentsFound ?? 0} comments
+                      {progress?.commentsFound ?? 0} {t("dashboard.comments")}
                     </Typography>
                   </Box>
                 </Box>
@@ -468,7 +470,7 @@ export default function ScraperPage() {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <TerminalIcon fontSize="small" />
               <Typography variant="h6" fontWeight={600}>
-                Live Logs
+                {t("scraper.logs")}
               </Typography>
               <Chip label={logs.length} size="small" variant="outlined" />
             </Box>
@@ -488,7 +490,7 @@ export default function ScraperPage() {
             >
               {logs.length === 0 ? (
                 <Typography variant="body2" sx={{ color: "#666", fontFamily: "monospace" }}>
-                  Waiting for scrape events...
+                  {t("scraper.waitingForEvents")}
                 </Typography>
               ) : (
                 logs.map((log) => (
@@ -537,11 +539,10 @@ export default function ScraperPage() {
           <CheckCircleIcon color="success" fontSize="large" />
           <Box sx={{ flex: 1 }}>
             <Typography variant="h6" fontWeight={700}>
-              Scrape Completed!
+              {t("scraper.scrapingComplete")}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {completedScrape?.totalComments} comments extracted in{" "}
-              {completedScrape ? Math.round(completedScrape.duration / 1000) : 0}s
+              {completedScrape?.totalComments} {t("dashboard.comments")} · {completedScrape ? Math.round(completedScrape.duration / 1000) : 0}s
             </Typography>
           </Box>
           <IconButton size="small" onClick={() => setCompletedScrape(null)} sx={{ alignSelf: "flex-start" }}>
@@ -568,7 +569,7 @@ export default function ScraperPage() {
           </Box>
 
           <Typography variant="subtitle2" gutterBottom>
-            Download Results
+            {t("scraper.downloadResults")}
           </Typography>
           <Stack spacing={1.5}>
             <Button
@@ -579,20 +580,20 @@ export default function ScraperPage() {
               onClick={() => handleExport("xlsx")}
               size="large"
             >
-              Download Excel (.xlsx)
+              {t("scraper.downloadExcel")}
             </Button>
             <Button variant="outlined" fullWidth startIcon={<DownloadIcon />} onClick={() => handleExport("csv")}>
-              Download CSV
+              {t("scraper.downloadCSV")}
             </Button>
             <Button variant="outlined" fullWidth startIcon={<DownloadIcon />} onClick={() => handleExport("json")}>
-              Download JSON
+              {t("scraper.downloadJSON")}
             </Button>
           </Stack>
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setCompletedScrape(null)} color="inherit">
-            Close
+            {t("common.close")}
           </Button>
         </DialogActions>
       </Dialog>

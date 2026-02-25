@@ -1,5 +1,6 @@
 import { Box, Typography, Button, alpha } from "@mui/material";
 import { ErrorOutline as ErrorIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import { useTranslation } from "react-i18next";
 
 interface ErrorMessageProps {
   title?: string;
@@ -8,10 +9,11 @@ interface ErrorMessageProps {
 }
 
 export default function ErrorMessage({
-  title = "Something went wrong",
-  message = "An error occurred. Please try again.",
+  title,
+  message,
   onRetry,
 }: ErrorMessageProps) {
+  const { t } = useTranslation();
   return (
     <Box
       sx={{
@@ -39,16 +41,16 @@ export default function ErrorMessage({
       </Box>
 
       <Typography variant="h6" fontWeight={600} gutterBottom>
-        {title}
+        {title || t("components.errorTitle")}
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 400, mb: onRetry ? 3 : 0 }}>
-        {message}
+        {message || t("components.errorMessage")}
       </Typography>
 
       {onRetry && (
         <Button variant="outlined" startIcon={<RefreshIcon />} onClick={onRetry}>
-          Try Again
+          {t("components.tryAgain")}
         </Button>
       )}
     </Box>

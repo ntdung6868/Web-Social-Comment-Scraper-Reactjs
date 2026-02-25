@@ -55,8 +55,8 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id!, 10);
-    if (isNaN(historyId)) {
+    const historyId = req.params.id!;
+    if (!historyId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid history ID" },
@@ -104,8 +104,8 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id!, 10);
-    if (isNaN(historyId)) {
+    const historyId = req.params.id!;
+    if (!historyId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid history ID" },
@@ -130,8 +130,8 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id!, 10);
-    if (isNaN(historyId)) {
+    const historyId = req.params.id!;
+    if (!historyId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid history ID" },
@@ -188,8 +188,8 @@ export const scraperController = {
       return;
     }
 
-    const historyId = parseInt(req.params.id!, 10);
-    if (isNaN(historyId)) {
+    const historyId = req.params.id!;
+    if (!historyId) {
       res.status(400).json({
         success: false,
         error: { code: "INVALID_INPUT", message: "Invalid history ID" },

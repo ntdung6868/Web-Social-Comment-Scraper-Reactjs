@@ -159,6 +159,22 @@ api.interceptors.response.use(
   },
 );
 
+// Global error handler for 429 Too Many Requests
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    if (error.response?.status === 429) {
+      // Dispatch custom event for toast notification
+      window.dispatchEvent(
+        new CustomEvent("rate-limit-error", {
+          detail: { message: "Too many requests, please try again later" },
+        })
+      );
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
 
 // Export các method typed cho tiện sử dụng
@@ -166,7 +182,7 @@ export const apiRequest = {
   get: <T>(url: string, config?: Parameters<typeof api.get>[1]) => api.get<T>(url, config).then((res) => res.data),
 
   post: <T>(url: string, data?: unknown, config?: Parameters<typeof api.post>[2]) =>
-    api.post<T>(url, data, config).then((res) => res.data),
+    api.post<T>(url, data || {}, config).then((res) => res.data),
 
   put: <T>(url: string, data?: unknown, config?: Parameters<typeof api.put>[2]) =>
     api.put<T>(url, data, config).then((res) => res.data),

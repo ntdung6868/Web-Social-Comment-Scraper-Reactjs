@@ -71,13 +71,26 @@ export function createApp(): Application {
 
   app.get("/health", async (req, res) => {
     const { checkDatabaseHealth } = await import("./config/database.js");
-    const dbHealthy = await checkDatabaseHealth();
+    const { getRedisClient } = await import("./lib/redis.js");
 
-    res.status(dbHealthy ? 200 : 503).json({
-      status: dbHealthy ? "healthy" : "unhealthy",
+    const dbHealthy = await checkDatabaseHealth();
+    let redisHealthy = false;
+    try {
+      const redis = getRedisClient();
+      await redis.ping();
+      redisHealthy = true;
+    } catch {
+      redisHealthy = false;
+    }
+
+    const allHealthy = dbHealthy && (!env.rateLimit.useRedis || redisHealthy);
+
+    res.status(allHealthy ? 200 : 503).json({
+      status: allHealthy ? "healthy" : "unhealthy",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       database: dbHealthy,
+      redis: env.rateLimit.useRedis ? redisHealthy : "disabled",
       environment: env.nodeEnv,
     });
   });

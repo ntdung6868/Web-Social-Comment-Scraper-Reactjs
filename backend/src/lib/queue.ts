@@ -108,7 +108,7 @@ class InMemoryQueue extends EventEmitter {
   /**
    * Get job by history ID
    */
-  getJobByHistoryId(historyId: number): InMemoryJob | undefined {
+  getJobByHistoryId(historyId: string): InMemoryJob | undefined {
     for (const job of this.jobs.values()) {
       if (job.data.historyId === historyId) {
         return job;
@@ -222,7 +222,7 @@ class InMemoryQueue extends EventEmitter {
   /**
    * Check if a user has an active or waiting job
    */
-  hasActiveJob(userId: number): boolean {
+  hasActiveJob(userId: string): boolean {
     for (const job of this.jobs.values()) {
       if (job.data.userId === userId && (job.status === "active" || job.status === "waiting")) {
         return true;
@@ -491,7 +491,7 @@ export function getJobInfo(jobId: string): JobInfo | null {
 /**
  * Get job by history ID
  */
-export function getJobByHistoryId(historyId: number): JobInfo | null {
+export function getJobByHistoryId(historyId: string): JobInfo | null {
   const job = scrapeQueue.getJobByHistoryId(historyId);
   if (!job) return null;
 
@@ -517,7 +517,7 @@ export async function cancelJob(jobId: string): Promise<boolean> {
 /**
  * Cancel job by history ID (used by socket cancel handler)
  */
-export async function cancelJobByHistoryId(historyId: number): Promise<boolean> {
+export async function cancelJobByHistoryId(historyId: string): Promise<boolean> {
   const job = scrapeQueue.getJobByHistoryId(historyId);
   if (!job) return false;
   return scrapeQueue.cancel(job.id);
@@ -547,7 +547,7 @@ export function registerProcessor(handler: (job: InMemoryJob) => Promise<ScrapeJ
 /**
  * Check if a user already has an active/waiting job
  */
-export function userHasActiveJob(userId: number): boolean {
+export function userHasActiveJob(userId: string): boolean {
   return scrapeQueue.hasActiveJob(userId);
 }
 

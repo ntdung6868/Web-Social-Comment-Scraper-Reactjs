@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   Box,
   Card,
@@ -23,6 +24,8 @@ import { apiRequest } from "@/services/api";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner, EmptyState } from "@/components/common";
 import type { ScrapeJob } from "@/types";
+import { useLanguageStore } from "@/stores/language.store";
+import { formatDateTimeVi } from "@/utils/helpers";
 
 const statusColors: Record<string, "default" | "primary" | "success" | "error" | "warning"> = {
   PENDING: "default",
@@ -42,6 +45,8 @@ function formatDuration(start: Date, end: Date): string {
 }
 
 export default function SystemLogsPage() {
+  const { t } = useTranslation();
+  const { language } = useLanguageStore();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [statusFilter, setStatusFilter] = useState("");
@@ -59,7 +64,7 @@ export default function SystemLogsPage() {
   });
 
   if (isLoading) {
-    return <LoadingSpinner message="Loading logs..." />;
+    return <LoadingSpinner message={t("common.loading")} />;
   }
 
   const scrapes = data?.data?.data ?? [];
@@ -71,14 +76,14 @@ export default function SystemLogsPage() {
       <Box sx={{ mb: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Box>
           <Typography variant="h4" fontWeight={700} gutterBottom>
-            System Logs
+            {t("nav.adminLogs")}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            View all scraping activity across the platform
+            {t("admin.logsDescription")}
           </Typography>
         </Box>
         <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => refetch()}>
-          Refresh
+          {t("common.refresh")}
         </Button>
       </Box>
 
@@ -87,7 +92,7 @@ export default function SystemLogsPage() {
         <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             select
-            label="Status"
+            label={t("common.status")}
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
@@ -103,11 +108,11 @@ export default function SystemLogsPage() {
               ),
             }}
           >
-            <MenuItem value="">All Statuses</MenuItem>
-            <MenuItem value="PENDING">Pending</MenuItem>
-            <MenuItem value="RUNNING">Running</MenuItem>
-            <MenuItem value="SUCCESS">Success</MenuItem>
-            <MenuItem value="FAILED">Failed</MenuItem>
+            <MenuItem value="">{t("history.allStatuses")}</MenuItem>
+            <MenuItem value="PENDING">{t("history.pending")}</MenuItem>
+            <MenuItem value="RUNNING">{t("history.running")}</MenuItem>
+            <MenuItem value="SUCCESS">{t("history.success")}</MenuItem>
+            <MenuItem value="FAILED">{t("history.failed")}</MenuItem>
           </TextField>
         </Box>
       </Card>
@@ -115,22 +120,22 @@ export default function SystemLogsPage() {
       {/* Table */}
       <Card>
         {scrapes.length === 0 ? (
-          <EmptyState title="No logs found" message="No scraping activity matches your filters." />
+          <EmptyState title={t("admin.noLogs")} message={t("admin.noLogsMessage")} />
         ) : (
           <>
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>ID</TableCell>
-                    <TableCell>User</TableCell>
-                    <TableCell>URL</TableCell>
-                    <TableCell>Platform</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Comments</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell>Completed</TableCell>
-                    <TableCell>Duration</TableCell>
+                    <TableCell>{t("admin.id")}</TableCell>
+                    <TableCell>{t("common.user")}</TableCell>
+                    <TableCell>{t("history.url")}</TableCell>
+                    <TableCell>{t("history.platform")}</TableCell>
+                    <TableCell>{t("common.status")}</TableCell>
+                    <TableCell align="right">{t("admin.comments")}</TableCell>
+                    <TableCell>{t("admin.created")}</TableCell>
+                    <TableCell>{t("admin.completed")}</TableCell>
+                    <TableCell>{t("admin.duration")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -143,10 +148,10 @@ export default function SystemLogsPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" fontWeight={500}>
-                          {scrape.username || "Unknown"}
+                          {scrape.username || t("common.unknown")}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          ID: {scrape.userId}
+                          {t("admin.id")}: {scrape.userId}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -170,13 +175,13 @@ export default function SystemLogsPage() {
                       </TableCell>
                       <TableCell align="right">{scrape.totalComments.toLocaleString()}</TableCell>
                       <TableCell>
-                        {scrape.createdAt ? format(new Date(scrape.createdAt), "MMM dd, HH:mm:ss") : "-"}
+                        {scrape.createdAt ? (language === "vi" ? formatDateTimeVi(scrape.createdAt) : format(new Date(scrape.createdAt), "MMM dd, HH:mm:ss")) : "-"}
                       </TableCell>
                       <TableCell>
                         {scrape.updatedAt && (scrape.status === "SUCCESS" || scrape.status === "FAILED")
-                          ? format(new Date(scrape.updatedAt), "MMM dd, HH:mm:ss")
+                          ? (language === "vi" ? formatDateTimeVi(scrape.updatedAt) : format(new Date(scrape.updatedAt), "MMM dd, HH:mm:ss"))
                           : scrape.status === "RUNNING"
-                            ? "In progress..."
+                            ? t("admin.inProgress")
                             : "-"}
                       </TableCell>
                       <TableCell>
