@@ -2,15 +2,16 @@ FROM node:20-bookworm
 
 WORKDIR /app
 
+# Build context is the repo root — prefix all paths with backend/
 # Install dependencies first (layer-cached unless package.json changes)
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm install
 
 # Install Chromium browser + all required Linux system libraries
 RUN npx playwright install --with-deps chromium
 
-# Copy the rest of the source code
-COPY . .
+# Copy the rest of the backend source code
+COPY backend/ .
 
 # Generate Prisma client and compile TypeScript
 RUN npx prisma generate
