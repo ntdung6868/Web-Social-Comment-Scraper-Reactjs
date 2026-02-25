@@ -4,7 +4,7 @@
 // PREMIUM lane : concurrency 5  — PERSONAL + PREMIUM plans run in parallel
 // FREE lane    : concurrency 1  — FREE plan is strictly sequential
 
-import { Queue, Worker, type Job } from "bullmq";
+import { Queue, Worker, type Job, type JobType } from "bullmq";
 import Redis from "ioredis";
 import type {
   ScrapeJobData,
@@ -25,6 +25,11 @@ const JOB_TIMEOUT_MS = 8 * 60 * 1000; // 480 000 ms
 
 const PREMIUM_QUEUE_NAME = "premium-scraper-queue";
 const FREE_QUEUE_NAME = "free-scraper-queue";
+
+// Prefix isolates dev and production queues when they share the same Redis instance.
+// dev  → "bull:development:premium-scraper-queue"
+// prod → "bull:premium-scraper-queue"
+const QUEUE_PREFIX = env.isProduction ? "bull" : `bull:${env.nodeEnv}`;
 
 // ===========================================
 // Redis Connection Factory
@@ -50,6 +55,7 @@ function createRedisConnection(): Redis {
 
 const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAME, {
   connection: createRedisConnection(),
+  prefix: QUEUE_PREFIX,
   defaultJobOptions: {
     attempts: 1, // withRetry() in scraper.service handles retries at the app level
     removeOnComplete: { count: 500, age: 3_600 }, // Keep last 500, max 1 h
@@ -59,6 +65,7 @@ const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAM
 
 const freeQueue = new Queue<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, {
   connection: createRedisConnection(),
+  prefix: QUEUE_PREFIX,
   defaultJobOptions: {
     attempts: 1,
     removeOnComplete: { count: 100, age: 3_600 },
@@ -234,6 +241,7 @@ function createWorkers(): void {
     (job) => runJob(job, "PREMIUM"),
     {
       connection: createRedisConnection(),
+      prefix: QUEUE_PREFIX,
       concurrency: 5,
     },
   );
@@ -241,6 +249,7 @@ function createWorkers(): void {
   // FREE LANE — strictly sequential: next job only starts after current one finishes
   freeWorker = new Worker<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, (job) => runJob(job, "FREE"), {
     connection: createRedisConnection(),
+    prefix: QUEUE_PREFIX,
     concurrency: 1,
   });
 
@@ -485,4 +494,57 @@ export function updateJobProgress(historyId: string, progress: number, message?:
       timestamp: new Date(),
     });
   }
+}
+
+/**
+ * Check whether a user has a job currently sitting in either BullMQ queue
+ * (waiting, active, or delayed). Used as a cross-check after server restarts
+ * when the in-memory registry is empty but Redis still holds the job.
+ */
+export async function userHasJobInQueues(userId: string): Promise<boolean> {
+  const states: JobType[] = ["waiting", "active", "delayed", "prioritized"];
+  const [premiumJobs, freeJobs] = await Promise.all([
+    premiumQueue.getJobs(states),
+    freeQueue.getJobs(states),
+  ]);
+  return [...premiumJobs, ...freeJobs].some((job) => job.data.userId === userId);
+}
+
+/**
+ * Remove all waiting/active/delayed BullMQ jobs for a user and mark
+ * their registry entries as failed. Used by the force-reset endpoint.
+ * Returns the number of queue slots cleared.
+ */
+export async function cancelUserJobs(userId: string): Promise<number> {
+  let count = 0;
+  const states: JobType[] = ["waiting", "active", "delayed", "prioritized"];
+
+  const [premiumJobs, freeJobs] = await Promise.all([
+    premiumQueue.getJobs(states),
+    freeQueue.getJobs(states),
+  ]);
+
+  for (const job of [...premiumJobs, ...freeJobs]) {
+    if (job.data.userId === userId) {
+      try {
+        await job.remove();
+        count++;
+      } catch {
+        // job may have already finished between getJobs() and remove()
+      }
+    }
+  }
+
+  // Also flush matching in-memory registry entries
+  for (const entry of jobRegistry.values()) {
+    if (entry.userId === userId && (entry.status === "active" || entry.status === "waiting")) {
+      entry.status = "failed";
+      entry.finishedAt = new Date();
+      entry.failedReason = "Force reset by user";
+      count++;
+    }
+  }
+
+  console.log(`[Queue] Force-reset cleared ${count} job slot(s) for user ${userId}`);
+  return count;
 }

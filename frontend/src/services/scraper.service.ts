@@ -78,4 +78,11 @@ export const scraperService = {
     });
     return response.data;
   },
+
+  /**
+   * Force-clear all stuck / phantom jobs for the current user.
+   * Fixes the "already running" error that persists after a server crash.
+   */
+  resetScraper: () =>
+    apiRequest.post<ApiResponse<{ dbRecordsFixed: number; queueJobsCleared: number }>>("/scraper/reset"),
 };

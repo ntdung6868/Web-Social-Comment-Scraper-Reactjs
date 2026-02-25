@@ -243,7 +243,12 @@
     "scrapeStartedSuccess": "Đã bắt đầu cạo dữ liệu!",
     "scrapeStartedQueue": "Đã bắt đầu cạo dữ liệu! Vị trí trong hàng đợi: {{position}}",
     "downloadedAs": "Đã tải xuống dưới dạng {{format}}",
-    "exportFailed": "Xuất thất bại. Vui lòng thử từ trang Lịch sử."
+    "exportFailed": "Xuất thất bại. Vui lòng thử từ trang Lịch sử.",
+    "resetScraperButton": "Đặt lại công việc bị kẹt",
+    "resetScraperConfirm": "Thao tác này sẽ hủy mọi công việc bị kẹt và xóa lỗi \"đang chạy\". Tiếp tục?",
+    "resetScraperSuccess": "Đã đặt lại! Bạn có thể bắt đầu cạo dữ liệu mới.",
+    "resetScraperError": "Đặt lại thất bại. Vui lòng thử lại.",
+    "resetScraperTooltip": "Buộc xóa các công việc ma còn lại sau sự cố máy chủ"
   },
   "history": {
     "title": "Lịch sử cạo dữ liệu",

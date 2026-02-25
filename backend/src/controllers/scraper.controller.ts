@@ -20,6 +20,25 @@ export const scraperController = {
   // ===========================================
 
   /**
+   * POST /scraper/reset
+   * Force-clear all stuck / phantom jobs for the current user.
+   * Fixes the "already running" error that occurs after server crashes.
+   */
+  resetScraper: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
+      });
+      return;
+    }
+
+    const result = await scraperService.resetScraper(req.user.userId);
+
+    sendSuccess(res, result, "Scraper status reset successfully");
+  }),
+
+  /**
    * POST /scraper/start
    * Start a new scrape job
    */

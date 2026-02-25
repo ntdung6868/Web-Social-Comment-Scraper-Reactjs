@@ -35,6 +35,7 @@ import {
   Download as DownloadIcon,
   CheckCircle as CheckCircleIcon,
   Close as CloseIcon,
+  WarningAmber as WarningIcon,
 } from "@mui/icons-material";
 import { scraperService } from "@/services/scraper.service";
 import { useScrapeStore } from "@/stores/scrape.store";
@@ -285,6 +286,28 @@ export default function ScraperPage() {
     },
   });
 
+  const resetMutation = useMutation({
+    mutationFn: scraperService.resetScraper,
+    onSuccess: (response) => {
+      const { dbRecordsFixed = 0, queueJobsCleared = 0 } = response.data ?? {};
+      // Clear all active entries from the local store so the UI unlocks immediately
+      useScrapeStore.getState().clearAllScrapes();
+      setError(null);
+      toast.success(t("scraper.resetScraperSuccess"));
+      addLog("info", `🔄 Reset complete — ${dbRecordsFixed} DB record(s) fixed, ${queueJobsCleared} queue slot(s) cleared`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
+    },
+    onError: () => {
+      toast.error(t("scraper.resetScraperError"));
+    },
+  });
+
+  const handleReset = () => {
+    if (window.confirm(t("scraper.resetScraperConfirm"))) {
+      resetMutation.mutate();
+    }
+  };
+
   const onSubmit = (data: ScrapeFormData) => {
     startScrapeMutation.mutate(data);
   };
@@ -348,7 +371,28 @@ export default function ScraperPage() {
       <Card sx={{ mb: 4 }}>
         <CardContent sx={{ p: 3 }}>
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            <Alert
+              severity="error"
+              sx={{ mb: 3 }}
+              onClose={() => setError(null)}
+              action={
+                error.toLowerCase().includes("already") || error.toLowerCase().includes("running") ? (
+                  <Tooltip title={t("scraper.resetScraperTooltip")}>
+                    <Button
+                      color="warning"
+                      size="small"
+                      variant="outlined"
+                      startIcon={<WarningIcon />}
+                      onClick={handleReset}
+                      disabled={resetMutation.isPending}
+                      sx={{ whiteSpace: "nowrap" }}
+                    >
+                      {resetMutation.isPending ? "..." : t("scraper.resetScraperButton")}
+                    </Button>
+                  </Tooltip>
+                ) : undefined
+              }
+            >
               {error}
             </Alert>
           )}

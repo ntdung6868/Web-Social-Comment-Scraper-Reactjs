@@ -83,6 +83,25 @@ export class ScraperRepository {
   }
 
   /**
+   * Mark all PENDING / RUNNING history records for a user as FAILED.
+   * Called by the force-reset endpoint to clear phantom DB records left
+   * behind after a server crash.
+   */
+  async failStuckJobsForUser(userId: string): Promise<number> {
+    const result = await prisma.scrapeHistory.updateMany({
+      where: {
+        userId,
+        status: { in: ["PENDING", "RUNNING"] },
+      },
+      data: {
+        status: "FAILED",
+        errorMessage: "Force reset by user",
+      },
+    });
+    return result.count;
+  }
+
+  /**
    * Update history status
    */
   async updateHistoryStatus(id: string, status: ScrapeStatus, errorMessage?: string): Promise<ScrapeHistory> {

@@ -243,7 +243,12 @@
     "scrapeStartedSuccess": "Scrape started!",
     "scrapeStartedQueue": "Scrape started! Position in queue: {{position}}",
     "downloadedAs": "Downloaded as {{format}}",
-    "exportFailed": "Export failed. Please try from History page."
+    "exportFailed": "Export failed. Please try from History page.",
+    "resetScraperButton": "Reset Stuck Job",
+    "resetScraperConfirm": "This will cancel any stuck jobs and clear the \"already running\" error. Continue?",
+    "resetScraperSuccess": "Scraper reset! You can start a new scrape now.",
+    "resetScraperError": "Reset failed. Please try again.",
+    "resetScraperTooltip": "Force-clear phantom jobs left after a server crash"
   },
   "history": {
     "title": "Scrape History",

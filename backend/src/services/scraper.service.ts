@@ -8,7 +8,14 @@ import { scraperRepository } from "../repositories/scraper.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
 import { getPlanMaxComments } from "../utils/settings.js";
-import { addScrapeJob, getJobByHistoryId, registerProcessor, userHasActiveJob } from "../lib/queue.js";
+import {
+  addScrapeJob,
+  getJobByHistoryId,
+  registerProcessor,
+  userHasActiveJob,
+  userHasJobInQueues,
+  cancelUserJobs,
+} from "../lib/queue.js";
 import { createScraper, proxyManager, withRetry } from "../lib/scraper/index.js";
 import { emitScrapeStarted, emitScrapeCompleted, emitScrapeFailed } from "../lib/socket.js";
 import { detectPlatform } from "../validators/scraper.validators.js";
@@ -56,9 +63,15 @@ export class ScraperService {
       throw createError.forbidden(canScrape.message, "SCRAPE_LIMIT_REACHED");
     }
 
-    // Check if user already has an active/waiting job (1 concurrent job per user)
-    if (userHasActiveJob(userId)) {
-      throw createError.conflict("You already have a scrape job running. Please wait for it to finish.");
+    // Check if user already has an active/waiting job (1 concurrent job per user).
+    // Two-level check:
+    //  1. In-memory registry (fast, covers the normal running case)
+    //  2. BullMQ Redis queues (catches post-restart orphaned jobs that are no
+    //     longer in the registry but are still being processed by a worker)
+    if (userHasActiveJob(userId) || (await userHasJobInQueues(userId))) {
+      throw createError.conflict(
+        "You already have a scrape job running. Please wait for it to finish, or use the reset option if the job appears stuck.",
+      );
     }
 
     // Detect platform from URL
@@ -252,6 +265,34 @@ export class ScraperService {
     }
 
     await scraperRepository.deleteHistory(historyId);
+  }
+
+  // ===========================================
+  // Force Reset (Phantom Job Recovery)
+  // ===========================================
+
+  /**
+   * Clear all stuck / phantom jobs for a user.
+   *
+   * A "phantom job" occurs when a server crash leaves a PENDING/RUNNING DB
+   * record but the queue no longer has the matching job, making the user
+   * unable to start a new scrape. This method:
+   *   1. Marks every PENDING/RUNNING DB record as FAILED.
+   *   2. Removes matching jobs from both BullMQ queues and the in-memory
+   *      registry so userHasActiveJob() returns false immediately.
+   */
+  async resetScraper(userId: string): Promise<{ dbRecordsFixed: number; queueJobsCleared: number }> {
+    const [dbRecordsFixed, queueJobsCleared] = await Promise.all([
+      scraperRepository.failStuckJobsForUser(userId),
+      cancelUserJobs(userId),
+    ]);
+
+    console.log(
+      `[ScraperService] Force-reset for user ${userId}: ` +
+        `${dbRecordsFixed} DB records fixed, ${queueJobsCleared} queue jobs cleared`,
+    );
+
+    return { dbRecordsFixed, queueJobsCleared };
   }
 
   // ===========================================

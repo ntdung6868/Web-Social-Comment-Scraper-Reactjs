@@ -20,6 +20,13 @@ router.use(authenticate);
 // ===========================================
 
 /**
+ * POST /api/scraper/reset
+ * Force-clear all stuck / phantom jobs for the current user.
+ * No rate-limiter — recovery must always be available immediately.
+ */
+router.post("/reset", scraperController.resetScraper);
+
+/**
  * POST /api/scraper/start
  * Start a new scrape job
  */
