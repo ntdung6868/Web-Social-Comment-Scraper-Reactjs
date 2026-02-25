@@ -115,7 +115,7 @@ export class AuthRepository {
    * Find user by reset token
    */
   async findUserByResetToken(token: string): Promise<User | null> {
-    return prisma.user.findUnique({
+    return prisma.user.findFirst({
       where: { resetToken: token },
     });
   }
