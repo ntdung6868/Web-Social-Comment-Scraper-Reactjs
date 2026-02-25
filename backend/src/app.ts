@@ -3,7 +3,7 @@
 // ===========================================
 // Main Express app configuration
 
-import express, { type Application } from "express";
+import express, { type Application, type Request, type Response } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
@@ -69,7 +69,7 @@ export function createApp(): Application {
   // Health Check
   // ===========================================
 
-  app.get("/health", async (req, res) => {
+  app.get("/health", async (req: Request, res: Response) => {
     const { checkDatabaseHealth } = await import("./config/database.js");
     const { getRedisClient } = await import("./lib/redis.js");
 
@@ -99,7 +99,7 @@ export function createApp(): Application {
   // Public Settings (no auth, no maintenance guard)
   // ===========================================
 
-  app.get(`/api/${env.apiVersion}/settings/pricing`, async (_req, res) => {
+  app.get(`/api/${env.apiVersion}/settings/pricing`, async (_req: Request, res: Response) => {
     try {
       const { getPlanPricing, getPlanMaxComments, getPlanRetentionDays, getSettingNumber, getContactInfo } =
         await import("./utils/settings.js");
@@ -126,7 +126,7 @@ export function createApp(): Application {
   const apiPrefix = `/api/${env.apiVersion}`;
 
   // Placeholder routes (will be implemented in Phase 2)
-  app.get(`${apiPrefix}/`, (req, res) => {
+  app.get(`${apiPrefix}/`, (req: Request, res: Response) => {
     res.json({
       success: true,
       message: "Web Scraper API",
