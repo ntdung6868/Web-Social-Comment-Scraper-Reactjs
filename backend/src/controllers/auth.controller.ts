@@ -275,7 +275,7 @@ async function setRefreshTokenCookie(res: Response, token: string, rememberMe: b
   res.cookie(REFRESH_TOKEN_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: rememberMe ? rememberMaxAge : defaultMaxAge,
     path: "/",
   });
@@ -288,7 +288,7 @@ function clearRefreshTokenCookie(res: Response): void {
   res.clearCookie(REFRESH_TOKEN_COOKIE, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/",
   });
 }
