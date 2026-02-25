@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -83,8 +84,13 @@ interface CompletedScrape {
   url: string;
 }
 
+// i18n keys emitted by the backend instead of hardcoded strings
+const CAPTCHA_KEY = "captcha_detected_msg";
+
 export default function ScraperPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const isAdmin = useAuthStore((s) => s.user?.isAdmin ?? false);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
@@ -167,12 +173,14 @@ export default function ScraperPage() {
     onProgress: useCallback(
       (data: ScrapeProgress) => {
         updateProgress(data);
+        // Translate known i18n keys emitted by the backend (e.g. captcha detection)
+        const displayMessage = data.message === CAPTCHA_KEY ? t(`scraper.${CAPTCHA_KEY}`) : data.message;
         addLog(
-          "progress",
-          `📊 #${data.historyId} — ${data.message} (${data.commentsFound} comments, ${data.progress}%)`,
+          data.message === CAPTCHA_KEY ? "error" : "progress",
+          `${data.message === CAPTCHA_KEY ? "🔒" : "📊"} #${data.historyId} — ${displayMessage}${data.message === CAPTCHA_KEY ? "" : ` (${data.commentsFound} comments, ${data.progress}%)`}`,
         );
       },
-      [updateProgress, addLog],
+      [updateProgress, addLog, t],
     ),
     onCompleted: useCallback(
       (data: ScrapeCompletedEvent) => {
@@ -206,8 +214,67 @@ export default function ScraperPage() {
     onFailed: useCallback(
       (data: ScrapeFailedEvent) => {
         updateScrape(data.historyId, { status: "FAILED", errorMessage: data.error });
-        addLog("error", `❌ #${data.historyId} failed — ${data.error}${data.retryable ? " (retryable)" : ""}`);
-        toast.error(t("scraper.scrapeFailedToast", { error: data.error }));
+
+        const isCaptcha = data.error === CAPTCHA_KEY;
+
+        if (isCaptcha) {
+          const captchaMsg = t(`scraper.${CAPTCHA_KEY}`);
+          addLog("error", `🔒 #${data.historyId} — ${captchaMsg}`);
+          if (isAdmin) {
+            addLog("info", t("scraper.captcha_admin_note_desc"));
+          }
+
+          // Rich captcha toast — persists 12 s so user can read it
+          toast.custom(
+            (toastObj) => (
+              <div
+                style={{
+                  background: "#1e1e1e",
+                  color: "#fff",
+                  borderLeft: "4px solid #f44336",
+                  borderRadius: 8,
+                  padding: "12px 16px",
+                  maxWidth: 400,
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                  opacity: toastObj.visible ? 1 : 0,
+                  transition: "opacity 0.3s",
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 6, color: "#f44336" }}>
+                  {t("scraper.captchaToastTitle")}
+                </div>
+                <div style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 10 }}>{captchaMsg}</div>
+                {isAdmin && (
+                  <div style={{ fontSize: 12, color: "#aaa", marginBottom: 10 }}>
+                    {t("scraper.captcha_admin_note_desc")}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    toast.dismiss(toastObj.id);
+                    navigate("/guide");
+                  }}
+                  style={{
+                    background: "#f44336",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "6px 14px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  {t("scraper.captchaGoToGuide")}
+                </button>
+              </div>
+            ),
+            { duration: 12000 },
+          );
+        } else {
+          addLog("error", `❌ #${data.historyId} failed — ${data.error}${data.retryable ? " (retryable)" : ""}`);
+          toast.error(t("scraper.scrapeFailedToast", { error: data.error }));
+        }
 
         // Auto-remove from active after 8 seconds
         setTimeout(() => removeScrape(data.historyId), 8000);
@@ -216,7 +283,7 @@ export default function ScraperPage() {
         queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
         useAuthStore.getState().refreshUser();
       },
-      [updateScrape, addLog, removeScrape],
+      [updateScrape, addLog, removeScrape, t, isAdmin, navigate],
     ),
     onQueuePosition: useCallback(
       (data: QueuePositionEvent) => {

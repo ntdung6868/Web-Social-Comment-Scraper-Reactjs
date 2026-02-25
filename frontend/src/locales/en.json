@@ -248,7 +248,11 @@
     "resetScraperConfirm": "This will cancel any stuck jobs and clear the \"already running\" error. Continue?",
     "resetScraperSuccess": "Scraper reset! You can start a new scrape now.",
     "resetScraperError": "Reset failed. Please try again.",
-    "resetScraperTooltip": "Force-clear phantom jobs left after a server crash"
+    "resetScraperTooltip": "Force-clear phantom jobs left after a server crash",
+    "captcha_detected_msg": "⚠️ TIKTOK CAPTCHA DETECTED! Please go to the 'Guide' section and follow the 'Handling TikTok Captcha' instructions.",
+    "captcha_admin_note_desc": "[Admin] Headless workaround: Go to Settings → Scraper Settings → Disable Headless Mode so you can solve captcha manually.",
+    "captchaToastTitle": "TikTok Captcha Detected",
+    "captchaGoToGuide": "Go to Guide"
   },
   "history": {
     "title": "Scrape History",

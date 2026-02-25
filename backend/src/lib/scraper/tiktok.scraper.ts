@@ -413,16 +413,13 @@ export class TikTokScraper {
 
   private async checkCaptcha(): Promise<void> {
     if (await this.isCaptchaPresent()) {
-      console.error("[TikTok] 🛑 PHÁT HIỆN CAPTCHA! DỪNG NGAY.");
+      console.error("[TikTok] 🛑 CAPTCHA DETECTED — stopping immediately.");
 
-      // Emit progress immediately so frontend knows
-      this.emitProgress("error", 0, "🔒 CAPTCHA! Hãy lấy cookie mới hoặc tắt Headless.");
+      // Emit the i18n key so the frontend translates it into the user's language
+      this.emitProgress("error", 0, "captcha_detected_msg");
 
-      // Always throw immediately — don't wait
-      // User needs to get fresh cookies from a real browser session
-      throw new Error(
-        "🔒 CAPTCHA TIKTOK! Hãy: 1) Mở Chrome → tiktok.com → Đăng nhập → Chờ 10-15 phút → Lấy cookie mới. 2) Hoặc tắt Headless trong Cài đặt.",
-      );
+      // Throw with the same key — scrape:failed event carries it as data.error
+      throw new Error("captcha_detected_msg");
     }
   }
 

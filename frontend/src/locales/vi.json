@@ -248,7 +248,11 @@
     "resetScraperConfirm": "Thao tác này sẽ hủy mọi công việc bị kẹt và xóa lỗi \"đang chạy\". Tiếp tục?",
     "resetScraperSuccess": "Đã đặt lại! Bạn có thể bắt đầu cạo dữ liệu mới.",
     "resetScraperError": "Đặt lại thất bại. Vui lòng thử lại.",
-    "resetScraperTooltip": "Buộc xóa các công việc ma còn lại sau sự cố máy chủ"
+    "resetScraperTooltip": "Buộc xóa các công việc ma còn lại sau sự cố máy chủ",
+    "captcha_detected_msg": "⚠️ PHÁT HIỆN CAPTCHA TIKTOK! Vui lòng vào mục 'Hướng dẫn' và làm theo chỉ dẫn 'Xử lý Captcha TikTok'.",
+    "captcha_admin_note_desc": "[Admin] Gợi ý Headless: Vào Cài đặt → Cài đặt Scraper → Tắt Chế độ Headless để giải captcha thủ công.",
+    "captchaToastTitle": "Phát hiện Captcha TikTok",
+    "captchaGoToGuide": "Đến Hướng dẫn"
   },
   "history": {
     "title": "Lịch sử cạo dữ liệu",
