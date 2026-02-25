@@ -36,7 +36,7 @@ async function cleanupExpiredHistories(): Promise<void> {
         totalDeleted += result.count;
       }
     } catch (error) {
-      console.error(`❌ Cleanup error for ${planType}plan:`, error);
+      console.error(`❌ Cleanup error for ${planType} plan:`, error);
     }
   }
 
@@ -54,7 +54,7 @@ async function cleanupExpiredHistories(): Promise<void> {
   }
 
   if (totalDeleted > 0) {
-    console.log(`🧹 Cleanup: ${totalDeleted}old records deleted`);
+    console.log(`🧹 Cleanup: ${totalDeleted} old records deleted`);
   }
 }
 

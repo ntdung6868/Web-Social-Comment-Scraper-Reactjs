@@ -46,7 +46,7 @@ export type ScrapeRequestInput = z.infer<typeof scrapeRequestSchema>;
 // ===========================================
 
 export const exportRequestSchema = z.object({
-  historyId: z.number().int().positive("Invalid history ID"),
+  historyId: z.string().min(1, "Invalid history ID"),
   format: z.enum(["xlsx", "csv", "json"], {
     errorMap: () => ({ message: "Format must be xlsx, csv, or json" }),
   }),
@@ -59,12 +59,7 @@ export type ExportRequestInput = z.infer<typeof exportRequestSchema>;
 // ===========================================
 
 export const historyIdParamSchema = z.object({
-  id: z
-    .string()
-    .transform((val) => parseInt(val, 10))
-    .refine((val) => !isNaN(val) && val > 0, {
-      message: "Invalid history ID",
-    }),
+  id: z.string().min(1, "Invalid history ID"),
 });
 
 export type HistoryIdParamInput = z.infer<typeof historyIdParamSchema>;

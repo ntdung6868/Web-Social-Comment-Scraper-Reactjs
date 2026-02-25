@@ -151,12 +151,7 @@ export type PaginationInput = z.infer<typeof paginationSchema>;
 // ===========================================
 
 export const idParamSchema = z.object({
-  id: z
-    .string()
-    .transform((val) => parseInt(val, 10))
-    .refine((val) => !isNaN(val) && val > 0, {
-      message: "Invalid ID",
-    }),
+  id: z.string().min(1, "Invalid ID"),
 });
 
 export type IdParamInput = z.infer<typeof idParamSchema>;

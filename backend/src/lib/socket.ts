@@ -38,9 +38,26 @@ const userSockets = new Map<string, Set<string>>();
 // ===========================================
 
 export function initializeSocket(httpServer: HttpServer): SocketServer {
+  // Build allowed origins — same logic as cors.ts:
+  // In dev, allow ANY localhost port (Vite may shift from 5173 to 5177+).
+  // In prod, use the explicit comma-separated CORS_ORIGIN list.
+  const allowedOrigins = env.cors.origin.split(",").map((o) => o.trim());
+  const socketCorsOrigin: string[] | ((origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => void) =
+    env.isProduction
+      ? allowedOrigins
+      : (origin, callback) => {
+          if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+            callback(null, true);
+          } else if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error(`Socket.io CORS blocked: ${origin}`));
+          }
+        };
+
   io = new SocketServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>(httpServer, {
     cors: {
-      origin: env.cors.origin.split(","),
+      origin: socketCorsOrigin,
       credentials: true,
     },
     pingTimeout: 60000,
