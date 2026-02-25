@@ -17,13 +17,20 @@ function parseOrigins(origin: string): string | string[] {
 // CORS options
 export const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = parseOrigins(env.cors.origin);
-
-    // Allow requests with no origin (like mobile apps or curl)
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
     if (!origin) {
       callback(null, true);
       return;
     }
+
+    // In development, allow any localhost port so Vite can use 5173–5200+
+    // without needing to update .env every time ports shift.
+    if (!env.isProduction && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    const allowedOrigins = parseOrigins(env.cors.origin);
 
     // Check if origin is allowed
     if (Array.isArray(allowedOrigins)) {
