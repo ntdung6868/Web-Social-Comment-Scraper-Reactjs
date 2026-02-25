@@ -45,7 +45,7 @@ async function bootstrap(): Promise<void> {
     startCleanupJob();
 
     // Start HTTP server
-    httpServer.listen(env.port, () => {
+    httpServer.listen(env.port, "0.0.0.0", () => {
       console.log(`✅ Server running on port ${env.port}`);
       console.log(`📡 API available at http://localhost:${env.port}/api/${env.apiVersion}`);
       console.log(`🔌 WebSocket available at ws://localhost:${env.port}`);
