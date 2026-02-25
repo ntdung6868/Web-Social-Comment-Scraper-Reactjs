@@ -409,7 +409,7 @@ export default function SettingsPage() {
                   variant="outlined"
                   sx={{
                     height: "100%",
-                    bgcolor: (theme) => theme.palette.mode === "dark" ? "#1a237e" : "#ffffff",
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "background.paper" : "#ffffff",
                     borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
                     boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 12px rgba(0,0,0,0.08)",
                     transition: "all 0.2s ease",
@@ -433,7 +433,7 @@ export default function SettingsPage() {
                             bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
                           }}
                         >
-                          <CookieIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#b39ddb" : "#5c6bc0", fontSize: 24 }} />
+                          <CookieIcon sx={{ color: "primary.main", fontSize: 24 }} />
                         </Box>
                         <Typography variant="h6" fontWeight={600}>{t("settings.tiktokCookies")}</Typography>
                       </Box>
@@ -524,7 +524,7 @@ export default function SettingsPage() {
                   variant="outlined"
                   sx={{
                     height: "100%",
-                    bgcolor: (theme) => theme.palette.mode === "dark" ? "#1a237e" : "#ffffff",
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "background.paper" : "#ffffff",
                     borderColor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
                     boxShadow: (theme) => theme.palette.mode === "dark" ? "none" : "0 2px 12px rgba(0,0,0,0.08)",
                     transition: "all 0.2s ease",
@@ -548,7 +548,7 @@ export default function SettingsPage() {
                             bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
                           }}
                         >
-                          <CookieIcon sx={{ color: (theme) => theme.palette.mode === "dark" ? "#b39ddb" : "#5c6bc0", fontSize: 24 }} />
+                          <CookieIcon sx={{ color: "primary.main", fontSize: 24 }} />
                         </Box>
                         <Typography variant="h6" fontWeight={600}>{t("settings.facebookCookies")}</Typography>
                       </Box>
