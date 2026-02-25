@@ -66,7 +66,7 @@ export default function ProfilePage() {
 
   const isPaid = user?.planType === "PERSONAL" || user?.planType === "PREMIUM";
   const planLabel =
-    user?.planType === "PREMIUM" ? "Premium" : user?.planType === "PERSONAL" ? "Personal" : "Free Member";
+    user?.planType === "PREMIUM" ? t("header.premiumPlan") : user?.planType === "PERSONAL" ? t("header.personalPlan") : t("header.freePlan");
 
   const {
     register: registerPassword,

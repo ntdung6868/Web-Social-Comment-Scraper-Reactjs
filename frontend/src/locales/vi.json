@@ -237,7 +237,13 @@
     "downloadJSON": "Tải xuống JSON",
     "scrapeStarted": "bắt đầu",
     "scrapeCompleted": "hoàn tất",
-    "retryable": "(có thể thử lại)"
+    "retryable": "(có thể thử lại)",
+    "scrapeCompletedToast": "Cạo dữ liệu hoàn tất! Đã trích xuất {{count}} bình luận.",
+    "scrapeFailedToast": "Cạo dữ liệu thất bại: {{error}}",
+    "scrapeStartedSuccess": "Đã bắt đầu cạo dữ liệu!",
+    "scrapeStartedQueue": "Đã bắt đầu cạo dữ liệu! Vị trí trong hàng đợi: {{position}}",
+    "downloadedAs": "Đã tải xuống dưới dạng {{format}}",
+    "exportFailed": "Xuất thất bại. Vui lòng thử từ trang Lịch sử."
   },
   "history": {
     "title": "Lịch sử cạo dữ liệu",
@@ -278,7 +284,9 @@
     "comment": "Bình luận",
     "likes": "Lượt thích",
     "noScrapes": "Không tìm thấy lần cạo",
-    "scrapeCount": "Bình luận ("
+    "scrapeCount": "Bình luận (",
+    "deleteSuccess": "Đã xóa lịch sử cạo dữ liệu",
+    "deleteFailed": "Xóa thất bại. Vui lòng thử lại."
   },
   "settings": {
     "title": "Cài đặt",

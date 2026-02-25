@@ -160,7 +160,10 @@
     "validUrl": "Please enter a valid URL",
     "urlError": "Please enter a valid URL",
     "somethingWentWrong": "Something went wrong",
-    "errorOccurred": "An error occurred. Please try again."
+    "errorOccurred": "An error occurred. Please try again.",
+    "emailAlreadyRegistered": "Email is already registered",
+    "usernameAlreadyTaken": "Username is already taken",
+    "tooManyRequests": "Too many requests, please try again later"
   },
   "dashboard": {
     "title": "Welcome back",
@@ -234,7 +237,13 @@
     "downloadJSON": "Download JSON",
     "scrapeStarted": "started",
     "scrapeCompleted": "completed",
-    "retryable": "(retryable)"
+    "retryable": "(retryable)",
+    "scrapeCompletedToast": "Scrape completed! {{count}} comments extracted.",
+    "scrapeFailedToast": "Scrape failed: {{error}}",
+    "scrapeStartedSuccess": "Scrape started!",
+    "scrapeStartedQueue": "Scrape started! Position in queue: {{position}}",
+    "downloadedAs": "Downloaded as {{format}}",
+    "exportFailed": "Export failed. Please try from History page."
   },
   "history": {
     "title": "Scrape History",
@@ -275,7 +284,9 @@
     "comment": "Comment",
     "likes": "Likes",
     "noScrapes": "No scrapes found",
-    "scrapeCount": "Comments ("
+    "scrapeCount": "Comments (",
+    "deleteSuccess": "Scrape history deleted",
+    "deleteFailed": "Failed to delete. Please try again."
   },
   "settings": {
     "title": "Settings",

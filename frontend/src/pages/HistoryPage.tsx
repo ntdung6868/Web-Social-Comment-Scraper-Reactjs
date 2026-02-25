@@ -87,14 +87,14 @@ export default function HistoryPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number | string) => scraperService.deleteHistory(id),
     onSuccess: () => {
-      toast.success("Scrape history deleted");
+      toast.success(t("history.deleteSuccess"));
       setDeleteTarget(null);
       // Invalidate all history queries + dashboard
       queryClient.invalidateQueries({ queryKey: ["history"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
     },
     onError: () => {
-      toast.error("Failed to delete. Please try again.");
+      toast.error(t("history.deleteFailed"));
     },
   });
 

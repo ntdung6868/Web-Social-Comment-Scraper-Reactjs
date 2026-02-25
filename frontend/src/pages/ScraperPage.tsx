@@ -180,7 +180,7 @@ export default function ScraperPage() {
           "success",
           `✅ #${data.historyId} completed — ${data.totalComments} comments in ${Math.round(data.duration / 1000)}s`,
         );
-        toast.success(`Scrape completed! ${data.totalComments} comments extracted.`);
+        toast.success(t("scraper.scrapeCompletedToast", { count: data.totalComments }));
 
         // Show download dialog with scrape details
         const scrapeJob = useScrapeStore.getState().activeScrapes.get(data.historyId);
@@ -206,7 +206,7 @@ export default function ScraperPage() {
       (data: ScrapeFailedEvent) => {
         updateScrape(data.historyId, { status: "FAILED", errorMessage: data.error });
         addLog("error", `❌ #${data.historyId} failed — ${data.error}${data.retryable ? " (retryable)" : ""}`);
-        toast.error(`Scrape failed: ${data.error}`);
+        toast.error(t("scraper.scrapeFailedToast", { error: data.error }));
 
         // Auto-remove from active after 8 seconds
         setTimeout(() => removeScrape(data.historyId), 8000);
@@ -267,7 +267,7 @@ export default function ScraperPage() {
           ? `🚀 Scrape job started — ID: ${historyId}`
           : `📨 Scrape job submitted — ID: ${historyId}, Queue Position: ${queuePosition}`,
       );
-      toast.success(isPaid ? "Scrape started!" : `Scrape started! Position in queue: ${queuePosition}`);
+      toast.success(isPaid ? t("scraper.scrapeStartedSuccess") : t("scraper.scrapeStartedQueue", { position: queuePosition }));
       reset();
       setError(null);
 
@@ -306,10 +306,10 @@ export default function ScraperPage() {
       a.download = `comments-${completedScrape.platform}-${time}.${format}`;
       a.click();
       setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-      toast.success(`Downloaded as ${format.toUpperCase()}`);
+      toast.success(t("scraper.downloadedAs", { format: format.toUpperCase() }));
     } catch (err) {
       console.error("Export failed:", err);
-      toast.error("Export failed. Please try from History page.");
+      toast.error(t("scraper.exportFailed"));
     } finally {
       exportingRef.current = false;
     }
