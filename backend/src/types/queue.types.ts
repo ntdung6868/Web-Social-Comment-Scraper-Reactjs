@@ -70,6 +70,7 @@ export interface JobInfo {
  */
 export interface QueueConfig {
   freeConcurrency: number; // Max concurrent free plan jobs
+  maxGlobalConcurrency: number; // Hard cap on total simultaneous browser processes (paid + free)
   maxRetries: number;
   retryDelay: number; // milliseconds
   jobTimeout: number; // milliseconds

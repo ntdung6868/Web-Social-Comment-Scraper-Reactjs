@@ -21,6 +21,9 @@ import { getSettingNumber } from "../utils/settings.js";
 
 const DEFAULT_CONFIG: QueueConfig = {
   freeConcurrency: 1, // Free users wait in queue (sequential)
+  // Hard cap on total simultaneous Playwright/Chromium processes regardless of plan tier.
+  // Each browser consumes ~300-500 MB RAM; set to 2 for Railway's 512 MB–1 GB instances.
+  maxGlobalConcurrency: 2,
   maxRetries: 3,
   retryDelay: 5000, // 5 seconds base delay
   jobTimeout: 300000, // 5 minutes
@@ -310,10 +313,19 @@ class InMemoryQueue extends EventEmitter {
 
     // Read dynamic settings (falls back to config defaults)
     const freeConcurrency = (await getSettingNumber("freeConcurrency")) ?? this.config.freeConcurrency;
+    const maxGlobal = this.config.maxGlobalConcurrency;
 
-    // Process paid jobs immediately — but max 1 active job per user
+    // Process paid jobs — priority queue, but bounded by:
+    //   1. Max 1 active job per user (prevents one user monopolising the server)
+    //   2. Hard global cap across ALL tiers (prevents OOM when multiple PREMIUM users submit simultaneously)
     const skippedPaidJobs: string[] = [];
     while (this.paidWaitingQueue.length > 0) {
+      // Re-evaluate the global count each iteration (processJob adds to the set synchronously)
+      if (this.paidActiveJobs.size + this.freeActiveJobs.size >= maxGlobal) {
+        console.log(`[Queue] Global concurrency cap (${maxGlobal}) reached — paid job deferred`);
+        break;
+      }
+
       const jobId = this.paidWaitingQueue.shift();
       if (!jobId) break;
       const job = this.jobs.get(jobId);
@@ -335,8 +347,12 @@ class InMemoryQueue extends EventEmitter {
     // Put skipped jobs back at the front
     this.paidWaitingQueue.unshift(...skippedPaidJobs);
 
-    // Process free queue (low priority, sequential)
-    while (this.freeActiveJobs.size < freeConcurrency && this.freeWaitingQueue.length > 0) {
+    // Process free queue (low priority, sequential) — also respects global cap
+    while (
+      this.freeActiveJobs.size < freeConcurrency &&
+      this.freeWaitingQueue.length > 0 &&
+      this.paidActiveJobs.size + this.freeActiveJobs.size < maxGlobal
+    ) {
       const jobId = this.freeWaitingQueue.shift();
       if (!jobId) break;
       const job = this.jobs.get(jobId);

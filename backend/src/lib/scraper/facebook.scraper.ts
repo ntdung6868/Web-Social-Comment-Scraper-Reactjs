@@ -197,6 +197,9 @@ export class FacebookScraper {
       "--js-flags=--max-old-space-size=512",
       "--disable-software-rasterizer",
       "--window-size=500,1000",
+      // Production RAM/CPU optimizations — required for containerised deployment
+      "--no-zygote",      // Skip the zygote process; reduces per-launch overhead in Docker
+      "--single-process", // Run renderer, GPU, and browser in one process — cuts RAM by ~40%
     ];
 
     if (this.config.headless) {
@@ -237,6 +240,12 @@ export class FacebookScraper {
     });
 
     this.page = await this.context.newPage();
+
+    // Enforce per-operation timeouts so an infinite-scroll or blocked page never
+    // hangs the worker forever.  These fire BEFORE the queue-level 5-minute timeout,
+    // ensuring the finally→cleanup() path runs and the browser is freed promptly.
+    this.page.setDefaultNavigationTimeout(60_000);  // 60 s for page loads / redirects
+    this.page.setDefaultTimeout(240_000);           // 4 min for waitForSelector etc.
 
     // Resize window to 500x1000 via CDP (like Python: set_window_rect)
     await this.resizeWindow(500, 1000);
