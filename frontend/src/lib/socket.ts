@@ -69,7 +69,8 @@ export function initializeSocket(token: string): AppSocket {
   socket = io(SOCKET_URL, {
     autoConnect: false,
     withCredentials: true,
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"], // polling first for reverse-proxy compatibility
+    path: "/socket.io/",
     auth: { token },
   }) as AppSocket;
 
