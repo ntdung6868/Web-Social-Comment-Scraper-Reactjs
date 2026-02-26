@@ -37,8 +37,12 @@ export class ScraperService {
   private isProcessorRegistered = false;
 
   constructor() {
-    // Register job processor on instantiation
-    this.registerJobProcessor();
+    // registerJobProcessor is async (reads freeConcurrency from DB).
+    // Fire-and-forget from constructor — workers will be ready before any
+    // HTTP request can reach the scrape endpoint.
+    this.registerJobProcessor().catch((err) =>
+      console.error("[ScraperService] Failed to register job processor:", err),
+    );
   }
 
   // ===========================================
@@ -382,10 +386,10 @@ export class ScraperService {
   /**
    * Register the job processor for the queue
    */
-  private registerJobProcessor(): void {
+  private async registerJobProcessor(): Promise<void> {
     if (this.isProcessorRegistered) return;
 
-    registerProcessor(async (job: InMemoryJob): Promise<ScrapeJobResult> => {
+    await registerProcessor(async (job: InMemoryJob): Promise<ScrapeJobResult> => {
       const { historyId, userId, url, platform, cookies, proxy, headless, maxComments } = job.data;
       const startTime = Date.now();
 

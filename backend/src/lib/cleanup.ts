@@ -2,25 +2,25 @@
 // Data Retention Cleanup Job
 // ===========================================
 // Automatically deletes scrape history based on plan-specific retention periods.
-// FREE: 1 day, PERSONAL: 3 days, PREMIUM: 5 days
-// Also deletes ALL scrape histories older than 7 days (global hard limit).
+// All limits are read from the GlobalSettings DB collection (admin-configurable).
+// Defaults (used when no DB override exists):
+//   FREE: 1 day | PERSONAL: 3 days | PREMIUM: 5 days
 
-import { prisma }from "../config/database.js";
+import { prisma } from "../config/database.js";
 import { getPlanRetentionDays } from "../utils/settings.js";
-
-const GLOBAL_MAX_DAYS = 7;
 
 /**
  * Delete expired scrape histories based on each user's plan retention period.
- * Also enforces a global hard limit of 7 days for all records.
+ * Retention values are read from GlobalSettings on every run, so admin changes
+ * take effect at the next hourly tick without a server restart.
  * Runs silently — only logs when records are actually deleted.
  */
 async function cleanupExpiredHistories(): Promise<void> {
   const now = new Date();
   let totalDeleted = 0;
 
-  // 1. Plan-based retention cleanup
   const retentionDays = await getPlanRetentionDays();
+
   for (const [planType, days] of Object.entries(retentionDays)) {
     const cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
@@ -34,27 +34,15 @@ async function cleanupExpiredHistories(): Promise<void> {
 
       if (result.count > 0) {
         totalDeleted += result.count;
+        console.log(`🧹 Cleanup [${planType}]: deleted ${result.count} records older than ${days}d`);
       }
     } catch (error) {
       console.error(`❌ Cleanup error for ${planType} plan:`, error);
     }
   }
 
-  // 2. Global hard limit: delete anything older than 7 days regardless of plan
-  const globalCutoff = new Date(now.getTime() - GLOBAL_MAX_DAYS * 24 * 60 * 60 * 1000);
-  try {
-    const result = await prisma.scrapeHistory.deleteMany({
-      where: { createdAt: { lt: globalCutoff } },
-    });
-    if (result.count > 0) {
-      totalDeleted += result.count;
-    }
-  } catch (error) {
-    console.error("❌ Global cleanup error:", error);
-  }
-
   if (totalDeleted > 0) {
-    console.log(`🧹 Cleanup: ${totalDeleted} old records deleted`);
+    console.log(`🧹 Cleanup total: ${totalDeleted} records deleted`);
   }
 }
 

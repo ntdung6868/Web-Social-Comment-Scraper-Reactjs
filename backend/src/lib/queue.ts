@@ -15,6 +15,7 @@ import type {
 } from "../types/queue.types.js";
 import { emitScrapeProgress, emitScrapeFailed, emitQueuePosition } from "./socket.js";
 import { env } from "../config/env.js";
+import { getSettingNumber } from "../utils/settings.js";
 
 // ===========================================
 // Configuration
@@ -232,10 +233,14 @@ async function runJob(
 let premiumWorker: Worker<ScrapeJobData, ScrapeJobResult> | null = null;
 let freeWorker: Worker<ScrapeJobData, ScrapeJobResult> | null = null;
 
-function createWorkers(): void {
+async function createWorkers(): Promise<void> {
   if (premiumWorker || freeWorker) return; // idempotent — only create once
 
-  // PREMIUM LANE — concurrency controlled by WORKER_CONCURRENCY env var (default 5)
+  // FREE lane concurrency is read from GlobalSettings so admins can tune it
+  // without a code change or redeployment. Default is 1 (strictly sequential).
+  const freeConcurrency = await getSettingNumber("freeConcurrency");
+
+  // PREMIUM LANE — concurrency controlled by WORKER_CONCURRENCY env var (default 7)
   premiumWorker = new Worker<ScrapeJobData, ScrapeJobResult>(
     PREMIUM_QUEUE_NAME,
     (job) => runJob(job, "PREMIUM"),
@@ -246,11 +251,11 @@ function createWorkers(): void {
     },
   );
 
-  // FREE LANE — strictly sequential: next job only starts after current one finishes
+  // FREE LANE — concurrency from DB setting "freeConcurrency" (default 1)
   freeWorker = new Worker<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, (job) => runJob(job, "FREE"), {
     connection: createRedisConnection(),
     prefix: QUEUE_PREFIX,
-    concurrency: 1,
+    concurrency: freeConcurrency,
   });
 
   // Worker event listeners for observability
@@ -274,7 +279,9 @@ function createWorkers(): void {
     });
   }
 
-  console.log(`[Queue] 🚀 BullMQ dual-lane workers started — PREMIUM (concurrency=${env.queue.workerConcurrency}) | FREE (concurrency=1)`);
+  console.log(
+    `[Queue] 🚀 BullMQ dual-lane workers started — PREMIUM (concurrency=${env.queue.workerConcurrency}) | FREE (concurrency=${freeConcurrency})`,
+  );
 }
 
 // ===========================================
@@ -453,10 +460,11 @@ export function getAllJobs(): JobInfo[] {
 /**
  * Register the scrape job processor and start both BullMQ workers.
  * Must be called once on startup (ScraperService constructor does this).
+ * Async because createWorkers() reads freeConcurrency from the DB.
  */
-export function registerProcessor(handler: (job: InMemoryJob) => Promise<ScrapeJobResult>): void {
+export async function registerProcessor(handler: (job: InMemoryJob) => Promise<ScrapeJobResult>): Promise<void> {
   processorHandler = handler;
-  createWorkers();
+  await createWorkers();
   console.log("[Queue] Processor registered — dual-lane BullMQ workers are live");
 }
 
