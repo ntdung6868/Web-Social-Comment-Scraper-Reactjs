@@ -733,6 +733,38 @@ export default function PricingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  // Active polling while QR modal is open — primary detection path for SePay.
+  // Calls refreshUser() every 3 s and compares the returned plan against what
+  // the user purchased. Clears itself when the plan is upgraded OR the modal
+  // is closed manually (cleanup function).
+  useEffect(() => {
+    if (!paymentModal.open || !paymentModal.planId) return;
+
+    const expectedPlan = paymentModal.planId;
+
+    const timer = setInterval(async () => {
+      try {
+        await refreshUser();
+        // Read fresh Zustand state after the async refresh — avoids stale closure on `user`
+        const fresh = useAuthStore.getState().user;
+        if (fresh?.planType === expectedPlan && fresh?.planStatus === "ACTIVE") {
+          clearInterval(timer);
+          setPaymentModal((prev) => ({ ...prev, open: false }));
+          setPaymentSuccess({
+            open: true,
+            planType: fresh.planType,
+            expiresAt: fresh.subscriptionEnd ?? "",
+          });
+        }
+      } catch {
+        // ignore transient network errors; interval keeps running
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentModal.open, paymentModal.planId]);
+
   const handleBuyClick = async (planId: PlanType) => {
     if (planId === "FREE") return;
     setPaymentLoading(true);
