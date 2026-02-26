@@ -204,8 +204,9 @@ export default function ScraperPage() {
         // Auto-remove from active after 5 seconds
         setTimeout(() => removeScrape(data.historyId), 5000);
 
-        // Refresh dashboard & history
+        // Refresh dashboard & history list
         queryClient.invalidateQueries({ queryKey: queryKeys.scraper.dashboard() });
+        queryClient.invalidateQueries({ queryKey: ["history"] });
         // Silently refresh user info (updates trialUses counter on dashboard)
         useAuthStore.getState().refreshUser();
       },

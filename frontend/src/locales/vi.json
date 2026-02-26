@@ -520,6 +520,7 @@
     "tip3": "Không cạo nhiều hơn 5 video liên tiếp",
     "tip4": "Tránh cạo các video có hàng triệu bình luận",
     "tip5": "Thay thế cookie nếu captcha tiếp tục xuất hiện",
+    "howToUseCookieForge": "Cách sử dụng Cookie Forge",
     "cookieForgeStep1": "Mở ứng dụng CookieForge.",
     "cookieForgeStep2": "Nhập cookie TikTok của bạn (từ xuất J2TEAM Cookies).",
     "cookieForgeStep3": "Ứng dụng sẽ tải TikTok với cookie của bạn. Giải quyết captcha thủ công khi nó xuất hiện.",

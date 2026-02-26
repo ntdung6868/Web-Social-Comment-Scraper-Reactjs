@@ -520,6 +520,7 @@
     "tip3": "Don't scrape more than 5 videos in a row",
     "tip4": "Avoid scraping videos with millions of comments",
     "tip5": "Replace cookies if captcha keeps appearing",
+    "howToUseCookieForge": "How to use Cookie Forge",
     "cookieForgeStep1": "Open the CookieForge app.",
     "cookieForgeStep2": "Import your TikTok cookies (from J2TEAM Cookies export).",
     "cookieForgeStep3": "The app will load TikTok with your cookies. Solve the captcha manually when it appears.",
