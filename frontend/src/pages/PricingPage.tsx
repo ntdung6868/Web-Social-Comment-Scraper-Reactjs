@@ -198,7 +198,7 @@ function PricingCard({
   isCurrentPlan,
   isLowerPlan,
   isExpired,
-  paymentLoading,
+  loadingPlanId,
   onBuyClick,
   onDowngradeClick,
   t,
@@ -207,7 +207,7 @@ function PricingCard({
   isCurrentPlan: boolean;
   isLowerPlan: boolean;
   isExpired: boolean;
-  paymentLoading: boolean;
+  loadingPlanId: PlanType | null;
   onBuyClick: (planId: PlanType) => void;
   onDowngradeClick: (planId: PlanType) => void;
   t: ReturnType<typeof useTranslation>["t"];
@@ -416,8 +416,8 @@ function PricingCard({
               fullWidth
               variant="contained"
               size="large"
-              disabled={paymentLoading}
-              startIcon={paymentLoading ? <CircularProgress size={18} color="inherit" /> : undefined}
+              disabled={loadingPlanId !== null}
+              startIcon={loadingPlanId === plan.id ? <CircularProgress size={18} color="inherit" /> : undefined}
               onClick={() => onBuyClick(plan.id)}
               sx={{
                 py: 1.5,
@@ -462,9 +462,9 @@ function PricingCard({
               fullWidth
               variant={isHighlighted ? "contained" : plan.name === t("pricing.personalPlan") ? "outlined" : "text"}
               size="large"
-              disabled={paymentLoading}
-              startIcon={paymentLoading ? <CircularProgress size={18} color="inherit" /> : undefined}
-              endIcon={paymentLoading ? undefined : <ArrowForwardIcon />}
+              disabled={loadingPlanId !== null}
+              startIcon={loadingPlanId === plan.id ? <CircularProgress size={18} color="inherit" /> : undefined}
+              endIcon={loadingPlanId === plan.id ? undefined : <ArrowForwardIcon />}
               onClick={() => onBuyClick(plan.id)}
               sx={{
                 py: 1.5,
@@ -656,7 +656,7 @@ export default function PricingPage() {
   }>({ open: false, message: "", severity: "success" });
 
   // Payment state
-  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [loadingPlanId, setLoadingPlanId] = useState<PlanType | null>(null);
   const [paymentModal, setPaymentModal] = useState<{
     open: boolean;
     planId: PlanType | null;
@@ -767,7 +767,7 @@ export default function PricingPage() {
 
   const handleBuyClick = async (planId: PlanType) => {
     if (planId === "FREE") return;
-    setPaymentLoading(true);
+    setLoadingPlanId(planId);
     try {
       const res = await paymentService.createPaymentLink(planId as "PERSONAL" | "PREMIUM");
       const { qrUrl, amount, orderCode } = res.data!;
@@ -775,7 +775,7 @@ export default function PricingPage() {
     } catch {
       setResultSnackbar({ open: true, message: t("pricing.paymentLinkError"), severity: "error" });
     } finally {
-      setPaymentLoading(false);
+      setLoadingPlanId(null);
     }
   };
 
@@ -836,7 +836,7 @@ export default function PricingPage() {
               isCurrentPlan={plan.id === currentPlan}
               isLowerPlan={PLAN_RANK[plan.id] < PLAN_RANK[currentPlan]}
               isExpired={isExpired}
-              paymentLoading={paymentLoading}
+              loadingPlanId={loadingPlanId}
               onBuyClick={handleBuyClick}
               onDowngradeClick={handleDowngradeClick}
               t={t}
