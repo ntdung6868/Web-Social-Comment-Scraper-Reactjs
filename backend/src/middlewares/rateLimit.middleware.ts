@@ -33,6 +33,9 @@ export const apiLimiter = rateLimit({
   max: env.rateLimit.maxRequests,
   standardHeaders: true,
   legacyHeaders: false,
+  // Explicitly use req.ip so trust-proxy: 1 correctly resolves the real
+  // client IP from X-Forwarded-For (set by OpenLiteSpeed reverse proxy).
+  keyGenerator: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
   handler: (req, res) => {
     sendTooManyRequests(res, "Too many requests, please try again later");
   },
@@ -54,6 +57,7 @@ export const authLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
   handler: (req, res) => {
     sendTooManyRequests(res, "Too many authentication attempts, please try again in 15 minutes");
   },
@@ -68,6 +72,7 @@ export const sensitiveOpLimiter = rateLimit({
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
   handler: (req, res) => {
     sendTooManyRequests(res, "Too many attempts, please try again in 1 hour");
   },
