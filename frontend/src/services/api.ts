@@ -88,6 +88,15 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // Nếu session bị admin thu hồi -> Đăng xuất ngay, không thử refresh
+      const errorCode = (error.response?.data as { error?: { code?: string } })?.error?.code;
+      if (errorCode === "SESSION_REVOKED") {
+        localStorage.removeItem("auth-storage");
+        window.dispatchEvent(new CustomEvent("session-revoked"));
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
       // Nếu lỗi 401 xảy ra ngay tại endpoint refresh -> Token hết hạn hẳn -> Logout
       if (originalRequest.url?.includes("/auth/refresh")) {
         localStorage.removeItem("auth-storage");

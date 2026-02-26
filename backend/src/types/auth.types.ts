@@ -60,6 +60,7 @@ export interface AccessTokenPayload {
   userId: string;
   username: string;
   isAdmin: boolean;
+  sessionId?: string; // RefreshToken DB id for instant revocation checks
 }
 
 /**

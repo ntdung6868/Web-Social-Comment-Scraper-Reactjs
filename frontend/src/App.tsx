@@ -43,6 +43,19 @@ function App() {
     return () => window.removeEventListener("rate-limit-error", handleRateLimitError);
   }, [t]);
 
+  // Global session revoked handler (admin revoked session mid-session)
+  useEffect(() => {
+    const handleSessionRevoked = () => {
+      toast.error(
+        "Phiên đăng nhập của bạn đã bị quản trị viên thu hồi. Vui lòng đăng nhập lại.",
+        { duration: 6000 },
+      );
+    };
+
+    window.addEventListener("session-revoked", handleSessionRevoked);
+    return () => window.removeEventListener("session-revoked", handleSessionRevoked);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={getTheme(isDark)}>

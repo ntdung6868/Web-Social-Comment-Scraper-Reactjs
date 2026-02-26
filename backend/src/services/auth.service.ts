@@ -231,11 +231,12 @@ export class AuthService {
       }
     }
 
-    // Generate new access token
+    // Generate new access token — keep sessionId bound to the same refresh token
     const accessToken = generateAccessToken({
       userId: user.id,
       username: user.username,
       isAdmin: user.isAdmin,
+      sessionId: tokenRecord.id,
     });
 
     // Parse duration to seconds
@@ -385,20 +386,21 @@ export class AuthService {
    * Generate token pair for a user
    */
   private async generateTokens(user: User, meta?: RequestMeta): Promise<TokenPair> {
-    // Generate access token
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      username: user.username,
-      isAdmin: user.isAdmin,
-    });
-
-    // Create refresh token in database
-    const { token: refreshToken } = await authRepository.createRefreshToken({
+    // Create refresh token first — we need its DB id for the access token sessionId
+    const { token: refreshToken, record: refreshTokenRecord } = await authRepository.createRefreshToken({
       userId: user.id,
       expiresAt: getRefreshTokenExpiry(),
       userAgent: meta?.userAgent,
       ipAddress: meta?.ipAddress,
       deviceInfo: parseDeviceInfo(meta?.userAgent),
+    });
+
+    // Embed sessionId so auth middleware can instantly detect admin revocations
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      username: user.username,
+      isAdmin: user.isAdmin,
+      sessionId: refreshTokenRecord.id,
     });
 
     const expiresIn = parseDurationToSeconds(env.jwt.accessExpiresIn);

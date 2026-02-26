@@ -60,6 +60,18 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return;
     }
 
+    // Check session is still valid (catches instant admin revocation)
+    if (payload.sessionId) {
+      const session = await prisma.refreshToken.findUnique({
+        where: { id: payload.sessionId },
+        select: { isRevoked: true },
+      });
+      if (!session || session.isRevoked) {
+        sendUnauthorized(res, "Session has been revoked", "SESSION_REVOKED");
+        return;
+      }
+    }
+
     // Attach user to request
     const requestUser: RequestUser = {
       userId: user.id,
