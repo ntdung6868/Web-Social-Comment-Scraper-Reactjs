@@ -97,30 +97,40 @@ export class PaymentService {
       transactionContent: string;
     };
 
-    if (!transactionContent) return { success: true };
+    if (!transactionContent) {
+      console.log("⚠️ [WEBHOOK] transactionContent rỗng, bỏ qua.");
+      return { success: true };
+    }
 
     // Extract SEVQR order code from the bank transfer description (e.g. "SEVQR123456")
     const match = String(transactionContent).match(/SEVQR(\d+)/i);
-    if (!match) return { success: true };
+    if (!match) {
+      console.log("⚠️ [WEBHOOK] Không tìm thấy mã SEVQR trong nội dung CK:", transactionContent);
+      return { success: true };
+    }
 
-    const orderCode = Number(match[1]);
+    const extractedCode = match[1];
+    console.log("📦 Mã tìm thấy trong nội dung CK:", extractedCode);
+
+    const orderCode = Number(extractedCode);
+    console.log("🔍 Đang tìm Transaction với mã:", extractedCode);
     const order = await paymentRepository.findByOrderCode(orderCode);
 
     if (!order) {
-      console.warn(`[Payment] Webhook: order ${orderCode} not found in DB`);
+      console.log("❌ LỖI: Không tìm thấy Transaction hoặc Transaction đã được xử lý!");
       return { success: true };
     }
 
     if (order.status === "PAID") {
-      console.log(`[Payment] Webhook: order ${orderCode} already processed (idempotent)`);
+      console.log(`❌ LỖI: Không tìm thấy Transaction hoặc Transaction đã được xử lý! (order ${orderCode} already PAID)`);
       return { success: true };
     }
 
+    console.log(`📋 [WEBHOOK] Order tìm thấy: status=${order.status}, amount=${order.amount}, planType=${order.planType}, userId=${order.userId}`);
+
     // Verify transferred amount is sufficient
     if (Number(amountIn) < order.amount) {
-      console.warn(
-        `[Payment] Webhook: insufficient amount for order ${orderCode}. Expected ${order.amount}, got ${amountIn}`,
-      );
+      console.log("❌ LỖI: Tiền gửi vào (", amountIn, ") nhỏ hơn yêu cầu (", order.amount, ")");
       return { success: true };
     }
 
@@ -142,6 +152,7 @@ export class PaymentService {
       },
     });
 
+    console.log("✅ THÀNH CÔNG: Đã cộng VIP cho User!");
     console.log(
       `[Payment] ✅ Order ${orderCode}: user ${order.userId} upgraded to ${order.planType} until ${subscriptionEnd.toISOString()}`,
     );

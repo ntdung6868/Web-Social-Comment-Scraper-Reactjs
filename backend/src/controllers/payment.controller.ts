@@ -33,7 +33,12 @@ export const paymentController = {
    * Security: verified via `Authorization: Apikey TOKEN` header.
    */
   webhook: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    console.log("🔔 [WEBHOOK RUNG] Headers:", JSON.stringify(req.headers));
+    console.log("🔔 [WEBHOOK RUNG] Body:", JSON.stringify(req.body));
+
     if (req.headers.authorization !== `Apikey ${env.sepay.webhookToken}`) {
+      console.log("🔑 Auth Nhận được:", req.headers.authorization);
+      console.log("🔑 Auth Kì vọng: Apikey", process.env.SEPAY_WEBHOOK_TOKEN);
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
