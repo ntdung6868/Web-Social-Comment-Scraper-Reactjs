@@ -124,3 +124,18 @@ export const userIdParamSchema = z.object({
 });
 
 export type UserIdParamInput = z.infer<typeof userIdParamSchema>;
+
+// ===========================================
+// Stress Test Schema
+// ===========================================
+
+export const stressTestSchema = z.object({
+  count: z
+    .number()
+    .int()
+    .min(1, "At least 1 job required")
+    .max(50, "Maximum 50 jobs per stress test run"),
+  platform: z.enum(["TIKTOK", "FACEBOOK"]).optional().default("TIKTOK"),
+});
+
+export type StressTestInput = z.infer<typeof stressTestSchema>;

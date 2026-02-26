@@ -13,6 +13,7 @@ import type {
   BanUserInput,
   AdminScrapeListQueryInput,
   GlobalSettingsUpdateInput,
+  StressTestInput,
 } from "../validators/admin.validators.js";
 
 // ===========================================
@@ -355,6 +356,24 @@ export const adminController = {
 
     const count = await adminService.revokeAllUserSessions(userId);
     sendSuccess(res, { revokedCount: count }, `${count} sessions revoked`);
+  }),
+
+  // ===========================================
+  // Stress Test
+  // ===========================================
+
+  /**
+   * POST /admin/stress-test
+   * Inject N synthetic jobs into the PREMIUM queue for performance benchmarking
+   */
+  runStressTest: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { count, platform } = req.body as StressTestInput;
+    const result = await adminService.runStressTest(count, platform);
+    sendSuccess(
+      res,
+      result,
+      `Stress test started: ${result.injected} jobs injected (PREMIUM concurrency=${result.workerConcurrency})`,
+    );
   }),
 
   /**

@@ -103,6 +103,11 @@ export const env = {
     accountName:  getOptionalEnvVar("SEPAY_ACCOUNT_NAME",  "CHỦ TÀI KHOẢN"),
     webhookToken: getOptionalEnvVar("SEPAY_WEBHOOK_TOKEN", ""),
   },
+
+  // Queue / Worker
+  queue: {
+    workerConcurrency: getIntEnvVar("WORKER_CONCURRENCY", 5), // PREMIUM lane concurrency
+  },
 } as const;
 
 // Type for environment configuration

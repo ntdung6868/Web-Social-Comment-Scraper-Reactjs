@@ -235,14 +235,14 @@ let freeWorker: Worker<ScrapeJobData, ScrapeJobResult> | null = null;
 function createWorkers(): void {
   if (premiumWorker || freeWorker) return; // idempotent — only create once
 
-  // PREMIUM LANE — up to 5 paid scrapes run simultaneously
+  // PREMIUM LANE — concurrency controlled by WORKER_CONCURRENCY env var (default 5)
   premiumWorker = new Worker<ScrapeJobData, ScrapeJobResult>(
     PREMIUM_QUEUE_NAME,
     (job) => runJob(job, "PREMIUM"),
     {
       connection: createRedisConnection(),
       prefix: QUEUE_PREFIX,
-      concurrency: 5,
+      concurrency: env.queue.workerConcurrency,
     },
   );
 
@@ -274,7 +274,7 @@ function createWorkers(): void {
     });
   }
 
-  console.log("[Queue] 🚀 BullMQ dual-lane workers started — PREMIUM (concurrency=5) | FREE (concurrency=1)");
+  console.log(`[Queue] 🚀 BullMQ dual-lane workers started — PREMIUM (concurrency=${env.queue.workerConcurrency}) | FREE (concurrency=1)`);
 }
 
 // ===========================================
@@ -494,6 +494,13 @@ export function updateJobProgress(historyId: string, progress: number, message?:
       timestamp: new Date(),
     });
   }
+}
+
+/**
+ * Return current PREMIUM worker concurrency limit (from env, set at startup).
+ */
+export function getWorkerConcurrency(): number {
+  return env.queue.workerConcurrency;
 }
 
 /**

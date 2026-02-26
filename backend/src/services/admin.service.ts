@@ -10,7 +10,7 @@ import { authRepository } from "../repositories/auth.repository.js";
 import { createError } from "../middlewares/error.middleware.js";
 import { invalidateMaintenanceCache } from "../middlewares/maintenance.middleware.js";
 import { checkDatabaseHealth } from "../config/database.js";
-import { getQueueStats, getAllJobs } from "../lib/queue.js";
+import { getQueueStats, getAllJobs, addScrapeJob, getWorkerConcurrency } from "../lib/queue.js";
 import { getConnectedUserCount, getConnectedSocketCount } from "../lib/socket.js";
 import { getRedisClient } from "../lib/redis.js";
 import { hashPassword } from "../utils/password.js";
@@ -462,6 +462,58 @@ export class AdminService {
    */
   async getUserScrapeHistory(userId: string, page = 1, limit = 10) {
     return adminRepository.getUserScrapeHistory(userId, page, limit);
+  }
+
+  // ===========================================
+  // Stress Test (performance benchmarking)
+  // ===========================================
+
+  /**
+   * Inject N synthetic scrape jobs into the PREMIUM queue simultaneously.
+   * Jobs use fake userIds (stress-test-user-{i}) so they never collide with
+   * real users and bypass the "one active job per user" guard in scraper.service.
+   * Workers will pick them up, launch browsers, fail on the fake URL, and clean up —
+   * which is exactly the CPU/RAM load pattern needed for benchmarking.
+   */
+  async runStressTest(
+    count: number,
+    platform: "TIKTOK" | "FACEBOOK" = "TIKTOK",
+  ): Promise<{ injected: number; workerConcurrency: number; jobIds: string[] }> {
+    const timestamp = Date.now();
+    const jobIds: string[] = [];
+
+    // Inject all jobs simultaneously (Promise.all = true parallel enqueue)
+    await Promise.all(
+      Array.from({ length: count }, async (_, i) => {
+        // Unique historyId per job — not a real MongoDB ObjectId intentionally
+        const historyId = `stress-${timestamp}-${i}`;
+        const fakeUserId = `stress-test-user-${i}`;
+
+        await addScrapeJob({
+          historyId,
+          userId: fakeUserId,
+          url:
+            platform === "FACEBOOK"
+              ? "https://www.facebook.com/stress-test-post"
+              : "https://www.tiktok.com/@stress-test/video/0000000000000",
+          platform,
+          planType: "PREMIUM", // Always goes to the PREMIUM lane
+          cookies: { data: null, userAgent: null },
+          proxy: null,
+          headless: true,
+          maxComments: 10,
+        });
+
+        jobIds.push(historyId);
+      }),
+    );
+
+    console.log(
+      `[Admin] Stress test: injected ${count} jobs into PREMIUM queue` +
+        ` | platform=${platform} | workerConcurrency=${getWorkerConcurrency()}`,
+    );
+
+    return { injected: count, workerConcurrency: getWorkerConcurrency(), jobIds };
   }
 }
 // Export singleton instance

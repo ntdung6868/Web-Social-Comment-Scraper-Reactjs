@@ -14,6 +14,7 @@ import {
   banUserSchema,
   adminScrapeListQuerySchema,
   globalSettingsUpdateSchema,
+  stressTestSchema,
 } from "../validators/admin.validators.js";
 
 const router = Router();
@@ -155,5 +156,15 @@ router.delete("/users/:id/sessions", adminController.revokeAllUserSessions);
  * Get user scrape history
  */
 router.get("/users/:id/scrapes", adminController.getUserScrapeHistory);
+
+// ===========================================
+// Performance Benchmarking
+// ===========================================
+
+/**
+ * POST /api/admin/stress-test
+ * Inject N synthetic jobs into the PREMIUM queue to benchmark VPS capacity
+ */
+router.post("/stress-test", zodValidate(stressTestSchema), adminController.runStressTest);
 
 export default router;
