@@ -92,20 +92,20 @@ export class PaymentService {
    * Idempotent — safe to call multiple times for the same order.
    */
   async handleWebhook(body: unknown): Promise<{ success: boolean }> {
-    const { amountIn, transactionContent } = body as {
-      amountIn: number | string;
-      transactionContent: string;
+    const { transferAmount, content } = body as {
+      transferAmount: number | string;
+      content: string;
     };
 
-    if (!transactionContent) {
-      console.log("⚠️ [WEBHOOK] transactionContent rỗng, bỏ qua.");
+    if (!content) {
+      console.log("⚠️ [WEBHOOK] content rỗng, bỏ qua.");
       return { success: true };
     }
 
     // Extract SEVQR order code from the bank transfer description (e.g. "SEVQR123456")
-    const match = String(transactionContent).match(/SEVQR(\d+)/i);
+    const match = String(content).match(/SEVQR(\d+)/i);
     if (!match) {
-      console.log("⚠️ [WEBHOOK] Không tìm thấy mã SEVQR trong nội dung CK:", transactionContent);
+      console.log("⚠️ [WEBHOOK] Không tìm thấy mã SEVQR trong nội dung CK:", content);
       return { success: true };
     }
 
@@ -129,8 +129,8 @@ export class PaymentService {
     console.log(`📋 [WEBHOOK] Order tìm thấy: status=${order.status}, amount=${order.amount}, planType=${order.planType}, userId=${order.userId}`);
 
     // Verify transferred amount is sufficient
-    if (Number(amountIn) < order.amount) {
-      console.log("❌ LỖI: Tiền gửi vào (", amountIn, ") nhỏ hơn yêu cầu (", order.amount, ")");
+    if (Number(transferAmount) < order.amount) {
+      console.log("❌ LỖI: Tiền gửi vào (", transferAmount, ") nhỏ hơn yêu cầu (", order.amount, ")");
       return { success: true };
     }
 
