@@ -28,9 +28,10 @@ export interface ServiceHealth {
 }
 
 export interface MemoryUsage {
-  used: number;
-  total: number;
-  percentage: number;
+  used: number;       // OS used bytes
+  total: number;      // OS total bytes
+  percentage: number; // OS used %
+  app: number;        // process RSS bytes
 }
 
 export interface CpuUsage {

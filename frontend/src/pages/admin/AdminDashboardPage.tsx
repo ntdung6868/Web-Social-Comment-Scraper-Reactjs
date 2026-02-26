@@ -262,10 +262,12 @@ export default function AdminDashboardPage() {
               </Typography>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
                 <Typography variant="h6" fontWeight={600}>
-                  {healthLoading ? "..." : `${health?.memory?.percentage?.toFixed(1) || 0}%`}
+                  {healthLoading ? "..." : `${health?.memory?.percentage ?? 0}%`}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  ({healthLoading ? "..." : `${((health?.memory?.used || 0) / 1024 / 1024).toFixed(0)} MB`})
+                  {healthLoading
+                    ? "..."
+                    : `(Used: ${((health?.memory?.used || 0) / 1024 / 1024).toFixed(0)} MB / Total: ${((health?.memory?.total || 0) / 1024 / 1024).toFixed(0)} MB)`}
                 </Typography>
               </Box>
               <LinearProgress

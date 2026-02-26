@@ -48,17 +48,20 @@ export class AdminService {
     const dbHealthy = await checkDatabaseHealth();
     const dbLatency = Date.now() - startTime;
 
-    // Memory usage
-    const memUsage = process.memoryUsage();
+    // OS memory usage (accurate system-wide stats)
+    const totalMemory = os.totalmem();
+    const freeMemory = os.freemem();
+    const usedMemory = totalMemory - freeMemory;
+    const appMemory = process.memoryUsage().rss;
 
     // CPU usage
     const cpuLoad = os.loadavg();
 
-    // Determine overall status
+    // Determine overall status based on OS memory
     let status: "healthy" | "degraded" | "unhealthy" = "healthy";
     if (!dbHealthy) {
       status = "unhealthy";
-    } else if (memUsage.heapUsed / memUsage.heapTotal > 0.9) {
+    } else if (usedMemory / totalMemory > 0.9) {
       status = "degraded";
     }
 
@@ -77,9 +80,10 @@ export class AdminService {
         },
       },
       memory: {
-        used: memUsage.heapUsed,
-        total: memUsage.heapTotal,
-        percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
+        used: usedMemory,
+        total: totalMemory,
+        percentage: Math.round((usedMemory / totalMemory) * 100),
+        app: appMemory,
       },
       cpu: {
         percentage: Math.round((cpuLoad[0] ?? 0) * 100) / 100,
@@ -125,7 +129,7 @@ export class AdminService {
       },
       system: {
         uptime: process.uptime(),
-        memoryUsage: Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100),
+        memoryUsage: Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100),
         cpuUsage: Math.round((os.loadavg()[0] ?? 0) * 100) / 100,
       },
     };
