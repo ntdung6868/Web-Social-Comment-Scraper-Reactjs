@@ -17,6 +17,8 @@ import {
   MenuItem,
   InputAdornment,
   Button,
+  alpha,
+  CircularProgress,
 } from "@mui/material";
 import { FilterList as FilterIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import { format } from "date-fns";
@@ -61,6 +63,7 @@ export default function SystemLogsPage() {
           pagination: { currentPage: number; totalPages: number; totalItems: number };
         };
       }>(`/admin/scrapes?page=${page + 1}&limit=${rowsPerPage}${statusFilter ? `&status=${statusFilter}` : ""}`),
+    refetchInterval: 3000,
   });
 
   if (isLoading) {
@@ -75,9 +78,30 @@ export default function SystemLogsPage() {
       {/* Header */}
       <Box sx={{ mb: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Box>
-          <Typography variant="h4" fontWeight={700} gutterBottom>
-            {t("nav.adminLogs")}
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
+            <Typography variant="h4" fontWeight={700}>
+              {t("nav.adminLogs")}
+            </Typography>
+            {/* Live indicator */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1.2, py: 0.4, borderRadius: 10, bgcolor: (theme) => alpha(theme.palette.success.main, 0.1), border: "1px solid", borderColor: (theme) => alpha(theme.palette.success.main, 0.3) }}>
+              <Box
+                sx={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  backgroundColor: "success.main",
+                  "@keyframes livePulse": {
+                    "0%, 100%": { opacity: 1, transform: "scale(1)" },
+                    "50%": { opacity: 0.4, transform: "scale(0.75)" },
+                  },
+                  animation: "livePulse 1.8s ease-in-out infinite",
+                }}
+              />
+              <Typography variant="caption" fontWeight={700} sx={{ color: "success.main", letterSpacing: 0.5 }}>
+                LIVE
+              </Typography>
+            </Box>
+          </Box>
           <Typography variant="body1" color="text.secondary">
             {t("admin.logsDescription")}
           </Typography>
@@ -118,7 +142,7 @@ export default function SystemLogsPage() {
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card sx={{ borderRadius: 3, overflow: "hidden" }}>
         {scrapes.length === 0 ? (
           <EmptyState title={t("admin.noLogs")} message={t("admin.noLogsMessage")} />
         ) : (
@@ -126,7 +150,19 @@ export default function SystemLogsPage() {
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                        fontWeight: 700,
+                        backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                        borderBottom: "2px solid",
+                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                      },
+                    }}
+                  >
                     <TableCell>{t("admin.id")}</TableCell>
                     <TableCell>{t("common.user")}</TableCell>
                     <TableCell>{t("history.url")}</TableCell>
@@ -140,7 +176,11 @@ export default function SystemLogsPage() {
                 </TableHead>
                 <TableBody>
                   {scrapes.map((scrape) => (
-                    <TableRow key={scrape.id} hover>
+                    <TableRow
+                      key={scrape.id}
+                      hover
+                      sx={{ transition: "background-color 0.2s ease" }}
+                    >
                       <TableCell>
                         <Typography variant="caption" fontFamily="monospace">
                           {String(scrape.id)}
@@ -171,7 +211,16 @@ export default function SystemLogsPage() {
                         <Chip label={scrape.platform} size="small" variant="outlined" />
                       </TableCell>
                       <TableCell>
-                        <Chip label={scrape.status} size="small" color={statusColors[scrape.status]} />
+                        {scrape.status === "RUNNING" ? (
+                          <Chip
+                            label="RUNNING"
+                            size="small"
+                            color="primary"
+                            icon={<CircularProgress size={10} color="inherit" sx={{ ml: "4px !important" }} />}
+                          />
+                        ) : (
+                          <Chip label={scrape.status} size="small" color={statusColors[scrape.status]} />
+                        )}
                       </TableCell>
                       <TableCell align="right">{scrape.totalComments.toLocaleString()}</TableCell>
                       <TableCell>

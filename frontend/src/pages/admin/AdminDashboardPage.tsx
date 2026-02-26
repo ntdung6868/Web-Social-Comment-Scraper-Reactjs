@@ -90,12 +90,13 @@ function StatCard({ title, value, subtitle, icon, color, loading }: StatCardProp
     <Card
       sx={{
         height: "100%",
+        borderRadius: 3,
         background: `linear-gradient(135deg, ${alpha(color, 0.12)} 0%, ${alpha(color, 0.03)} 100%)`,
         border: `1px solid ${alpha(color, 0.15)}`,
-        transition: "transform 0.2s, box-shadow 0.2s",
+        transition: "transform 0.25s ease, box-shadow 0.25s ease",
         "&:hover": {
-          transform: "translateY(-2px)",
-          boxShadow: `0 4px 20px ${alpha(color, 0.15)}`,
+          transform: "translateY(-3px)",
+          boxShadow: (theme) => theme.shadows[6],
         },
       }}
     >
@@ -108,7 +109,7 @@ function StatCard({ title, value, subtitle, icon, color, loading }: StatCardProp
             {loading ? (
               <Skeleton width={60} height={36} />
             ) : (
-              <Typography variant="h4" fontWeight={700} sx={{ color, mt: 0.5 }}>
+              <Typography variant="h4" fontWeight={700} sx={{ color, mt: 0.5, transition: "color 0.3s ease" }}>
                 {typeof value === "number" ? value.toLocaleString() : value}
               </Typography>
             )}
@@ -187,7 +188,7 @@ export default function AdminDashboardPage() {
   const { data: dashboardData, isLoading: dashLoading } = useQuery({
     queryKey: queryKeys.admin.dashboard(),
     queryFn: () => apiRequest.get<{ success: boolean; data: AdminDashboardStats }>("/admin/dashboard"),
-    refetchInterval: 60000,
+    refetchInterval: 5000,
   });
 
   const { data: realtimeData } = useQuery({
@@ -201,7 +202,7 @@ export default function AdminDashboardPage() {
           queueStats: { waiting: number; active: number; completed: number; failed: number; delayed: number };
         };
       }>("/admin/realtime"),
-    refetchInterval: 10000,
+    refetchInterval: 3000,
   });
 
   const health = healthData?.data;

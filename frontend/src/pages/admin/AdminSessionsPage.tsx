@@ -20,6 +20,7 @@ import {
   DialogContent,
   DialogActions,
   Alert,
+  alpha,
 } from "@mui/material";
 import {
   Refresh as RefreshIcon,
@@ -126,7 +127,7 @@ export default function AdminSessionsPage() {
       </Box>
 
       {/* Table */}
-      <Card>
+      <Card sx={{ borderRadius: 3, overflow: "hidden" }}>
         {sessions.length === 0 ? (
           <EmptyState title="No active sessions" message="There are no active sessions at this time." />
         ) : (
@@ -134,7 +135,19 @@ export default function AdminSessionsPage() {
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                        fontWeight: 700,
+                        backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                        borderBottom: "2px solid",
+                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                      },
+                    }}
+                  >
                     <TableCell>User</TableCell>
                     <TableCell>Plan</TableCell>
                     <TableCell>IP Address</TableCell>
@@ -147,7 +160,7 @@ export default function AdminSessionsPage() {
                 </TableHead>
                 <TableBody>
                   {sessions.map((session) => (
-                    <TableRow key={session.id} hover>
+                    <TableRow key={session.id} hover sx={{ transition: "background-color 0.2s ease" }}>
                       <TableCell>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                           <Box>

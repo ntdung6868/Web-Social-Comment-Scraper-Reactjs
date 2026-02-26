@@ -131,6 +131,7 @@ export default function UserManagementPage() {
         `/admin/users?page=${page + 1}&limit=${rowsPerPage}${searchQuery ? `&search=${searchQuery}` : ""}${roleFilter ? `&planType=${roleFilter}` : ""}`,
       ),
     placeholderData: (prev) => prev,
+    refetchInterval: 10000,
   });
 
   // ── Detail Query ──
@@ -342,7 +343,7 @@ export default function UserManagementPage() {
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card sx={{ borderRadius: 3, overflow: "hidden" }}>
         {users.length === 0 ? (
           <EmptyState title={t("admin.noUsers")} message={t("admin.noUsersMessage")} />
         ) : (
@@ -350,7 +351,19 @@ export default function UserManagementPage() {
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                        fontWeight: 700,
+                        backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.05),
+                        borderBottom: "2px solid",
+                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                      },
+                    }}
+                  >
                     <TableCell>{t("common.user")}</TableCell>
                     <TableCell>{t("admin.plan")}</TableCell>
                     <TableCell>{t("common.status")}</TableCell>
@@ -360,7 +373,7 @@ export default function UserManagementPage() {
                 </TableHead>
                 <TableBody>
                   {users.map((user: User) => (
-                    <TableRow key={user.id} hover onClick={() => setDetailUserId(user.id)} sx={{ cursor: "pointer" }}>
+                    <TableRow key={user.id} hover onClick={() => setDetailUserId(user.id)} sx={{ cursor: "pointer", transition: "background-color 0.2s ease" }}>
                       <TableCell>
                         <Typography variant="body2" fontWeight={500}>
                           {user.username}
