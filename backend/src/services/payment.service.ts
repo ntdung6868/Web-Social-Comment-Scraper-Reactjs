@@ -64,9 +64,10 @@ export class PaymentService {
     }
     const amountVND = Math.round(usdPrice * USD_TO_VND);
 
-    // Generate unique orderCode; build VIP reference string used in bank transfer description
+    // Generate unique orderCode; build SEVQR reference string used in bank transfer description
+    // SePay + VietinBank requires the transfer content to start with "SEVQR"
     const orderCode = await this.generateUniqueOrderCode();
-    const description = `VIP${orderCode}`;
+    const description = `SEVQR${orderCode}`;
 
     // Construct SePay QR image URL — returned directly to frontend as <img src>
     const qrUrl = `https://qr.sepay.vn/img?acc=${env.sepay.bankAcc}&bank=${env.sepay.bankName}&amount=${amountVND}&des=${description}`;
@@ -98,8 +99,8 @@ export class PaymentService {
 
     if (!transactionContent) return { success: true };
 
-    // Extract VIP order code from the bank transfer description (e.g. "VIP123456")
-    const match = String(transactionContent).match(/VIP(\d+)/i);
+    // Extract SEVQR order code from the bank transfer description (e.g. "SEVQR123456")
+    const match = String(transactionContent).match(/SEVQR(\d+)/i);
     if (!match) return { success: true };
 
     const orderCode = Number(match[1]);
