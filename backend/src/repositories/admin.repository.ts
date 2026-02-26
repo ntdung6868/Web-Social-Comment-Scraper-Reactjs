@@ -104,11 +104,15 @@ export class AdminRepository {
     const ipCountMap: Record<string, number> = {};
 
     if (userIds.length > 0) {
-      // Fetch tokens with distinct IPs per user
+      // Count distinct IPs from ACTIVE (non-expired, non-revoked) sessions only
+      // to avoid false positives when users switch networks historically
+      const now = new Date();
       const tokenIpData = await prisma.refreshToken.findMany({
         where: {
           userId: { in: userIds },
           ipAddress: { not: null },
+          isRevoked: false,
+          expiresAt: { gt: now },
         },
         select: { userId: true, ipAddress: true },
         distinct: ["userId", "ipAddress"],
@@ -161,8 +165,9 @@ export class AdminRepository {
           },
         },
       }),
+      // Active sessions only — non-revoked and not yet expired
       prisma.refreshToken.findMany({
-        where: { userId, ipAddress: { not: null } },
+        where: { userId, ipAddress: { not: null }, isRevoked: false, expiresAt: { gt: new Date() } },
         select: { ipAddress: true },
         distinct: ["ipAddress"],
       }),

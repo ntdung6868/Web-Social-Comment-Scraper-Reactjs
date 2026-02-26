@@ -28,6 +28,7 @@ import {
   Stack,
   CircularProgress,
   IconButton,
+  Tooltip,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -402,15 +403,17 @@ export default function UserManagementPage() {
                           <Stack direction="row" spacing={0.5} alignItems="center">
                             <Chip label={user.planStatus} size="small" color="success" variant="outlined" />
                             {(user as unknown as { distinctIpCount?: number }).distinctIpCount !== undefined &&
-                              (user as unknown as { distinctIpCount: number }).distinctIpCount > 3 && (
-                                <Chip
-                                  icon={<WarningIcon />}
-                                  label={`${(user as unknown as { distinctIpCount: number }).distinctIpCount} ${t("admin.ips")}`}
-                                  size="small"
-                                  color="warning"
-                                  variant="filled"
-                                  sx={{ fontWeight: 600 }}
-                                />
+                              (user as unknown as { distinctIpCount: number }).distinctIpCount > 2 && (
+                                <Tooltip title="Số thiết bị/mạng đang đăng nhập cùng lúc" arrow>
+                                  <Chip
+                                    icon={<WarningIcon />}
+                                    label={`${(user as unknown as { distinctIpCount: number }).distinctIpCount} Thiết bị đang dùng`}
+                                    size="small"
+                                    color="warning"
+                                    variant="filled"
+                                    sx={{ fontWeight: 600 }}
+                                  />
+                                </Tooltip>
                               )}
                           </Stack>
                         )}
@@ -497,15 +500,17 @@ export default function UserManagementPage() {
                   }
                 />
                 {detailUser.isBanned && <Chip label={t("admin.banned")} size="small" color="error" />}
-                {detailUser.distinctIpCount !== undefined && detailUser.distinctIpCount > 3 && (
-                  <Chip
-                    icon={<WarningIcon />}
-                    label={`${detailUser.distinctIpCount} ${t("admin.ipsDetected")}`}
-                    size="small"
-                    color="warning"
-                    variant="filled"
-                    sx={{ fontWeight: 600 }}
-                  />
+                {detailUser.distinctIpCount !== undefined && detailUser.distinctIpCount > 2 && (
+                  <Tooltip title="Số thiết bị/mạng đang đăng nhập cùng lúc" arrow>
+                    <Chip
+                      icon={<WarningIcon />}
+                      label={`${detailUser.distinctIpCount} Thiết bị đang dùng`}
+                      size="small"
+                      color="warning"
+                      variant="filled"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Tooltip>
                 )}
               </Stack>
 

@@ -21,6 +21,7 @@ import {
   DialogActions,
   Alert,
   alpha,
+  Stack,
 } from "@mui/material";
 import {
   Refresh as RefreshIcon,
@@ -31,6 +32,7 @@ import {
 } from "@mui/icons-material";
 import { format, formatDistanceToNow } from "date-fns";
 import { apiRequest } from "@/services/api";
+import { useAuthStore } from "@/stores/auth.store";
 import { LoadingSpinner, EmptyState } from "@/components/common";
 import toast from "react-hot-toast";
 import { useLanguageStore } from "@/stores/language.store";
@@ -72,6 +74,7 @@ function parseBrowser(ua: string | null): string {
 export default function AdminSessionsPage() {
   const queryClient = useQueryClient();
   const { language } = useLanguageStore();
+  const { user: currentUser } = useAuthStore();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [confirmRevoke, setConfirmRevoke] = useState<{ id: number; username: string } | null>(null);
@@ -159,24 +162,45 @@ export default function AdminSessionsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sessions.map((session) => (
-                    <TableRow key={session.id} hover sx={{ transition: "background-color 0.2s ease" }}>
+                  {sessions.map((session) => {
+                    const isOwnSession = String(session.userId) === String(currentUser?.id);
+                    return (
+                    <TableRow
+                      key={session.id}
+                      hover
+                      sx={{
+                        transition: "background-color 0.2s ease",
+                        ...(isOwnSession && {
+                          backgroundColor: (theme) => alpha(theme.palette.info.main, 0.05),
+                          outline: (theme) => `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                        }),
+                      }}
+                    >
                       <TableCell>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
                           <Box>
-                            <Typography variant="body2" fontWeight={500}>
-                              {session.username}
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                              <Typography variant="body2" fontWeight={500}>
+                                {session.username}
+                              </Typography>
                               {session.isAdmin && (
-                                <AdminIcon
-                                  sx={{ fontSize: 14, ml: 0.5, color: "warning.main", verticalAlign: "middle" }}
+                                <AdminIcon sx={{ fontSize: 14, color: "warning.main" }} />
+                              )}
+                              {isOwnSession && (
+                                <Chip
+                                  label="Phiên của bạn"
+                                  size="small"
+                                  color="info"
+                                  variant="outlined"
+                                  sx={{ fontSize: "0.65rem", height: 18, fontWeight: 700 }}
                                 />
                               )}
-                            </Typography>
+                            </Stack>
                             <Typography variant="caption" color="text.secondary">
                               {session.email}
                             </Typography>
                           </Box>
-                        </Box>
+                        </Stack>
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -227,18 +251,22 @@ export default function AdminSessionsPage() {
                         </Tooltip>
                       </TableCell>
                       <TableCell align="center">
-                        <Tooltip title="Revoke session">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => setConfirmRevoke({ id: session.id, username: session.username })}
-                          >
-                            <RevokeIcon fontSize="small" />
-                          </IconButton>
+                        <Tooltip title={isOwnSession ? "Không thể thu hồi phiên của chính bạn" : "Thu hồi phiên đăng nhập"}>
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={isOwnSession}
+                              onClick={() => setConfirmRevoke({ id: session.id, username: session.username })}
+                            >
+                              <RevokeIcon fontSize="small" />
+                            </IconButton>
+                          </span>
                         </Tooltip>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -260,26 +288,36 @@ export default function AdminSessionsPage() {
       </Card>
 
       {/* Confirm Revoke Dialog */}
-      <Dialog open={!!confirmRevoke} onClose={() => setConfirmRevoke(null)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={!!confirmRevoke}
+        onClose={() => setConfirmRevoke(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <WarningIcon color="warning" />
-          Revoke Session
+          <WarningIcon color="error" />
+          Thu hồi phiên đăng nhập
         </DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mt: 1 }}>
-            This will force <strong>{confirmRevoke?.username}</strong> to log in again. Their current session will be
-            terminated immediately.
+          <Alert severity="error" sx={{ mt: 1, mb: 1.5 }}>
+            <strong>{confirmRevoke?.username}</strong> sẽ bị đăng xuất <strong>ngay lập tức</strong> trên thiết bị này.
+            Token làm mới của họ sẽ bị vô hiệu hóa — họ cần đăng nhập lại để tiếp tục.
           </Alert>
+          <Typography variant="caption" color="text.secondary">
+            Hành động này không thể hoàn tác. Các thiết bị khác của người dùng sẽ không bị ảnh hưởng.
+          </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmRevoke(null)}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmRevoke(null)} sx={{ textTransform: "none" }}>Hủy</Button>
           <Button
             variant="contained"
             color="error"
             onClick={() => confirmRevoke && revokeMutation.mutate(confirmRevoke.id)}
             disabled={revokeMutation.isPending}
+            sx={{ textTransform: "none", fontWeight: 600 }}
           >
-            Revoke
+            Thu hồi ngay
           </Button>
         </DialogActions>
       </Dialog>
