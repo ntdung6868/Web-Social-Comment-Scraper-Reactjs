@@ -13,6 +13,7 @@ import { checkDatabaseHealth } from "../config/database.js";
 import { getQueueStats, getAllJobs, addScrapeJob, getWorkerConcurrency } from "../lib/queue.js";
 import { getConnectedUserCount, getConnectedSocketCount } from "../lib/socket.js";
 import { getRedisClient } from "../lib/redis.js";
+import { prisma } from "../config/database.js";
 import { hashPassword } from "../utils/password.js";
 import type {
   SystemHealth,
@@ -478,32 +479,50 @@ export class AdminService {
   async runStressTest(
     count: number,
     platform: "TIKTOK" | "FACEBOOK" = "TIKTOK",
+    callerUserId?: string,
   ): Promise<{ injected: number; workerConcurrency: number; jobIds: string[] }> {
-    const timestamp = Date.now();
+    // Find a real userId to attach the synthetic scrapeHistory records to.
+    // Prefer the calling admin; fallback to the first admin in DB.
+    const userId =
+      callerUserId ??
+      (await prisma.user.findFirst({ where: { isAdmin: true }, select: { id: true } }))?.id;
+
+    if (!userId) {
+      throw createError.badRequest("No admin user found to attach stress-test history records");
+    }
+
+    const testUrl =
+      platform === "FACEBOOK"
+        ? "https://www.facebook.com/stress-test-post"
+        : "https://www.tiktok.com/@stress-test/video/0000000000000";
+
+    // Create real ScrapeHistory rows so the processor can update them without Prisma ObjectId errors.
+    // These will end up as FAILED (fake URL) — they're visible in admin scrape logs.
+    const historyRecords = await Promise.all(
+      Array.from({ length: count }, () =>
+        prisma.scrapeHistory.create({
+          data: { userId, platform, url: testUrl, status: "PENDING" },
+          select: { id: true },
+        }),
+      ),
+    );
+
     const jobIds: string[] = [];
 
-    // Inject all jobs simultaneously (Promise.all = true parallel enqueue)
+    // Enqueue all jobs simultaneously into the PREMIUM lane
     await Promise.all(
-      Array.from({ length: count }, async (_, i) => {
-        // Unique historyId per job — not a real MongoDB ObjectId intentionally
-        const historyId = `stress-${timestamp}-${i}`;
-        const fakeUserId = `stress-test-user-${i}`;
-
+      historyRecords.map(async ({ id: historyId }) => {
         await addScrapeJob({
           historyId,
-          userId: fakeUserId,
-          url:
-            platform === "FACEBOOK"
-              ? "https://www.facebook.com/stress-test-post"
-              : "https://www.tiktok.com/@stress-test/video/0000000000000",
+          userId,
+          url: testUrl,
           platform,
-          planType: "PREMIUM", // Always goes to the PREMIUM lane
+          planType: "PREMIUM",
           cookies: { data: null, userAgent: null },
           proxy: null,
           headless: true,
           maxComments: 10,
         });
-
         jobIds.push(historyId);
       }),
     );

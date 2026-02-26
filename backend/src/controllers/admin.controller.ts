@@ -368,7 +368,7 @@ export const adminController = {
    */
   runStressTest: asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { count, platform } = req.body as StressTestInput;
-    const result = await adminService.runStressTest(count, platform);
+    const result = await adminService.runStressTest(count, platform, req.user?.userId);
     sendSuccess(
       res,
       result,
