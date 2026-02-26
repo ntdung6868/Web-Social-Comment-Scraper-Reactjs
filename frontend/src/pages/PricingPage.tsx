@@ -33,6 +33,8 @@ import {
   SupportAgent as SupportIcon,
   ArrowDownward as DowngradeIcon,
   Warning as WarningIcon,
+  ContentCopy as CopyIcon,
+  Timer as TimerIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
@@ -652,7 +654,7 @@ export default function PricingPage() {
   const [resultSnackbar, setResultSnackbar] = useState<{
     open: boolean;
     message: string;
-    severity: "success" | "error" | "info";
+    severity: "success" | "error" | "info" | "warning";
   }>({ open: false, message: "", severity: "success" });
 
   // Payment state
@@ -663,7 +665,12 @@ export default function PricingPage() {
     qrUrl: string;
     amount: number;
     orderCode: number;
-  }>({ open: false, planId: null, qrUrl: "", amount: 0, orderCode: 0 });
+    description: string;
+    bankName: string;
+    bankAcc: string;
+    accountName: string;
+  }>({ open: false, planId: null, qrUrl: "", amount: 0, orderCode: 0, description: "", bankName: "", bankAcc: "", accountName: "" });
+  const [timeLeft, setTimeLeft] = useState(900);
   const [paymentSuccess, setPaymentSuccess] = useState<{
     open: boolean;
     planType: string;
@@ -765,13 +772,40 @@ export default function PricingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentModal.open, paymentModal.planId]);
 
+  // Countdown: tick every second while modal is open
+  useEffect(() => {
+    if (!paymentModal.open || timeLeft <= 0) return;
+    const tick = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearTimeout(tick);
+  }, [paymentModal.open, timeLeft]);
+
+  // Expiration: auto-close modal when timer hits 0
+  useEffect(() => {
+    if (timeLeft === 0 && paymentModal.open) {
+      setPaymentModal((prev) => ({ ...prev, open: false }));
+      setLoadingPlanId(null);
+      setResultSnackbar({ open: true, message: "Thời gian giao dịch đã hết. Vui lòng thử lại.", severity: "warning" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft]);
+
+  const formatTime = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  const handleCopy = (text: string) => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setResultSnackbar({ open: true, message: "Đã copy!", severity: "success" });
+    });
+  };
+
   const handleBuyClick = async (planId: PlanType) => {
     if (planId === "FREE") return;
     setLoadingPlanId(planId);
     try {
       const res = await paymentService.createPaymentLink(planId as "PERSONAL" | "PREMIUM");
-      const { qrUrl, amount, orderCode } = res.data!;
-      setPaymentModal({ open: true, planId, qrUrl, amount, orderCode });
+      const { qrUrl, amount, orderCode, description, bankName, bankAcc, accountName } = res.data!;
+      setTimeLeft(900);
+      setPaymentModal({ open: true, planId, qrUrl, amount, orderCode, description, bankName, bankAcc, accountName });
     } catch {
       setResultSnackbar({ open: true, message: t("pricing.paymentLinkError"), severity: "error" });
     } finally {
@@ -932,7 +966,7 @@ export default function PricingPage() {
       <Dialog
         open={paymentModal.open}
         onClose={() => setPaymentModal((prev) => ({ ...prev, open: false }))}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         PaperProps={{ sx: { borderRadius: 4, overflow: "hidden" } }}
       >
@@ -941,7 +975,7 @@ export default function PricingPage() {
           sx={{
             background: "linear-gradient(135deg, #5c6bc0 0%, #7c4dff 100%)",
             px: 3,
-            py: 2.5,
+            py: 2,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -958,33 +992,126 @@ export default function PricingPage() {
           </IconButton>
         </Box>
 
-        <DialogContent sx={{ p: 3, textAlign: "center" }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {t("pricing.paymentQRInstruction")}
-          </Typography>
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" } }}>
 
-          {/* VietQR image from SePay */}
-          {paymentModal.qrUrl && (
-            <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
-              <Box
-                component="img"
-                src={paymentModal.qrUrl}
-                alt="VietQR Payment Code"
-                sx={{ width: 260, height: "auto", borderRadius: 2, border: "1px solid", borderColor: "divider" }}
-              />
+            {/* ── Left / Top: QR code + countdown ── */}
+            <Box
+              sx={{
+                flex: "0 0 auto",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                p: 3,
+                borderRight: { md: "1px solid" },
+                borderBottom: { xs: "1px solid", md: "none" },
+                borderColor: "divider",
+                minWidth: { md: 280 },
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, textAlign: "center" }}>
+                {t("pricing.paymentQRInstruction")}
+              </Typography>
+
+              {paymentModal.qrUrl && (
+                <Box
+                  component="img"
+                  src={paymentModal.qrUrl}
+                  alt="VietQR Payment Code"
+                  sx={{ width: 220, height: "auto", borderRadius: 2, border: "1px solid", borderColor: "divider", mb: 2 }}
+                />
+              )}
+
+              {/* Countdown timer */}
+              <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1 }}>
+                <TimerIcon sx={{ fontSize: 18, color: timeLeft <= 60 ? "error.main" : "warning.main" }} />
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 800,
+                    fontVariantNumeric: "tabular-nums",
+                    color: timeLeft <= 60 ? "error.main" : "warning.main",
+                  }}
+                >
+                  {formatTime(timeLeft)}
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.disabled">
+                Giao dịch tự động huỷ sau thời gian trên
+              </Typography>
+
+              {/* Waiting indicator */}
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 2, color: "text.secondary" }}>
+                <CircularProgress size={14} color="inherit" />
+                <Typography variant="caption">{t("pricing.waitingForPayment")}</Typography>
+              </Stack>
             </Box>
-          )}
 
-          {/* Amount */}
-          <Typography variant="h5" sx={{ fontWeight: 800, mb: 2.5, color: "primary.main" }}>
-            {t("pricing.paymentAmount")}: {paymentModal.amount.toLocaleString("vi-VN")} ₫
-          </Typography>
+            {/* ── Right / Bottom: manual transfer details ── */}
+            <Box sx={{ flex: 1, p: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
+                Thông tin chuyển khoản
+              </Typography>
 
-          {/* Waiting indicator */}
-          <Stack direction="row" alignItems="center" justifyContent="center" spacing={1.5} sx={{ color: "text.secondary" }}>
-            <CircularProgress size={16} color="inherit" />
-            <Typography variant="body2">{t("pricing.waitingForPayment")}</Typography>
-          </Stack>
+              {/* Helper component for each row */}
+              {(
+                [
+                  { label: "Ngân hàng", value: paymentModal.bankName, copy: false },
+                  { label: "Chủ tài khoản", value: paymentModal.accountName, copy: false },
+                  { label: "Số tài khoản", value: paymentModal.bankAcc, copy: true },
+                  { label: "Số tiền", value: `${paymentModal.amount.toLocaleString("vi-VN")} ₫`, copy: true, copyRaw: String(paymentModal.amount) },
+                  { label: "Nội dung CK", value: paymentModal.description, copy: true, highlight: true },
+                ] as { label: string; value: string; copy: boolean; copyRaw?: string; highlight?: boolean }[]
+              ).map(({ label, value, copy, copyRaw, highlight }) => (
+                <Box
+                  key={label}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    py: 1.2,
+                    px: 1.5,
+                    mb: 0.75,
+                    borderRadius: 2,
+                    border: "1px solid",
+                    borderColor: highlight ? "warning.main" : "divider",
+                    backgroundColor: highlight ? (theme) => alpha(theme.palette.warning.main, 0.07) : "transparent",
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" color="text.disabled" sx={{ display: "block", lineHeight: 1.2 }}>
+                      {label}
+                      {highlight && (
+                        <Typography component="span" variant="caption" sx={{ color: "warning.dark", fontWeight: 700, ml: 0.5 }}>
+                          (bắt buộc)
+                        </Typography>
+                      )}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: highlight ? 800 : 600, color: highlight ? "warning.dark" : "text.primary", wordBreak: "break-all" }}
+                    >
+                      {value}
+                    </Typography>
+                  </Box>
+                  {copy && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleCopy(copyRaw ?? value)}
+                      sx={{ ml: 1, color: "primary.main", flexShrink: 0 }}
+                    >
+                      <CopyIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
+
+              <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: "block" }}>
+                * Vui lòng chuyển đúng <strong>nội dung chuyển khoản</strong> để hệ thống tự động xác nhận.
+              </Typography>
+            </Box>
+          </Box>
         </DialogContent>
       </Dialog>
 

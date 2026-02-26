@@ -100,6 +100,7 @@ export const env = {
   sepay: {
     bankAcc:      getOptionalEnvVar("SEPAY_BANK_ACC",      ""),
     bankName:     getOptionalEnvVar("SEPAY_BANK_NAME",     ""),
+    accountName:  getOptionalEnvVar("SEPAY_ACCOUNT_NAME",  "CHỦ TÀI KHOẢN"),
     webhookToken: getOptionalEnvVar("SEPAY_WEBHOOK_TOKEN", ""),
   },
 } as const;

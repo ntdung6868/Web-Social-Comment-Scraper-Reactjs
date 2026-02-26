@@ -6,6 +6,9 @@ export interface CreatePaymentLinkResponse {
   qrUrl: string;
   amount: number;
   description: string;
+  bankName: string;
+  bankAcc: string;
+  accountName: string;
 }
 
 export const paymentService = {

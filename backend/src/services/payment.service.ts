@@ -49,6 +49,9 @@ export class PaymentService {
     qrUrl: string;
     amount: number;
     description: string;
+    bankName: string;
+    bankAcc: string;
+    accountName: string;
   }> {
     if (!env.sepay.bankAcc || !env.sepay.bankName) {
       throw createError.serviceUnavailable(
@@ -82,7 +85,15 @@ export class PaymentService {
       checkoutUrl: qrUrl,
     });
 
-    return { orderCode, qrUrl, amount: amountVND, description };
+    return {
+      orderCode,
+      qrUrl,
+      amount: amountVND,
+      description,
+      bankName: env.sepay.bankName,
+      bankAcc: env.sepay.bankAcc,
+      accountName: env.sepay.accountName,
+    };
   }
 
   /**
