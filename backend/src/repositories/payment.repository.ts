@@ -12,6 +12,7 @@ interface CreateOrderData {
   planType: string;
   amount: number;
   description: string;
+  checkoutUrl?: string;
 }
 
 export class PaymentRepository {
@@ -24,6 +25,7 @@ export class PaymentRepository {
         amount: data.amount,
         description: data.description,
         status: "PENDING",
+        ...(data.checkoutUrl ? { checkoutUrl: data.checkoutUrl } : {}),
       },
     });
   }

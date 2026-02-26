@@ -3,8 +3,7 @@ import type { ApiResponse, Order } from "@/types";
 
 export interface CreatePaymentLinkResponse {
   orderCode: number;
-  checkoutUrl: string;
-  qrCode: string;
+  qrUrl: string;
   amount: number;
   description: string;
 }

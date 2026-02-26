@@ -6,12 +6,13 @@ import type { Request, Response } from "express";
 import { paymentService } from "../services/payment.service.js";
 import { asyncHandler } from "../middlewares/error.middleware.js";
 import { sendSuccess, sendCreated } from "../utils/response.js";
+import { env } from "../config/env.js";
 import type { CreatePaymentLinkInput } from "../validators/payment.validators.js";
 
 export const paymentController = {
   /**
    * POST /api/v1/payments/create-link
-   * Creates a PayOS checkout link for the chosen plan.
+   * Generates a SePay VietQR URL for the chosen plan.
    * Requires authentication.
    */
   createLink: asyncHandler(async (req: Request, res: Response): Promise<void> => {
@@ -23,17 +24,22 @@ export const paymentController = {
     const { planType } = req.body as CreatePaymentLinkInput;
     const result = await paymentService.createPaymentLink(req.user.userId, planType);
 
-    sendCreated(res, result, "Payment link created");
+    sendCreated(res, result, "Payment QR generated");
   }),
 
   /**
-   * POST /api/v1/payments/webhook
-   * PayOS webhook — no authentication (PayOS calls this externally).
-   * Verifies checksum internally via SDK.
+   * POST /api/v1/payments/sepay-webhook
+   * SePay sends transfer notifications here — no user auth.
+   * Security: verified via `Authorization: Apikey TOKEN` header.
    */
   webhook: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const result = await paymentService.handleWebhook(req.body);
-    res.json(result);
+    if (req.headers.authorization !== `Apikey ${env.sepay.webhookToken}`) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    await paymentService.handleWebhook(req.body);
+    res.status(200).json({ success: true });
   }),
 
   /**

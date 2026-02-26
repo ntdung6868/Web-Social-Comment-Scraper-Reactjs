@@ -13,7 +13,7 @@ const router = Router();
 
 /**
  * POST /api/v1/payments/create-link
- * Create a PayOS checkout link for the selected plan.
+ * Generate a SePay VietQR URL for the selected plan.
  */
 router.post(
   "/create-link",
@@ -24,11 +24,11 @@ router.post(
 );
 
 /**
- * POST /api/v1/payments/webhook
- * PayOS sends payment status updates here.
- * No auth — signature is verified via checksum key inside the handler.
+ * POST /api/v1/payments/sepay-webhook
+ * SePay sends transfer notifications here.
+ * No user auth — verified via Authorization: Apikey header inside the handler.
  */
-router.post("/webhook", paymentController.webhook);
+router.post("/sepay-webhook", paymentController.webhook);
 
 /**
  * GET /api/v1/payments/order/:orderCode

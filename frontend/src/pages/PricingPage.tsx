@@ -33,7 +33,6 @@ import {
   SupportAgent as SupportIcon,
   ArrowDownward as DowngradeIcon,
   Warning as WarningIcon,
-  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
@@ -661,11 +660,10 @@ export default function PricingPage() {
   const [paymentModal, setPaymentModal] = useState<{
     open: boolean;
     planId: PlanType | null;
-    checkoutUrl: string;
-    qrCode: string;
+    qrUrl: string;
     amount: number;
     orderCode: number;
-  }>({ open: false, planId: null, checkoutUrl: "", qrCode: "", amount: 0, orderCode: 0 });
+  }>({ open: false, planId: null, qrUrl: "", amount: 0, orderCode: 0 });
   const [paymentSuccess, setPaymentSuccess] = useState<{
     open: boolean;
     planType: string;
@@ -740,8 +738,8 @@ export default function PricingPage() {
     setPaymentLoading(true);
     try {
       const res = await paymentService.createPaymentLink(planId as "PERSONAL" | "PREMIUM");
-      const { checkoutUrl, qrCode, amount, orderCode } = res.data!;
-      setPaymentModal({ open: true, planId, checkoutUrl, qrCode, amount, orderCode });
+      const { qrUrl, amount, orderCode } = res.data!;
+      setPaymentModal({ open: true, planId, qrUrl, amount, orderCode });
     } catch {
       setResultSnackbar({ open: true, message: t("pricing.paymentLinkError"), severity: "error" });
     } finally {
@@ -933,14 +931,14 @@ export default function PricingPage() {
             {t("pricing.paymentQRInstruction")}
           </Typography>
 
-          {/* QR Code */}
-          {paymentModal.qrCode && (
+          {/* VietQR image from SePay */}
+          {paymentModal.qrUrl && (
             <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
               <Box
                 component="img"
-                src={paymentModal.qrCode}
+                src={paymentModal.qrUrl}
                 alt="VietQR Payment Code"
-                sx={{ width: 240, height: 240, borderRadius: 2, border: "1px solid", borderColor: "divider" }}
+                sx={{ width: 260, height: "auto", borderRadius: 2, border: "1px solid", borderColor: "divider" }}
               />
             </Box>
           )}
@@ -949,29 +947,6 @@ export default function PricingPage() {
           <Typography variant="h5" sx={{ fontWeight: 800, mb: 2.5, color: "primary.main" }}>
             {t("pricing.paymentAmount")}: {paymentModal.amount.toLocaleString("vi-VN")} ₫
           </Typography>
-
-          {/* Open Payment Page */}
-          <Button
-            variant="contained"
-            fullWidth
-            size="large"
-            endIcon={<OpenInNewIcon />}
-            component="a"
-            href={paymentModal.checkoutUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{
-              mb: 2.5,
-              borderRadius: 2,
-              fontWeight: 700,
-              textTransform: "none",
-              fontSize: "1rem",
-              background: "linear-gradient(135deg, #7c4dff 0%, #536dfe 100%)",
-              "&:hover": { background: "linear-gradient(135deg, #651fff 0%, #304ffe 100%)" },
-            }}
-          >
-            {t("pricing.openPaymentPage")}
-          </Button>
 
           {/* Waiting indicator */}
           <Stack direction="row" alignItems="center" justifyContent="center" spacing={1.5} sx={{ color: "text.secondary" }}>

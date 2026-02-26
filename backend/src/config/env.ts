@@ -96,16 +96,11 @@ export const env = {
     passwordChangeCooldownDays: getIntEnvVar("PASSWORD_CHANGE_COOLDOWN_DAYS", 7),
   },
 
-  // PayOS Payment Gateway
-  payos: {
-    clientId:    getOptionalEnvVar("PAYOS_CLIENT_ID",    ""),
-    apiKey:      getOptionalEnvVar("PAYOS_API_KEY",      ""),
-    checksumKey: getOptionalEnvVar("PAYOS_CHECKSUM_KEY", ""),
-  },
-
-  // Frontend URL (used for PayOS return/cancel URLs)
-  frontend: {
-    url: getOptionalEnvVar("FRONTEND_URL", "http://localhost:5173"),
+  // SePay Payment Gateway (VietQR webhook-based)
+  sepay: {
+    bankAcc:      getOptionalEnvVar("SEPAY_BANK_ACC",      ""),
+    bankName:     getOptionalEnvVar("SEPAY_BANK_NAME",     ""),
+    webhookToken: getOptionalEnvVar("SEPAY_WEBHOOK_TOKEN", ""),
   },
 } as const;
 

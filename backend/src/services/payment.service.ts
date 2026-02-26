@@ -1,11 +1,9 @@
 // ===========================================
-// Payment Service
+// Payment Service (SePay VietQR)
 // ===========================================
-// PayOS VietQR integration — create checkout links, handle webhooks,
-// and auto-upgrade user plans on successful payment.
+// Generates SePay VietQR codes for payment and processes incoming webhooks
+// to automatically upgrade user subscription plans on confirmed transfers.
 
-import { PayOS } from "@payos/node";
-import type { Webhook } from "@payos/node";
 import { prisma } from "../config/database.js";
 import { env } from "../config/env.js";
 import { createError } from "../middlewares/error.middleware.js";
@@ -21,13 +19,6 @@ const PLAN_DURATIONS: Record<string, number> = {
   PERSONAL: 3,
   PREMIUM: 30,
 };
-
-// ===========================================
-// PayOS SDK Factory
-// ===========================================
-function getPayOSClient(): PayOS {
-  return new PayOS({ clientId: env.payos.clientId, apiKey: env.payos.apiKey, checksumKey: env.payos.checksumKey });
-}
 
 // ===========================================
 // Payment Service Class
@@ -48,19 +39,18 @@ export class PaymentService {
 
   /**
    * POST /payments/create-link
-   * Creates a PayOS checkout link for the chosen plan.
+   * Generates a SePay VietQR image URL for the chosen plan.
    */
   async createPaymentLink(
     userId: string,
     planType: "PERSONAL" | "PREMIUM",
   ): Promise<{
     orderCode: number;
-    checkoutUrl: string;
-    qrCode: string;
+    qrUrl: string;
     amount: number;
     description: string;
   }> {
-    if (!env.payos.clientId || !env.payos.apiKey || !env.payos.checksumKey) {
+    if (!env.sepay.bankAcc || !env.sepay.bankName) {
       throw createError.serviceUnavailable(
         "Payment gateway is not configured. Please contact the administrator.",
       );
@@ -74,84 +64,62 @@ export class PaymentService {
     }
     const amountVND = Math.round(usdPrice * USD_TO_VND);
 
-    // Generate unique orderCode
+    // Generate unique orderCode; build VIP reference string used in bank transfer description
     const orderCode = await this.generateUniqueOrderCode();
-    const description = `${planType} Plan`;
+    const description = `VIP${orderCode}`;
 
-    // Create PENDING order in DB
-    await paymentRepository.createOrder({ orderCode, userId, planType, amount: amountVND, description });
+    // Construct SePay QR image URL — returned directly to frontend as <img src>
+    const qrUrl = `https://qr.sepay.vn/img?acc=${env.sepay.bankAcc}&bank=${env.sepay.bankName}&amount=${amountVND}&des=${description}`;
 
-    // Build PayOS payload
-    const returnUrl = `${env.frontend.url}/pricing?orderCode=${orderCode}`;
-    const cancelUrl = `${env.frontend.url}/pricing`;
-
-    const payos = getPayOSClient();
-    let payosResponse: Awaited<ReturnType<typeof payos.paymentRequests.create>>;
-
-    try {
-      payosResponse = await payos.paymentRequests.create({
-        orderCode,
-        amount: amountVND,
-        description,
-        items: [{ name: `${planType} Plan`, quantity: 1, price: amountVND }],
-        returnUrl,
-        cancelUrl,
-      });
-    } catch (err) {
-      console.error("[Payment] PayOS createPaymentLink error:", err);
-      throw createError.internal("Failed to create payment link. Please try again.");
-    }
-
-    // Persist checkoutUrl for later reference
-    await paymentRepository.updateOrder(orderCode, { checkoutUrl: payosResponse.checkoutUrl });
-
-    return {
+    // Create PENDING order in DB (checkoutUrl reused to store QR URL for reference)
+    await paymentRepository.createOrder({
       orderCode,
-      checkoutUrl: payosResponse.checkoutUrl,
-      qrCode: payosResponse.qrCode,
+      userId,
+      planType,
       amount: amountVND,
       description,
-    };
+      checkoutUrl: qrUrl,
+    });
+
+    return { orderCode, qrUrl, amount: amountVND, description };
   }
 
   /**
-   * POST /payments/webhook
-   * Verifies PayOS signature, marks order PAID, upgrades user plan.
+   * POST /payments/sepay-webhook
+   * Receives SePay transfer notifications and upgrades the user plan.
+   * Auth is verified by the controller via `Authorization: Apikey TOKEN` header.
    * Idempotent — safe to call multiple times for the same order.
    */
   async handleWebhook(body: unknown): Promise<{ success: boolean }> {
-    const payos = getPayOSClient();
+    const { amountIn, transactionContent } = body as {
+      amountIn: number | string;
+      transactionContent: string;
+    };
 
-    let webhookData: Awaited<ReturnType<typeof payos.webhooks.verify>>;
-    try {
-      webhookData = await payos.webhooks.verify(body as Webhook);
-    } catch (err) {
-      console.error("[Payment] Webhook signature verification failed:", err);
-      throw createError.badRequest("Invalid webhook signature", "INVALID_WEBHOOK_SIGNATURE");
-    }
+    if (!transactionContent) return { success: true };
 
-    // PayOS sends test webhooks with code "00" but orderCode 0 — skip those
-    if (!webhookData.orderCode) {
-      return { success: true };
-    }
+    // Extract VIP order code from the bank transfer description (e.g. "VIP123456")
+    const match = String(transactionContent).match(/VIP(\d+)/i);
+    if (!match) return { success: true };
 
-    // code "00" on the outer body = PAID; non-"00" outer code = cancel/timeout
-    const outerCode = (body as Webhook).code;
-    if (outerCode !== "00") {
-      console.log(`[Payment] Webhook non-payment event: code=${outerCode}, order=${webhookData.orderCode}`);
-      return { success: true };
-    }
-
-    const orderCode = Number(webhookData.orderCode);
+    const orderCode = Number(match[1]);
     const order = await paymentRepository.findByOrderCode(orderCode);
 
     if (!order) {
       console.warn(`[Payment] Webhook: order ${orderCode} not found in DB`);
-      return { success: true }; // Don't error — PayOS may retry
+      return { success: true };
     }
 
     if (order.status === "PAID") {
       console.log(`[Payment] Webhook: order ${orderCode} already processed (idempotent)`);
+      return { success: true };
+    }
+
+    // Verify transferred amount is sufficient
+    if (Number(amountIn) < order.amount) {
+      console.warn(
+        `[Payment] Webhook: insufficient amount for order ${orderCode}. Expected ${order.amount}, got ${amountIn}`,
+      );
       return { success: true };
     }
 
