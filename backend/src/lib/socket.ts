@@ -19,6 +19,7 @@ import type {
   ScrapeFailedEvent,
   QueuePositionEvent,
   SystemNotificationEvent,
+  PaymentSuccessEvent,
 } from "../types/socket.types.js";
 
 // ===========================================
@@ -269,6 +270,15 @@ export function emitUserNotification(userId: string, event: SystemNotificationEv
   if (!io) return;
 
   io.to(`user:${userId}`).emit("system:notification", event);
+}
+
+/**
+ * Emit payment success event to a specific user
+ */
+export function emitPaymentSuccess(userId: string, event: PaymentSuccessEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("payment:success", event);
+  console.log(`[Socket] Emitted payment:success for user ${userId}, plan ${event.planType}`);
 }
 
 /**

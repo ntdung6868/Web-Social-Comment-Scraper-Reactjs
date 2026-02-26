@@ -174,6 +174,25 @@ export interface QueuePositionEvent {
   estimatedWait: number;
 }
 
+export interface PaymentSuccessEvent {
+  orderCode: number;
+  planType: string;
+  planExpiresAt: string; // ISO string
+}
+
+export interface Order {
+  id: string;
+  orderCode: number;
+  userId: string;
+  planType: PlanType;
+  amount: number;
+  description: string;
+  status: "PENDING" | "PAID" | "CANCELLED";
+  checkoutUrl: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
 // ===========================================
 // Dashboard Stats Types
 // ===========================================

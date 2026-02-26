@@ -461,7 +461,17 @@
     "downgradingButton": "Đang hạ cấp...",
     "adminEmail": "ntdungdev73@gmail.com",
     "adminPhone": "0373 527 362",
-    "switchPlanAlert": "Vui lòng liên hệ với quản trị viên để chuyển sang gói {{plan}}"
+    "switchPlanAlert": "Vui lòng liên hệ với quản trị viên để chuyển sang gói {{plan}}",
+    "paymentModalTitle": "Hoàn tất thanh toán",
+    "paymentQRInstruction": "Quét mã QR bằng ứng dụng ngân hàng hoặc nhấn nút bên dưới",
+    "paymentAmount": "Số tiền",
+    "openPaymentPage": "Mở trang thanh toán",
+    "waitingForPayment": "Đang chờ xác nhận thanh toán...",
+    "paymentSuccessTitle": "Thanh toán thành công!",
+    "paymentSuccessMessage": "Gói {{plan}} của bạn đang hoạt động đến {{date}}",
+    "paymentSuccessMessageNoDate": "Gói {{plan}} của bạn đã được kích hoạt.",
+    "paymentLinkError": "Không thể tạo liên kết thanh toán. Vui lòng thử lại.",
+    "paymentPollFailed": "Đã xác nhận thanh toán. Đang làm mới trạng thái gói..."
   },
   "guide": {
     "title": "Hướng dẫn người dùng",

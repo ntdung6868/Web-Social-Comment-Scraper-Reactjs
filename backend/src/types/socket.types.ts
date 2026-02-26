@@ -28,6 +28,9 @@ export interface ServerToClientEvents {
   // Queue events
   "queue:position": (data: QueuePositionEvent) => void;
 
+  // Payment events
+  "payment:success": (data: PaymentSuccessEvent) => void;
+
   // System events
   "system:notification": (data: SystemNotificationEvent) => void;
   "system:maintenance": (data: MaintenanceEvent) => void;
@@ -116,4 +119,10 @@ export interface MaintenanceEvent {
   startTime: Date;
   duration: number; // minutes
   message: string;
+}
+
+export interface PaymentSuccessEvent {
+  orderCode: number;
+  planType: string;
+  planExpiresAt: string; // ISO string
 }

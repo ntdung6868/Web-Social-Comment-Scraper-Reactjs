@@ -74,6 +74,20 @@ export const sensitiveOpLimiter = rateLimit({
 });
 
 /**
+ * Payment rate limiter — 10 payment link creations per hour per user
+ */
+export const paymentLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.userId.toString() ?? req.ip ?? "unknown",
+  handler: (req, res) => {
+    sendTooManyRequests(res, "Too many payment attempts, please try again in 1 hour");
+  },
+});
+
+/**
  * Scraping rate limiter
  * 20 scrapes per hour per user
  */

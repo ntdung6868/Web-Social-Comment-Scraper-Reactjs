@@ -6,6 +6,7 @@ import type {
   ScrapeCompletedEvent,
   ScrapeFailedEvent,
   QueuePositionEvent,
+  PaymentSuccessEvent,
 } from "@/types";
 
 interface UseSocketOptions {
@@ -14,6 +15,7 @@ interface UseSocketOptions {
   onCompleted?: (data: ScrapeCompletedEvent) => void;
   onFailed?: (data: ScrapeFailedEvent) => void;
   onQueuePosition?: (data: QueuePositionEvent) => void;
+  onPaymentSuccess?: (data: PaymentSuccessEvent) => void;
 }
 
 // ── Dedup cache ──────────────────────────────────
@@ -165,11 +167,16 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
       }
     };
 
+    const handlePaymentSuccess = (data: PaymentSuccessEvent) => {
+      optionsRef.current?.onPaymentSuccess?.(data);
+    };
+
     socket.on("scrape:started", handleStarted);
     socket.on("scrape:progress", handleProgress);
     socket.on("scrape:completed", handleCompleted);
     socket.on("scrape:failed", handleFailed);
     socket.on("queue:position", handleQueuePosition);
+    socket.on("payment:success", handlePaymentSuccess);
 
     return () => {
       socket.off("scrape:started", handleStarted);
@@ -177,6 +184,7 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
       socket.off("scrape:completed", handleCompleted);
       socket.off("scrape:failed", handleFailed);
       socket.off("queue:position", handleQueuePosition);
+      socket.off("payment:success", handlePaymentSuccess);
     };
   }, [historyId, socketReady]);
 }

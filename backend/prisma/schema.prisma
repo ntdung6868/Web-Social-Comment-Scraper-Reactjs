@@ -71,8 +71,32 @@ model User {
   // Relations
   scrapeHistories ScrapeHistory[]
   refreshTokens   RefreshToken[]
+  orders          Order[]
 
   @@map("users")
+}
+
+// ===========================================
+// Order Model (PayOS payments)
+// ===========================================
+model Order {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  orderCode   Int       @unique @map("order_code")
+  userId      String    @map("user_id") @db.ObjectId
+  planType    String    @map("plan_type")
+  amount      Int
+  description String
+  status      String    @default("PENDING")
+  checkoutUrl String?   @map("checkout_url")
+  paidAt      DateTime? @map("paid_at")
+  cancelledAt DateTime? @map("cancelled_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("orders")
 }
 
 // ===========================================

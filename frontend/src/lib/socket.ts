@@ -5,6 +5,7 @@ import type {
   ScrapeCompletedEvent,
   ScrapeFailedEvent,
   QueuePositionEvent,
+  PaymentSuccessEvent,
 } from "@/types";
 
 // ===========================================
@@ -19,6 +20,7 @@ interface ServerToClientEvents {
   "queue:position": (data: QueuePositionEvent) => void;
   "system:notification": (data: { type: string; title: string; message: string; timestamp: string }) => void;
   "system:maintenance": (data: { enabled: boolean; message?: string }) => void;
+  "payment:success": (data: PaymentSuccessEvent) => void;
 }
 
 interface ClientToServerEvents {

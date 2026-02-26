@@ -12,7 +12,7 @@ import { env, corsMiddleware } from "./config/index.js";
 import { errorHandler, notFoundHandler, apiLimiter, maintenanceGuard } from "./middlewares/index.js";
 
 // Import routes
-import { authRoutes, userRoutes, scraperRoutes, adminRoutes } from "./routes/index.js";
+import { authRoutes, userRoutes, scraperRoutes, adminRoutes, paymentRoutes } from "./routes/index.js";
 
 /**
  * Create and configure Express application
@@ -145,6 +145,7 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/users`, userRoutes);
   app.use(`${apiPrefix}/scraper`, scraperRoutes);
   app.use(`${apiPrefix}/admin`, adminRoutes);
+  app.use(`${apiPrefix}/payments`, paymentRoutes);
 
   // ===========================================
   // Error Handling

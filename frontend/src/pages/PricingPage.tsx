@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,7 +14,6 @@ import {
   Grid,
   Stack,
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   IconButton,
@@ -33,11 +33,14 @@ import {
   SupportAgent as SupportIcon,
   ArrowDownward as DowngradeIcon,
   Warning as WarningIcon,
+  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 import { userService } from "@/services/user.service";
 import { apiRequest } from "@/services/api";
-import type { PlanType } from "@/types";
+import { paymentService } from "@/services/payment.service";
+import { useSocket } from "@/hooks/useSocket";
+import type { PlanType, PaymentSuccessEvent } from "@/types";
 
 const PLAN_RANK: Record<PlanType, number> = { FREE: 0, PERSONAL: 1, PREMIUM: 2 };
 
@@ -196,6 +199,7 @@ function PricingCard({
   isCurrentPlan,
   isLowerPlan,
   isExpired,
+  paymentLoading,
   onBuyClick,
   onDowngradeClick,
   t,
@@ -204,7 +208,8 @@ function PricingCard({
   isCurrentPlan: boolean;
   isLowerPlan: boolean;
   isExpired: boolean;
-  onBuyClick: (planName: string) => void;
+  paymentLoading: boolean;
+  onBuyClick: (planId: PlanType) => void;
   onDowngradeClick: (planId: PlanType) => void;
   t: ReturnType<typeof useTranslation>["t"];
 }) {
@@ -412,7 +417,9 @@ function PricingCard({
               fullWidth
               variant="contained"
               size="large"
-              onClick={() => onBuyClick(plan.name)}
+              disabled={paymentLoading}
+              startIcon={paymentLoading ? <CircularProgress size={18} color="inherit" /> : undefined}
+              onClick={() => onBuyClick(plan.id)}
               sx={{
                 py: 1.5,
                 borderRadius: 2,
@@ -433,7 +440,7 @@ function PricingCard({
               variant="text"
               size="large"
               startIcon={<DowngradeIcon />}
-              onClick={() => (plan.id === "FREE" || !isExpired ? onDowngradeClick(plan.id) : onBuyClick(plan.name))}
+              onClick={() => (plan.id === "FREE" || !isExpired ? onDowngradeClick(plan.id) : onBuyClick(plan.id))}
               sx={{
                 py: 1.5,
                 borderRadius: 2,
@@ -456,8 +463,10 @@ function PricingCard({
               fullWidth
               variant={isHighlighted ? "contained" : plan.name === t("pricing.personalPlan") ? "outlined" : "text"}
               size="large"
-              endIcon={<ArrowForwardIcon />}
-              onClick={() => onBuyClick(plan.name)}
+              disabled={paymentLoading}
+              startIcon={paymentLoading ? <CircularProgress size={18} color="inherit" /> : undefined}
+              endIcon={paymentLoading ? undefined : <ArrowForwardIcon />}
+              onClick={() => onBuyClick(plan.id)}
               sx={{
                 py: 1.5,
                 borderRadius: 2,
@@ -636,15 +645,33 @@ function AdminContactModal({
 export default function PricingPage() {
   const { t } = useTranslation();
   const { user, refreshUser } = useAuthStore();
+  const { search } = useLocation();
+
   const [contactOpen, setContactOpen] = useState(false);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; plan: string }>({ open: false, plan: "" });
   const [downgradeTarget, setDowngradeTarget] = useState<PlanType | null>(null);
   const [downgrading, setDowngrading] = useState(false);
   const [resultSnackbar, setResultSnackbar] = useState<{
     open: boolean;
     message: string;
-    severity: "success" | "error";
+    severity: "success" | "error" | "info";
   }>({ open: false, message: "", severity: "success" });
+
+  // Payment state
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentModal, setPaymentModal] = useState<{
+    open: boolean;
+    planId: PlanType | null;
+    checkoutUrl: string;
+    qrCode: string;
+    amount: number;
+    orderCode: number;
+  }>({ open: false, planId: null, checkoutUrl: "", qrCode: "", amount: 0, orderCode: 0 });
+  const [paymentSuccess, setPaymentSuccess] = useState<{
+    open: boolean;
+    planType: string;
+    expiresAt: string;
+  }>({ open: false, planType: "", expiresAt: "" });
+
   const currentPlan = user?.planType ?? "FREE";
   const isExpired =
     user?.planStatus === "EXPIRED" || (user?.subscriptionEnd != null && new Date(user.subscriptionEnd) < new Date());
@@ -658,8 +685,68 @@ export default function PricingPage() {
 
   const plans = buildPlans(pricingData?.data, t);
 
-  const handleBuyClick = (planName: string) => {
-    setSnackbar({ open: true, plan: planName });
+  // Socket: listen for payment:success (real-time upgrade after webhook)
+  useSocket(undefined, {
+    onPaymentSuccess: (data: PaymentSuccessEvent) => {
+      setPaymentModal((prev) => ({ ...prev, open: false }));
+      setPaymentSuccess({ open: true, planType: data.planType, expiresAt: data.planExpiresAt });
+      void refreshUser();
+    },
+  });
+
+  // Return URL polling: when PayOS redirects back with ?orderCode=X, poll for PAID status
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const rawCode = params.get("orderCode");
+    if (!rawCode) return;
+
+    const orderCode = Number(rawCode);
+    if (!orderCode) return;
+
+    let attempts = 0;
+    const timer = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await paymentService.getOrderStatus(orderCode);
+        if (res.data?.status === "PAID") {
+          clearInterval(timer);
+          await refreshUser();
+          setPaymentSuccess({
+            open: true,
+            planType: res.data.planType,
+            expiresAt: "",
+          });
+        }
+      } catch {
+        // ignore transient errors
+      }
+      if (attempts >= 5) {
+        clearInterval(timer);
+        setResultSnackbar({
+          open: true,
+          message: t("pricing.paymentPollFailed"),
+          severity: "info",
+        });
+        void refreshUser();
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handleBuyClick = async (planId: PlanType) => {
+    if (planId === "FREE") return;
+    setPaymentLoading(true);
+    try {
+      const res = await paymentService.createPaymentLink(planId as "PERSONAL" | "PREMIUM");
+      const { checkoutUrl, qrCode, amount, orderCode } = res.data!;
+      setPaymentModal({ open: true, planId, checkoutUrl, qrCode, amount, orderCode });
+    } catch {
+      setResultSnackbar({ open: true, message: t("pricing.paymentLinkError"), severity: "error" });
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const handleDowngradeClick = (planId: PlanType) => {
@@ -719,6 +806,7 @@ export default function PricingPage() {
               isCurrentPlan={plan.id === currentPlan}
               isLowerPlan={PLAN_RANK[plan.id] < PLAN_RANK[currentPlan]}
               isExpired={isExpired}
+              paymentLoading={paymentLoading}
               onBuyClick={handleBuyClick}
               onDowngradeClick={handleDowngradeClick}
               t={t}
@@ -762,17 +850,23 @@ export default function PricingPage() {
         fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle
+        <Box
           sx={{
             display: "flex",
             alignItems: "center",
             gap: 1,
             fontWeight: 700,
             color: "warning.main",
+            px: 3,
+            pt: 3,
+            pb: 1,
           }}
         >
-          <WarningIcon /> {t("pricing.confirmDowngrade")}
-        </DialogTitle>
+          <WarningIcon />
+          <Typography variant="h6" sx={{ fontWeight: 700, color: "warning.main" }}>
+            {t("pricing.confirmDowngrade")}
+          </Typography>
+        </Box>
         <DialogContent>
           <Typography variant="body1" sx={{ mb: 1 }}>
             {t("pricing.downgradeMessage1")}{" "}
@@ -804,22 +898,138 @@ export default function PricingPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Buy Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={5000}
-        onClose={() => setSnackbar({ open: false, plan: "" })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      {/* Payment Modal */}
+      <Dialog
+        open={paymentModal.open}
+        onClose={() => setPaymentModal((prev) => ({ ...prev, open: false }))}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 4, overflow: "hidden" } }}
       >
-        <Alert
-          onClose={() => setSnackbar({ open: false, plan: "" })}
-          severity="info"
-          variant="filled"
-          sx={{ width: "100%", fontWeight: 600 }}
+        {/* Header */}
+        <Box
+          sx={{
+            background: "linear-gradient(135deg, #5c6bc0 0%, #7c4dff 100%)",
+            px: 3,
+            py: 2.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
         >
-          {t("pricing.switchPlanAlert", { plan: snackbar.plan })}
-        </Alert>
-      </Snackbar>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: "#fff" }}>
+            {t("pricing.paymentModalTitle")}
+          </Typography>
+          <IconButton
+            onClick={() => setPaymentModal((prev) => ({ ...prev, open: false }))}
+            sx={{ color: alpha("#fff", 0.8), "&:hover": { color: "#fff" } }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        <DialogContent sx={{ p: 3, textAlign: "center" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t("pricing.paymentQRInstruction")}
+          </Typography>
+
+          {/* QR Code */}
+          {paymentModal.qrCode && (
+            <Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
+              <Box
+                component="img"
+                src={paymentModal.qrCode}
+                alt="VietQR Payment Code"
+                sx={{ width: 240, height: 240, borderRadius: 2, border: "1px solid", borderColor: "divider" }}
+              />
+            </Box>
+          )}
+
+          {/* Amount */}
+          <Typography variant="h5" sx={{ fontWeight: 800, mb: 2.5, color: "primary.main" }}>
+            {t("pricing.paymentAmount")}: {paymentModal.amount.toLocaleString("vi-VN")} ₫
+          </Typography>
+
+          {/* Open Payment Page */}
+          <Button
+            variant="contained"
+            fullWidth
+            size="large"
+            endIcon={<OpenInNewIcon />}
+            component="a"
+            href={paymentModal.checkoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{
+              mb: 2.5,
+              borderRadius: 2,
+              fontWeight: 700,
+              textTransform: "none",
+              fontSize: "1rem",
+              background: "linear-gradient(135deg, #7c4dff 0%, #536dfe 100%)",
+              "&:hover": { background: "linear-gradient(135deg, #651fff 0%, #304ffe 100%)" },
+            }}
+          >
+            {t("pricing.openPaymentPage")}
+          </Button>
+
+          {/* Waiting indicator */}
+          <Stack direction="row" alignItems="center" justifyContent="center" spacing={1.5} sx={{ color: "text.secondary" }}>
+            <CircularProgress size={16} color="inherit" />
+            <Typography variant="body2">{t("pricing.waitingForPayment")}</Typography>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Success Dialog */}
+      <Dialog
+        open={paymentSuccess.open}
+        onClose={() => setPaymentSuccess((prev) => ({ ...prev, open: false }))}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 4 } }}
+      >
+        <DialogContent sx={{ p: 4, textAlign: "center" }}>
+          <Avatar
+            sx={{
+              bgcolor: "success.main",
+              width: 72,
+              height: 72,
+              mx: "auto",
+              mb: 2,
+              background: "linear-gradient(135deg, #43a047 0%, #66bb6a 100%)",
+            }}
+          >
+            <CrownIcon sx={{ fontSize: 40 }} />
+          </Avatar>
+          <Typography variant="h5" sx={{ fontWeight: 800, mb: 1.5 }}>
+            {t("pricing.paymentSuccessTitle")}
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            {paymentSuccess.expiresAt
+              ? t("pricing.paymentSuccessMessage", {
+                  plan: paymentSuccess.planType,
+                  date: new Date(paymentSuccess.expiresAt).toLocaleDateString(),
+                })
+              : t("pricing.paymentSuccessMessageNoDate", { plan: paymentSuccess.planType })}
+          </Typography>
+          <Button
+            variant="contained"
+            fullWidth
+            size="large"
+            onClick={() => setPaymentSuccess((prev) => ({ ...prev, open: false }))}
+            sx={{
+              borderRadius: 2,
+              fontWeight: 700,
+              textTransform: "none",
+              background: "linear-gradient(135deg, #43a047 0%, #66bb6a 100%)",
+              "&:hover": { background: "linear-gradient(135deg, #388e3c 0%, #43a047 100%)" },
+            }}
+          >
+            {t("common.close")}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {/* Result Snackbar */}
       <Snackbar

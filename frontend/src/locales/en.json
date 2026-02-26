@@ -461,7 +461,17 @@
     "downgradingButton": "Downgrading...",
     "adminEmail": "ntdungdev73@gmail.com",
     "adminPhone": "0373 527 362",
-    "switchPlanAlert": "Please contact Admin to switch to {{plan}} plan"
+    "switchPlanAlert": "Please contact Admin to switch to {{plan}} plan",
+    "paymentModalTitle": "Complete Your Payment",
+    "paymentQRInstruction": "Scan the QR code with your banking app or click the button below",
+    "paymentAmount": "Amount",
+    "openPaymentPage": "Open Payment Page",
+    "waitingForPayment": "Waiting for payment confirmation...",
+    "paymentSuccessTitle": "Payment Successful!",
+    "paymentSuccessMessage": "Your {{plan}} plan is now active until {{date}}",
+    "paymentSuccessMessageNoDate": "Your {{plan}} plan is now active.",
+    "paymentLinkError": "Failed to create payment link. Please try again.",
+    "paymentPollFailed": "Payment verified via page. Refreshing your plan status..."
   },
   "guide": {
     "title": "User Guide",

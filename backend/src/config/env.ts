@@ -95,6 +95,18 @@ export const env = {
     bcryptSaltRounds: getIntEnvVar("BCRYPT_SALT_ROUNDS", 12),
     passwordChangeCooldownDays: getIntEnvVar("PASSWORD_CHANGE_COOLDOWN_DAYS", 7),
   },
+
+  // PayOS Payment Gateway
+  payos: {
+    clientId:    getOptionalEnvVar("PAYOS_CLIENT_ID",    ""),
+    apiKey:      getOptionalEnvVar("PAYOS_API_KEY",      ""),
+    checksumKey: getOptionalEnvVar("PAYOS_CHECKSUM_KEY", ""),
+  },
+
+  // Frontend URL (used for PayOS return/cancel URLs)
+  frontend: {
+    url: getOptionalEnvVar("FRONTEND_URL", "http://localhost:5173"),
+  },
 } as const;
 
 // Type for environment configuration
