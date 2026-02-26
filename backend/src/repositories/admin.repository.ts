@@ -361,11 +361,26 @@ export class AdminRepository {
       totalComments: number;
       avgCompletionTime: number;
     };
+    revenue: {
+      total: number;
+      monthly: number;
+      today: number;
+      recentTransactions: {
+        id: string;
+        orderCode: number;
+        amount: number;
+        planType: string;
+        paidAt: Date | null;
+        userId: string;
+        username: string;
+      }[];
+    };
   }> {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart);
     weekStart.setDate(weekStart.getDate() - 7);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [
       totalUsers,
@@ -381,6 +396,10 @@ export class AdminRepository {
       failedScrapes,
       commentsAggregate,
       completedScrapes,
+      totalRevenueAgg,
+      monthlyRevenueAgg,
+      todayRevenueAgg,
+      recentTransactions,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true, isBanned: false } }),
@@ -400,6 +419,16 @@ export class AdminRepository {
           updatedAt: { not: null },
         },
         select: { createdAt: true, updatedAt: true },
+      }),
+      // Revenue aggregates
+      prisma.order.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
+      prisma.order.aggregate({ where: { status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.order.aggregate({ where: { status: "PAID", paidAt: { gte: todayStart } }, _sum: { amount: true } }),
+      prisma.order.findMany({
+        where: { status: "PAID" },
+        orderBy: { paidAt: "desc" },
+        take: 5,
+        include: { user: { select: { username: true } } },
       }),
     ]);
 
@@ -432,6 +461,20 @@ export class AdminRepository {
         failedJobs: failedScrapes,
         totalComments: commentsAggregate._sum.totalComments ?? 0,
         avgCompletionTime,
+      },
+      revenue: {
+        total: totalRevenueAgg._sum.amount ?? 0,
+        monthly: monthlyRevenueAgg._sum.amount ?? 0,
+        today: todayRevenueAgg._sum.amount ?? 0,
+        recentTransactions: recentTransactions.map((o) => ({
+          id: o.id,
+          orderCode: o.orderCode,
+          amount: o.amount,
+          planType: o.planType,
+          paidAt: o.paidAt,
+          userId: o.userId,
+          username: o.user.username,
+        })),
       },
     };
   }

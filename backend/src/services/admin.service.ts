@@ -132,6 +132,7 @@ export class AdminService {
         memoryUsage: Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100),
         cpuUsage: Math.round((os.loadavg()[0] ?? 0) * 100) / 100,
       },
+      revenue: dbStats.revenue,
     };
   }
 

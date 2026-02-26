@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip, Stack } from "@mui/material";
+import {
+  Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip, Stack,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+} from "@mui/material";
 import { useTranslation } from "react-i18next";
 import {
   People as PeopleIcon,
@@ -17,12 +20,26 @@ import {
   Wifi as WifiIcon,
   Computer as ComputerIcon,
   Timer as TimerIcon,
+  TrendingUp as RevenueIcon,
+  CalendarToday as TodayIcon,
+  DateRange as MonthIcon,
+  Payments as TotalRevenueIcon,
 } from "@mui/icons-material";
 import { apiRequest } from "@/services/api";
 import { queryKeys } from "@/lib/query-client";
 import type { SystemHealth } from "@/types";
 
 // ── Types ────────────────────────────────────────
+interface RecentTransaction {
+  id: string;
+  orderCode: number;
+  amount: number;
+  planType: string;
+  paidAt: string | null;
+  userId: string;
+  username: string;
+}
+
 interface AdminDashboardStats {
   users: {
     total: number;
@@ -49,6 +66,12 @@ interface AdminDashboardStats {
     uptime: number;
     memoryUsage: number;
     cpuUsage: number;
+  };
+  revenue: {
+    total: number;
+    monthly: number;
+    today: number;
+    recentTransactions: RecentTransaction[];
   };
 }
 
@@ -125,6 +148,12 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
       </Typography>
     </Box>
   );
+}
+
+// ── Format Currency ──────────────────────────────
+const vndFormatter = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" });
+function formatVND(amount: number): string {
+  return vndFormatter.format(amount);
 }
 
 // ── Format Duration ──────────────────────────────
@@ -514,6 +543,92 @@ export default function AdminDashboardPage() {
           />
         </Grid>
       </Grid>
+
+      {/* ── Revenue Section ── */}
+      <SectionHeader title="Doanh thu" icon={<RevenueIcon color="primary" />} />
+      <Grid container spacing={2.5} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={4}>
+          <StatCard
+            title="Doanh thu hôm nay"
+            value={loading ? "..." : formatVND(stats?.revenue?.today ?? 0)}
+            icon={<TodayIcon sx={{ color: "#26a69a" }} />}
+            color="#26a69a"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <StatCard
+            title="Doanh thu tháng này"
+            value={loading ? "..." : formatVND(stats?.revenue?.monthly ?? 0)}
+            icon={<MonthIcon sx={{ color: "#5c6bc0" }} />}
+            color="#5c6bc0"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <StatCard
+            title="Tổng doanh thu"
+            value={loading ? "..." : formatVND(stats?.revenue?.total ?? 0)}
+            icon={<TotalRevenueIcon sx={{ color: "#ffa726" }} />}
+            color="#ffa726"
+            loading={loading}
+          />
+        </Grid>
+      </Grid>
+
+      {/* ── Recent Transactions ── */}
+      <SectionHeader title="Giao dịch gần đây" icon={<TotalRevenueIcon color="primary" />} />
+      <TableContainer component={Paper} variant="outlined" sx={{ mb: 4, borderRadius: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ "& th": { fontWeight: 700, backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.06) } }}>
+              <TableCell>Mã đơn</TableCell>
+              <TableCell>Người dùng</TableCell>
+              <TableCell>Gói</TableCell>
+              <TableCell align="right">Số tiền</TableCell>
+              <TableCell align="right">Thời gian</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 5 }).map((__, j) => (
+                    <TableCell key={j}><Skeleton /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (stats?.revenue?.recentTransactions ?? []).length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} align="center" sx={{ py: 3, color: "text.disabled" }}>
+                  Chưa có giao dịch nào
+                </TableCell>
+              </TableRow>
+            ) : (
+              (stats?.revenue?.recentTransactions ?? []).map((tx) => (
+                <TableRow key={tx.id} hover>
+                  <TableCell sx={{ fontWeight: 600, fontFamily: "monospace" }}>#{tx.orderCode}</TableCell>
+                  <TableCell>{tx.username}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={tx.planType}
+                      size="small"
+                      color={tx.planType === "PREMIUM" ? "secondary" : "primary"}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, color: "success.main" }}>
+                    {formatVND(tx.amount)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ color: "text.secondary", fontSize: "0.8rem" }}>
+                    {tx.paidAt ? new Date(tx.paidAt).toLocaleString("vi-VN") : "—"}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 }

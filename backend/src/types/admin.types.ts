@@ -39,6 +39,16 @@ export interface CpuUsage {
   loadAverage: number[];
 }
 
+export interface RecentTransaction {
+  id: string;
+  orderCode: number;
+  amount: number;       // VND
+  planType: string;
+  paidAt: Date | null;
+  userId: string;
+  username: string;
+}
+
 /**
  * Admin dashboard statistics
  */
@@ -68,6 +78,12 @@ export interface AdminDashboardStats {
     uptime: number;
     memoryUsage: number;
     cpuUsage: number;
+  };
+  revenue: {
+    total: number;
+    monthly: number;
+    today: number;
+    recentTransactions: RecentTransaction[];
   };
 }
 
