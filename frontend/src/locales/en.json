@@ -471,7 +471,14 @@
     "paymentSuccessMessage": "Your {{plan}} plan is now active until {{date}}",
     "paymentSuccessMessageNoDate": "Your {{plan}} plan is now active.",
     "paymentLinkError": "Failed to create payment link. Please try again.",
-    "paymentPollFailed": "Payment verified via page. Refreshing your plan status..."
+    "paymentPollFailed": "Payment verified via page. Refreshing your plan status...",
+    "bankTransferInfo": "Bank Transfer Information",
+    "bankNameLabel": "Bank",
+    "accountHolderLabel": "Account Holder",
+    "accountNumberLabel": "Account Number",
+    "transferAmountLabel": "Amount",
+    "transferContentLabel": "Transfer Content",
+    "transferContentRequired": "(required)"
   },
   "guide": {
     "title": "User Guide",

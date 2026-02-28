@@ -1051,17 +1051,17 @@ export default function PricingPage() {
             {/* ── Right / Bottom: manual transfer details ── */}
             <Box sx={{ flex: 1, p: 3 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-                Thông tin chuyển khoản
+                {t("pricing.bankTransferInfo")}
               </Typography>
 
               {/* Helper component for each row */}
               {(
                 [
-                  { label: "Ngân hàng", value: paymentModal.bankName, copy: false },
-                  { label: "Chủ tài khoản", value: paymentModal.accountName, copy: false },
-                  { label: "Số tài khoản", value: paymentModal.bankAcc, copy: true },
-                  { label: "Số tiền", value: `${paymentModal.amount.toLocaleString("vi-VN")} ₫`, copy: true, copyRaw: String(paymentModal.amount) },
-                  { label: "Nội dung CK", value: paymentModal.description, copy: true, highlight: true },
+                  { label: t("pricing.bankNameLabel"), value: paymentModal.bankName, copy: false },
+                  { label: t("pricing.accountHolderLabel"), value: paymentModal.accountName, copy: false },
+                  { label: t("pricing.accountNumberLabel"), value: paymentModal.bankAcc, copy: true },
+                  { label: t("pricing.transferAmountLabel"), value: `${paymentModal.amount.toLocaleString("vi-VN")} ₫`, copy: true, copyRaw: String(paymentModal.amount) },
+                  { label: t("pricing.transferContentLabel"), value: paymentModal.description, copy: true, highlight: true },
                 ] as { label: string; value: string; copy: boolean; copyRaw?: string; highlight?: boolean }[]
               ).map(({ label, value, copy, copyRaw, highlight }) => (
                 <Box
@@ -1084,7 +1084,7 @@ export default function PricingPage() {
                       {label}
                       {highlight && (
                         <Typography component="span" variant="caption" sx={{ color: "warning.dark", fontWeight: 700, ml: 0.5 }}>
-                          (bắt buộc)
+                          {t("pricing.transferContentRequired")}
                         </Typography>
                       )}
                     </Typography>
