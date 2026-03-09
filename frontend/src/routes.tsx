@@ -43,6 +43,10 @@ const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const GuidePage = lazy(() => import("@/pages/GuidePage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 
+// Channel pages
+const ChannelCrawlPage = lazy(() => import("@/pages/ChannelCrawlPage"));
+const ChannelHistoryPage = lazy(() => import("@/pages/ChannelHistoryPage"));
+
 // Admin pages
 const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
 const UserManagementPage = lazy(() => import("@/pages/admin/UserManagementPage"));
@@ -120,6 +124,14 @@ const router = createBrowserRouter(
             {
               path: "/pricing",
               element: withSuspense(PricingPage),
+            },
+            {
+              path: "/channel",
+              element: withSuspense(ChannelCrawlPage),
+            },
+            {
+              path: "/channel/history",
+              element: withSuspense(ChannelHistoryPage),
             },
           ],
         },

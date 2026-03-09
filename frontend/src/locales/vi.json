@@ -70,7 +70,8 @@
     "adminUsers": "Quản lý người dùng",
     "adminLogs": "Nhật ký hệ thống",
     "adminSessions": "Phiên",
-    "adminSettings": "Cài đặt hệ thống"
+    "adminSettings": "Cài đặt hệ thống",
+    "channel": "Crawl kênh"
   },
   "header": {
     "systemHealthy": "Hệ thống hoạt động bình thường",
@@ -580,7 +581,6 @@
     "systemHealth": "Sức khỏe hệ thống",
     "diskSpace": "Dung lượng đĩa",
     "cpuUsage": "Sử dụng CPU",
-    "memoryUsage": "Sử dụng bộ nhớ",
     "manage": "Quản lý",
     "delete": "Xóa",
     "block": "Chặn",
@@ -698,5 +698,40 @@
     "heading": "Không tìm thấy trang",
     "message": "Trang bạn đang tìm kiếm không tồn tại hoặc đã bị di chuyển.",
     "goToDashboard": "Đi đến bảng điều khiển"
+  },
+  "channel": {
+    "title": "Crawl kênh TikTok",
+    "subtitle": "Crawl danh sách video từ kênh → trích xuất kịch bản bằng Gemini AI",
+    "step1": "Crawl kênh",
+    "step2": "Chọn video",
+    "step3": "Kịch bản & Xuất",
+    "crawlSettings": "Cài đặt crawl",
+    "channelUrl": "URL kênh TikTok",
+    "invalidChannelUrl": "URL kênh TikTok không hợp lệ (vd: https://www.tiktok.com/@username)",
+    "minViews": "Min views",
+    "maxVideos": "Max videos",
+    "startCrawl": "Bắt đầu crawl",
+    "crawling": "Đang crawl...",
+    "selectVideos": "Chọn video để trích xuất kịch bản",
+    "selectedCount": "Đã chọn {{count}}/{{max}} video (tối đa 20)",
+    "videosFound": "video tìm thấy",
+    "description": "Mô tả",
+    "views": "Views",
+    "likes": "Likes",
+    "postDate": "Ngày đăng",
+    "noDescription": "(Không có mô tả)",
+    "extractScripts": "Trích xuất kịch bản ({{count}} video)",
+    "extracting": "Đang trích xuất...",
+    "scripts": "Kịch bản",
+    "noScript": "(Không có kịch bản)",
+    "noScriptsYet": "Chưa có kịch bản nào được trích xuất",
+    "crawlNew": "Crawl kênh mới",
+    "historyTitle": "Lịch sử crawl kênh",
+    "newCrawl": "Crawl mới",
+    "channel": "Kênh",
+    "totalVideos": "Videos",
+    "filteredVideos": "Đạt lọc",
+    "confirmDelete": "Xóa job này và toàn bộ dữ liệu liên quan?",
+    "openJob": "Mở"
   }
 }

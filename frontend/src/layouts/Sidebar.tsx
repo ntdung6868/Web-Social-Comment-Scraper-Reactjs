@@ -31,6 +31,7 @@ import {
   Paid as PaidIcon,
   Tune as AdminSettingsIcon,
   DeviceHub as SessionIcon,
+  VideoLibrary as VideoLibraryIcon,
 } from "@mui/icons-material";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -56,6 +57,7 @@ const getNavItems = (t: ReturnType<typeof useTranslation>["t"]): NavItem[] => [
   { title: t("nav.scraper"), path: "/scraper", icon: <SearchIcon />, translationKey: "nav.scraper" },
   { title: t("nav.history"), path: "/history", icon: <HistoryIcon />, translationKey: "nav.history" },
   { title: t("nav.settings"), path: "/settings", icon: <SettingsIcon />, translationKey: "nav.settings" },
+  { title: t("nav.channel"), path: "/channel", icon: <VideoLibraryIcon />, translationKey: "nav.channel" },
   { title: t("nav.guide"), path: "/guide", icon: <GuideIcon />, translationKey: "nav.guide" },
   { title: t("nav.pricing"), path: "/pricing", icon: <PaidIcon />, translationKey: "nav.pricing" },
 ];

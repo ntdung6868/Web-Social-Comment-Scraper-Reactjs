@@ -7,6 +7,14 @@ import type {
   QueuePositionEvent,
   PaymentSuccessEvent,
 } from "@/types";
+import type {
+  ChannelCrawlProgressEvent,
+  ChannelCrawlCompletedEvent,
+  ChannelCrawlFailedEvent,
+  ChannelExtractProgressEvent,
+  ChannelExtractCompletedEvent,
+  ChannelExtractFailedEvent,
+} from "@/types/channel.types";
 
 // ===========================================
 // Socket Types (matching backend ServerToClientEvents)
@@ -21,6 +29,12 @@ interface ServerToClientEvents {
   "system:notification": (data: { type: string; title: string; message: string; timestamp: string }) => void;
   "system:maintenance": (data: { enabled: boolean; message?: string }) => void;
   "payment:success": (data: PaymentSuccessEvent) => void;
+  "channel:crawl:progress": (data: ChannelCrawlProgressEvent) => void;
+  "channel:crawl:completed": (data: ChannelCrawlCompletedEvent) => void;
+  "channel:crawl:failed": (data: ChannelCrawlFailedEvent) => void;
+  "channel:extract:progress": (data: ChannelExtractProgressEvent) => void;
+  "channel:extract:completed": (data: ChannelExtractCompletedEvent) => void;
+  "channel:extract:failed": (data: ChannelExtractFailedEvent) => void;
 }
 
 interface ClientToServerEvents {

@@ -20,6 +20,12 @@ import type {
   QueuePositionEvent,
   SystemNotificationEvent,
   PaymentSuccessEvent,
+  ChannelCrawlProgressEvent,
+  ChannelCrawlCompletedEvent,
+  ChannelCrawlFailedEvent,
+  ChannelExtractProgressEvent,
+  ChannelExtractCompletedEvent,
+  ChannelExtractFailedEvent,
 } from "../types/socket.types.js";
 
 // ===========================================
@@ -279,6 +285,43 @@ export function emitPaymentSuccess(userId: string, event: PaymentSuccessEvent): 
   if (!io) return;
   io.to(`user:${userId}`).emit("payment:success", event);
   console.log(`[Socket] Emitted payment:success for user ${userId}, plan ${event.planType}`);
+}
+
+// ===========================================
+// Channel Emit Functions
+// ===========================================
+
+export function emitChannelCrawlProgress(userId: string, event: ChannelCrawlProgressEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("channel:crawl:progress", event);
+}
+
+export function emitChannelCrawlCompleted(userId: string, event: ChannelCrawlCompletedEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("channel:crawl:completed", event);
+  console.log(`[Socket] Emitted channel:crawl:completed for job ${event.crawlJobId}`);
+}
+
+export function emitChannelCrawlFailed(userId: string, event: ChannelCrawlFailedEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("channel:crawl:failed", event);
+  console.log(`[Socket] Emitted channel:crawl:failed for job ${event.crawlJobId}`);
+}
+
+export function emitChannelExtractProgress(userId: string, event: ChannelExtractProgressEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("channel:extract:progress", event);
+}
+
+export function emitChannelExtractCompleted(userId: string, event: ChannelExtractCompletedEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("channel:extract:completed", event);
+  console.log(`[Socket] Emitted channel:extract:completed for job ${event.crawlJobId}`);
+}
+
+export function emitChannelExtractFailed(userId: string, event: ChannelExtractFailedEvent): void {
+  if (!io) return;
+  io.to(`user:${userId}`).emit("channel:extract:failed", event);
 }
 
 /**

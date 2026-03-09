@@ -69,9 +69,10 @@ model User {
   headlessMode Boolean @default(true) @map("headless_mode")
 
   // Relations
-  scrapeHistories ScrapeHistory[]
-  refreshTokens   RefreshToken[]
-  orders          Order[]
+  scrapeHistories  ScrapeHistory[]
+  refreshTokens    RefreshToken[]
+  orders           Order[]
+  channelCrawlJobs ChannelCrawlJob[]
 
   @@map("users")
 }
@@ -159,6 +160,68 @@ model Comment {
 
   @@index([scrapeHistoryId])
   @@map("comments")
+}
+
+// ===========================================
+// Channel Crawl Models
+// ===========================================
+
+model ChannelCrawlJob {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @map("user_id") @db.ObjectId
+  channelUrl      String    @map("channel_url")
+  channelUsername String    @map("channel_username")
+  minViews        Int       @default(0) @map("min_views")
+  maxVideos       Int       @default(100) @map("max_videos")
+  status          String    @default("PENDING")
+  totalVideos     Int       @default(0) @map("total_videos")
+  filteredVideos  Int       @default(0) @map("filtered_videos")
+  errorMessage    String?   @map("error_message")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos          ChannelVideo[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("channel_crawl_jobs")
+}
+
+model ChannelVideo {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  crawlJobId   String    @map("crawl_job_id") @db.ObjectId
+  tiktokId     String    @map("tiktok_id")
+  videoUrl     String    @map("video_url")
+  description  String?
+  thumbnailUrl String?   @map("thumbnail_url")
+  views        Int       @default(0)
+  likes        Int       @default(0)
+  commentCount Int       @default(0) @map("comment_count")
+  shares       Int       @default(0)
+  postDate     DateTime? @map("post_date")
+  meetsFilter  Boolean   @default(false) @map("meets_filter")
+  scrapedAt    DateTime  @default(now()) @map("scraped_at")
+  crawlJob     ChannelCrawlJob    @relation(fields: [crawlJobId], references: [id], onDelete: Cascade)
+  scriptResult VideoScriptResult?
+
+  @@index([crawlJobId])
+  @@index([views])
+  @@map("channel_videos")
+}
+
+model VideoScriptResult {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  videoId      String   @unique @map("video_id") @db.ObjectId
+  crawlJobId   String   @map("crawl_job_id") @db.ObjectId
+  scriptText   String   @map("script_text")
+  scriptLines  String[] @map("script_lines")
+  sourceMethod String   @map("source_method")
+  language     String?
+  extractedAt  DateTime @default(now()) @map("extracted_at")
+  video        ChannelVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([crawlJobId])
+  @@map("video_script_results")
 }
 
 // ===========================================

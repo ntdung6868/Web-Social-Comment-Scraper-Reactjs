@@ -8,6 +8,14 @@ import type {
   QueuePositionEvent,
   PaymentSuccessEvent,
 } from "@/types";
+import type {
+  ChannelCrawlProgressEvent,
+  ChannelCrawlCompletedEvent,
+  ChannelCrawlFailedEvent,
+  ChannelExtractProgressEvent,
+  ChannelExtractCompletedEvent,
+  ChannelExtractFailedEvent,
+} from "@/types/channel.types";
 
 interface UseSocketOptions {
   onStarted?: (data: ScrapeStartedEvent) => void;
@@ -16,6 +24,13 @@ interface UseSocketOptions {
   onFailed?: (data: ScrapeFailedEvent) => void;
   onQueuePosition?: (data: QueuePositionEvent) => void;
   onPaymentSuccess?: (data: PaymentSuccessEvent) => void;
+  // Channel events
+  onChannelCrawlProgress?: (data: ChannelCrawlProgressEvent) => void;
+  onChannelCrawlCompleted?: (data: ChannelCrawlCompletedEvent) => void;
+  onChannelCrawlFailed?: (data: ChannelCrawlFailedEvent) => void;
+  onChannelExtractProgress?: (data: ChannelExtractProgressEvent) => void;
+  onChannelExtractCompleted?: (data: ChannelExtractCompletedEvent) => void;
+  onChannelExtractFailed?: (data: ChannelExtractFailedEvent) => void;
 }
 
 // ── Dedup cache ──────────────────────────────────
@@ -171,12 +186,43 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
       optionsRef.current?.onPaymentSuccess?.(data);
     };
 
+    const handleChannelCrawlProgress = (data: ChannelCrawlProgressEvent) => {
+      if (isDuplicate(`ch:crawl:progress:${data.crawlJobId}`)) return;
+      optionsRef.current?.onChannelCrawlProgress?.(data);
+    };
+    const handleChannelCrawlCompleted = (data: ChannelCrawlCompletedEvent) => {
+      if (isDuplicate(`ch:crawl:completed:${data.crawlJobId}`)) return;
+      optionsRef.current?.onChannelCrawlCompleted?.(data);
+    };
+    const handleChannelCrawlFailed = (data: ChannelCrawlFailedEvent) => {
+      if (isDuplicate(`ch:crawl:failed:${data.crawlJobId}`)) return;
+      optionsRef.current?.onChannelCrawlFailed?.(data);
+    };
+    const handleChannelExtractProgress = (data: ChannelExtractProgressEvent) => {
+      if (isDuplicate(`ch:extract:progress:${data.crawlJobId}:${data.processed}`)) return;
+      optionsRef.current?.onChannelExtractProgress?.(data);
+    };
+    const handleChannelExtractCompleted = (data: ChannelExtractCompletedEvent) => {
+      if (isDuplicate(`ch:extract:completed:${data.crawlJobId}`)) return;
+      optionsRef.current?.onChannelExtractCompleted?.(data);
+    };
+    const handleChannelExtractFailed = (data: ChannelExtractFailedEvent) => {
+      if (isDuplicate(`ch:extract:failed:${data.crawlJobId}`)) return;
+      optionsRef.current?.onChannelExtractFailed?.(data);
+    };
+
     socket.on("scrape:started", handleStarted);
     socket.on("scrape:progress", handleProgress);
     socket.on("scrape:completed", handleCompleted);
     socket.on("scrape:failed", handleFailed);
     socket.on("queue:position", handleQueuePosition);
     socket.on("payment:success", handlePaymentSuccess);
+    socket.on("channel:crawl:progress", handleChannelCrawlProgress);
+    socket.on("channel:crawl:completed", handleChannelCrawlCompleted);
+    socket.on("channel:crawl:failed", handleChannelCrawlFailed);
+    socket.on("channel:extract:progress", handleChannelExtractProgress);
+    socket.on("channel:extract:completed", handleChannelExtractCompleted);
+    socket.on("channel:extract:failed", handleChannelExtractFailed);
 
     return () => {
       socket.off("scrape:started", handleStarted);
@@ -185,6 +231,12 @@ export function useSocket(historyId?: number | string, options?: UseSocketOption
       socket.off("scrape:failed", handleFailed);
       socket.off("queue:position", handleQueuePosition);
       socket.off("payment:success", handlePaymentSuccess);
+      socket.off("channel:crawl:progress", handleChannelCrawlProgress);
+      socket.off("channel:crawl:completed", handleChannelCrawlCompleted);
+      socket.off("channel:crawl:failed", handleChannelCrawlFailed);
+      socket.off("channel:extract:progress", handleChannelExtractProgress);
+      socket.off("channel:extract:completed", handleChannelExtractCompleted);
+      socket.off("channel:extract:failed", handleChannelExtractFailed);
     };
   }, [historyId, socketReady]);
 }

@@ -34,6 +34,14 @@ export interface ServerToClientEvents {
   // System events
   "system:notification": (data: SystemNotificationEvent) => void;
   "system:maintenance": (data: MaintenanceEvent) => void;
+
+  // Channel crawl events
+  "channel:crawl:progress": (data: ChannelCrawlProgressEvent) => void;
+  "channel:crawl:completed": (data: ChannelCrawlCompletedEvent) => void;
+  "channel:crawl:failed": (data: ChannelCrawlFailedEvent) => void;
+  "channel:extract:progress": (data: ChannelExtractProgressEvent) => void;
+  "channel:extract:completed": (data: ChannelExtractCompletedEvent) => void;
+  "channel:extract:failed": (data: ChannelExtractFailedEvent) => void;
 }
 
 /**
@@ -125,4 +133,53 @@ export interface PaymentSuccessEvent {
   orderCode: number;
   planType: string;
   planExpiresAt: string; // ISO string
+}
+
+// ===========================================
+// Channel Event Types
+// ===========================================
+
+export interface ChannelCrawlProgressEvent {
+  crawlJobId: string;
+  videosFound: number;
+  message: string;
+  timestamp: Date;
+}
+
+export interface ChannelCrawlCompletedEvent {
+  crawlJobId: string;
+  totalVideos: number;
+  filteredVideos: number;
+  duration: number;
+  message: string;
+  timestamp: Date;
+}
+
+export interface ChannelCrawlFailedEvent {
+  crawlJobId: string;
+  error: string;
+  timestamp: Date;
+}
+
+export interface ChannelExtractProgressEvent {
+  crawlJobId: string;
+  processed: number;
+  total: number;
+  currentVideoId: string;
+  message: string;
+  timestamp: Date;
+}
+
+export interface ChannelExtractCompletedEvent {
+  crawlJobId: string;
+  totalExtracted: number;
+  duration: number;
+  message: string;
+  timestamp: Date;
+}
+
+export interface ChannelExtractFailedEvent {
+  crawlJobId: string;
+  error: string;
+  timestamp: Date;
 }

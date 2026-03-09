@@ -44,4 +44,10 @@ export const queryKeys = {
   settings: {
     all: ["settings"],
   },
+  channel: {
+    history: (params: unknown) => ["channel", "history", params],
+    status: (id: string) => ["channel", "status", id],
+    videos: (id: string) => ["channel", "videos", id],
+    scripts: (id: string) => ["channel", "scripts", id],
+  },
 };

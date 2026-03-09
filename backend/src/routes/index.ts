@@ -8,5 +8,6 @@ import userRoutes from "./user.routes.js";
 import scraperRoutes from "./scraper.routes.js";
 import adminRoutes from "./admin.routes.js";
 import paymentRoutes from "./payment.routes.js";
+import channelRoutes from "./channel.routes.js";
 
-export { authRoutes, userRoutes, scraperRoutes, adminRoutes, paymentRoutes };
+export { authRoutes, userRoutes, scraperRoutes, adminRoutes, paymentRoutes, channelRoutes };

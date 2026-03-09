@@ -108,6 +108,11 @@ export const env = {
   queue: {
     workerConcurrency: getIntEnvVar("WORKER_CONCURRENCY", 5), // PREMIUM lane concurrency
   },
+
+  // Gemini AI
+  gemini: {
+    apiKey: getOptionalEnvVar("GEMINI_API_KEY", ""),
+  },
 } as const;
 
 // Type for environment configuration
