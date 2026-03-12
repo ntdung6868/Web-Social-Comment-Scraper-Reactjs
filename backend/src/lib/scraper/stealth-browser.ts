@@ -137,11 +137,12 @@ export async function launchStealthBrowser(options: StealthLaunchOptions): Promi
     "--js-flags=--max-old-space-size=512",
     "--disable-software-rasterizer",
     `--window-size=${windowWidth},${windowHeight}`,
-
-    // VPS RAM optimizations
-    "--no-zygote",
-    "--single-process",
   ];
+
+  // VPS RAM optimizations — only on Linux (crashes Chromium on macOS)
+  if (process.platform === "linux") {
+    launchArgs.push("--no-zygote", "--single-process");
+  }
 
   // Use full Chromium with --headless=new (not the headless shell which is fingerprinted)
   if (options.headless) {
