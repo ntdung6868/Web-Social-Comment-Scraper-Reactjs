@@ -4,10 +4,11 @@
 // Ported from Python reference: DOM-based extraction + API interception
 // Uses Playwright instead of Selenium for better Node.js integration
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import type { ScrapedComment } from "../../types/scraper.types.js";
 import { emitScrapeProgress } from "../socket.js";
 import { CaptchaSolver } from "../captcha/index.js";
+import { launchStealthBrowser, thinkingPause, humanScrollJitter } from "./stealth-browser.js";
 
 // ===========================================
 // Types
@@ -54,10 +55,6 @@ export interface ScrapeResult {
 // ===========================================
 // Constants
 // ===========================================
-
-const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 const TIKTOK_COMMENT_API_PATTERNS = [
   /api.*\/comment\/list/,
@@ -137,6 +134,9 @@ export class TikTokScraper {
       // Navigate to video URL
       await this.navigateToUrl(url);
 
+      // Thinking pause before captcha check (human doesn't act instantly)
+      await thinkingPause(this.page!);
+
       // Check for captcha
       await this.solveCaptchaOrThrow();
 
@@ -147,6 +147,7 @@ export class TikTokScraper {
       await this.randomSleep(800, 1500);
 
       // Check captcha again after interaction
+      await thinkingPause(this.page!);
       await this.solveCaptchaOrThrow();
 
       this.emitProgress("scrolling", 25, "Đang cuộn để tải bình luận...");
@@ -155,6 +156,9 @@ export class TikTokScraper {
       await this.scrollToLoadComments();
 
       this.emitProgress("extracting", 75, "Đang trích xuất bình luận...");
+
+      // Human-like scroll jitter before extraction (mimic reading)
+      await humanScrollJitter(this.page!);
 
       // Extract comments from DOM (primary method - like Python reference)
       const domComments = await this.extractCommentsFromDOM();
@@ -201,99 +205,19 @@ export class TikTokScraper {
   // ===========================================
 
   private async launchBrowser(): Promise<void> {
-    // Chrome args matching Python reference _setup_driver() for anti-detection
-    const launchArgs = [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-notifications",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-infobars",
-      "--shm-size=2g",
-      // Stability flags (from Python reference)
-      "--disable-extensions",
-      "--disable-background-networking",
-      "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-breakpad",
-      "--disable-component-extensions-with-background-pages",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-hang-monitor",
-      "--disable-ipc-flooding-protection",
-      "--disable-popup-blocking",
-      "--disable-prompt-on-repost",
-      "--disable-renderer-backgrounding",
-      "--disable-sync",
-      "--disable-translate",
-      "--metrics-recording-only",
-      "--no-first-run",
-      "--safebrowsing-disable-auto-update",
-      "--enable-features=NetworkService,NetworkServiceInProcess",
-      "--force-color-profile=srgb",
-      "--memory-pressure-off",
-      "--disable-features=TranslateUI,VizDisplayCompositor",
-      "--js-flags=--max-old-space-size=512",
-      "--disable-software-rasterizer",
-      "--window-size=500,1000",
-      // Production RAM/CPU optimizations — required for containerised deployment
-      "--no-zygote",      // Skip the zygote process; reduces per-launch overhead in Docker
-      "--single-process", // Run renderer, GPU, and browser in one process — cuts RAM by ~40%
-    ];
-
-    // CRITICAL: When headless is requested, use full Chromium with --headless=new
-    // instead of letting Playwright auto-select Chrome Headless Shell.
-    // The headless shell is easily fingerprinted by TikTok / Facebook bot-detection.
-    if (this.config.headless) {
-      launchArgs.push("--headless=new");
-    }
-
-    const launchOptions: Parameters<typeof chromium.launch>[0] = {
-      // Always set headless: false so Playwright uses the FULL Chromium binary.
-      // Our --headless=new flag above handles actual headless rendering.
-      headless: false,
-      args: launchArgs,
-    };
-
-    // Add proxy if configured
     if (this.config.proxy) {
-      const proxyConfig = this.parseProxyUrl(this.config.proxy);
-      if (proxyConfig) {
-        launchOptions.proxy = proxyConfig;
-        console.log("[TikTok] 🌐 Đang sử dụng proxy");
-      }
+      console.log("[TikTok] 🌐 Đang sử dụng proxy");
     }
 
-    this.browser = await chromium.launch(launchOptions);
-
-    const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
-
-    // Create context WITHOUT viewport — use actual window size (like Python reference)
-    // Python: maximize_window() → set_window_rect(width=420)
-    // Playwright: viewport:null means page uses real window dimensions
-    this.context = await this.browser.newContext({
-      userAgent,
-      viewport: null,
-      locale: "vi-VN",
-      timezoneId: "Asia/Ho_Chi_Minh",
+    const { browser, context, page } = await launchStealthBrowser({
+      headless: this.config.headless,
+      proxy: this.config.proxy,
+      userAgentOverride: this.config.cookies.userAgent,
     });
 
-    // Hide webdriver property (like Python reference)
-    await this.context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    });
-
-    this.page = await this.context.newPage();
-
-    // Enforce per-operation timeouts so an infinite-scroll or blocked page never
-    // hangs the worker forever.  These fire BEFORE the queue-level 5-minute timeout,
-    // ensuring the finally→cleanup() path runs and the browser is freed promptly.
-    this.page.setDefaultNavigationTimeout(60_000);  // 60 s for page loads / redirects
-    this.page.setDefaultTimeout(240_000);           // 4 min for waitForSelector etc.
-
-    // Resize window to 500x1000 via CDP (like Python: set_window_rect)
-    await this.resizeWindow(500, 1000);
+    this.browser = browser;
+    this.context = context;
+    this.page = page;
 
     // Set up API response interception (bonus data source)
     this.setupResponseInterception();
@@ -850,29 +774,6 @@ export class TikTokScraper {
     return patterns.some((pattern) => pattern.test(url));
   }
 
-  private parseProxyUrl(proxy: string): { server: string; username?: string; password?: string } | null {
-    try {
-      let proxyUrl = proxy.trim();
-      if (
-        !proxyUrl.startsWith("http://") &&
-        !proxyUrl.startsWith("https://") &&
-        !proxyUrl.startsWith("socks4://") &&
-        !proxyUrl.startsWith("socks5://")
-      ) {
-        proxyUrl = `http://${proxyUrl}`;
-      }
-      const url = new URL(proxyUrl);
-      return {
-        server: `${url.protocol}//${url.host}`,
-        username: url.username || undefined,
-        password: url.password || undefined,
-      };
-    } catch {
-      console.error(`[TikTok] Invalid proxy format: ${proxy}`);
-      return null;
-    }
-  }
-
   /**
    * Dump page debug info when scraping finds 0 comments.
    * Logs page HTML snippet and saves a debug screenshot.
@@ -927,25 +828,6 @@ export class TikTokScraper {
       message,
       timestamp: new Date(),
     });
-  }
-
-  /**
-   * Resize browser window via CDP (like Python: set_window_rect(width=420)).
-   * Playwright viewport only sets content area; CDP sets the actual window.
-   */
-  private async resizeWindow(width: number, height: number): Promise<void> {
-    if (!this.page) return;
-    try {
-      const cdp = await this.page.context().newCDPSession(this.page);
-      const { windowId } = await cdp.send("Browser.getWindowForTarget");
-      await cdp.send("Browser.setWindowBounds", {
-        windowId,
-        bounds: { left: 0, top: 0, width, height, windowState: "normal" },
-      });
-      console.log(`[TikTok] 📐 Window resized to ${width}x${height} via CDP`);
-    } catch (err) {
-      console.debug("[TikTok] CDP resize failed (headless?), relying on --window-size arg:", err);
-    }
   }
 
   private async cleanup(): Promise<void> {

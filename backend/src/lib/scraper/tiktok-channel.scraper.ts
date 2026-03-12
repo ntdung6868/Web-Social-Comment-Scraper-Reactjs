@@ -3,10 +3,11 @@
 // ===========================================
 // Crawls video list from a TikTok channel using API interception
 
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import type { ChannelVideoData } from "../../repositories/channel.repository.js";
 import { TikTokScraper } from "./tiktok.scraper.js";
 import { CaptchaSolver } from "../captcha/index.js";
+import { launchStealthBrowser } from "./stealth-browser.js";
 
 // ===========================================
 // Types
@@ -47,9 +48,10 @@ export interface ChannelCrawlConfig {
 // TikTok Channel Scraper Class
 // ===========================================
 
+// Used only by HTTP API fallback (non-browser path)
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 const CHANNEL_API_PATTERN = /\/api.*\/post\/item_list/;
 
@@ -370,72 +372,15 @@ export class TikTokChannelScraper {
   }
 
   private async launchBrowser(): Promise<void> {
-    const launchArgs = [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-notifications",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-infobars",
-      "--shm-size=2g",
-      "--disable-extensions",
-      "--disable-background-networking",
-      "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-breakpad",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-hang-monitor",
-      "--disable-ipc-flooding-protection",
-      "--disable-popup-blocking",
-      "--disable-prompt-on-repost",
-      "--disable-renderer-backgrounding",
-      "--disable-sync",
-      "--metrics-recording-only",
-      "--no-first-run",
-      "--safebrowsing-disable-auto-update",
-      "--force-color-profile=srgb",
-      "--disable-features=TranslateUI,VizDisplayCompositor",
-      "--js-flags=--max-old-space-size=512",
-      "--disable-software-rasterizer",
-      "--window-size=500,1000",
-      "--no-zygote",
-      "--single-process",
-    ];
-
-    if (this.config.headless) {
-      launchArgs.push("--headless=new");
-    }
-
-    const launchOptions: Parameters<typeof chromium.launch>[0] = {
-      headless: false,
-      args: launchArgs,
-    };
-
-    if (this.config.proxy) {
-      const proxyConfig = this.parseProxyUrl(this.config.proxy);
-      if (proxyConfig) {
-        launchOptions.proxy = proxyConfig;
-      }
-    }
-
-    this.browser = await chromium.launch(launchOptions);
-    const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
-
-    this.context = await this.browser.newContext({
-      userAgent,
-      viewport: null,
-      locale: "vi-VN",
-      timezoneId: "Asia/Ho_Chi_Minh",
+    const { browser, context, page } = await launchStealthBrowser({
+      headless: this.config.headless,
+      proxy: this.config.proxy,
+      userAgentOverride: this.config.cookies.userAgent,
     });
 
-    await this.context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    });
-
-    this.page = await this.context.newPage();
-    this.page.setDefaultNavigationTimeout(60_000);
+    this.browser = browser;
+    this.context = context;
+    this.page = page;
     this.page.setDefaultTimeout(120_000);
   }
 
@@ -598,23 +543,6 @@ export class TikTokChannelScraper {
 
     // Limit to maxVideos
     return result.slice(0, this.config.maxVideos);
-  }
-
-  private parseProxyUrl(proxy: string): { server: string; username?: string; password?: string } | null {
-    try {
-      let proxyUrl = proxy.trim();
-      if (!proxyUrl.startsWith("http://") && !proxyUrl.startsWith("https://") && !proxyUrl.startsWith("socks5://")) {
-        proxyUrl = `http://${proxyUrl}`;
-      }
-      const url = new URL(proxyUrl);
-      return {
-        server: `${url.protocol}//${url.host}`,
-        username: url.username || undefined,
-        password: url.password || undefined,
-      };
-    } catch {
-      return null;
-    }
   }
 
   private async cleanup(): Promise<void> {

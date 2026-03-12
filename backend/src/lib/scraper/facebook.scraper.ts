@@ -4,11 +4,12 @@
 // Ported from Python reference: DOM-based extraction
 // Scroll container detection, burst scroll, junk filtering
 
-import { chromium, type Browser, type BrowserContext, type Page, type ElementHandle } from "playwright";
+import type { Browser, BrowserContext, Page, ElementHandle } from "playwright";
 import type { ScrapedComment } from "../../types/scraper.types.js";
 import { emitScrapeProgress } from "../socket.js";
 import { isJunkLine, extractFbUserId } from "../../utils/scraper.utils.js";
 import { CaptchaSolver } from "../captcha/index.js";
+import { launchStealthBrowser, thinkingPause } from "./stealth-browser.js";
 
 // ===========================================
 // Types
@@ -29,14 +30,6 @@ export interface ScrapeResult {
   totalComments: number;
   error?: string;
 }
-
-// ===========================================
-// Constants
-// ===========================================
-
-const DEFAULT_USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 // ===========================================
 // Facebook Scraper Class
@@ -100,7 +93,8 @@ export class FacebookScraper {
       // Navigate to URL
       await this.navigateToUrl(url);
 
-      // Check captcha
+      // Thinking pause before captcha check (human doesn't act instantly)
+      await thinkingPause(this.page!);
       await this.checkCaptcha();
 
       // Switch to "All comments" filter (very important!)
@@ -160,94 +154,19 @@ export class FacebookScraper {
   // ===========================================
 
   private async launchBrowser(): Promise<void> {
-    // Chrome args matching Python reference _setup_driver() for anti-detection
-    const chromeArgs = [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-notifications",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-infobars",
-      "--shm-size=2g",
-      // Stability flags (from Python reference)
-      "--disable-extensions",
-      "--disable-background-networking",
-      "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-breakpad",
-      "--disable-component-extensions-with-background-pages",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-hang-monitor",
-      "--disable-ipc-flooding-protection",
-      "--disable-popup-blocking",
-      "--disable-prompt-on-repost",
-      "--disable-renderer-backgrounding",
-      "--disable-sync",
-      "--disable-translate",
-      "--metrics-recording-only",
-      "--no-first-run",
-      "--safebrowsing-disable-auto-update",
-      "--enable-features=NetworkService,NetworkServiceInProcess",
-      "--force-color-profile=srgb",
-      "--memory-pressure-off",
-      "--disable-features=TranslateUI,VizDisplayCompositor",
-      "--js-flags=--max-old-space-size=512",
-      "--disable-software-rasterizer",
-      "--window-size=500,1000",
-      // Production RAM/CPU optimizations — required for containerised deployment
-      "--no-zygote",      // Skip the zygote process; reduces per-launch overhead in Docker
-      "--single-process", // Run renderer, GPU, and browser in one process — cuts RAM by ~40%
-    ];
-
-    if (this.config.headless) {
-      chromeArgs.push("--headless=new");
-    }
-
-    const launchOptions: Parameters<typeof chromium.launch>[0] = {
-      headless: false,
-      args: chromeArgs,
-    };
-
-    // Add proxy if configured
     if (this.config.proxy) {
-      const proxyConfig = this.parseProxyUrl(this.config.proxy);
-      if (proxyConfig) {
-        launchOptions.proxy = proxyConfig;
-        console.log("[Facebook] 🌐 Đang sử dụng proxy");
-      }
+      console.log("[Facebook] 🌐 Đang sử dụng proxy");
     }
 
-    this.browser = await chromium.launch(launchOptions);
-
-    const userAgent = this.config.cookies.userAgent || DEFAULT_USER_AGENT;
-
-    // Create context WITHOUT viewport — use actual window size (like Python reference)
-    // Python: maximize_window() → set_window_rect(width=420)
-    // Playwright: viewport:null means page uses real window dimensions
-    this.context = await this.browser.newContext({
-      userAgent,
-      viewport: null,
-      locale: "vi-VN",
-      timezoneId: "Asia/Ho_Chi_Minh",
+    const { browser, context, page } = await launchStealthBrowser({
+      headless: this.config.headless,
+      proxy: this.config.proxy,
+      userAgentOverride: this.config.cookies.userAgent,
     });
 
-    // Hide webdriver property
-    await this.context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-    });
-
-    this.page = await this.context.newPage();
-
-    // Enforce per-operation timeouts so an infinite-scroll or blocked page never
-    // hangs the worker forever.  These fire BEFORE the queue-level 5-minute timeout,
-    // ensuring the finally→cleanup() path runs and the browser is freed promptly.
-    this.page.setDefaultNavigationTimeout(60_000);  // 60 s for page loads / redirects
-    this.page.setDefaultTimeout(240_000);           // 4 min for waitForSelector etc.
-
-    // Resize window to 500x1000 via CDP (like Python: set_window_rect)
-    await this.resizeWindow(500, 1000);
+    this.browser = browser;
+    this.context = context;
+    this.page = page;
   }
 
   // ===========================================
@@ -839,20 +758,6 @@ export class FacebookScraper {
   // Helper Methods
   // ===========================================
 
-  private parseProxyUrl(proxy: string): { server: string; username?: string; password?: string } | undefined {
-    try {
-      const proxyUrl = proxy.startsWith("http") ? proxy : `http://${proxy}`;
-      const url = new URL(proxyUrl);
-      return {
-        server: `${url.protocol}//${url.hostname}:${url.port}`,
-        username: url.username || undefined,
-        password: url.password || undefined,
-      };
-    } catch {
-      return undefined;
-    }
-  }
-
   private emitProgress(
     phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving",
     progress: number,
@@ -866,25 +771,6 @@ export class FacebookScraper {
       message,
       timestamp: new Date(),
     });
-  }
-
-  /**
-   * Resize browser window via CDP (like Python: set_window_rect(width=420)).
-   * Playwright viewport only sets content area; CDP sets the actual window.
-   */
-  private async resizeWindow(width: number, height: number): Promise<void> {
-    if (!this.page) return;
-    try {
-      const cdp = await this.page.context().newCDPSession(this.page);
-      const { windowId } = await cdp.send("Browser.getWindowForTarget");
-      await cdp.send("Browser.setWindowBounds", {
-        windowId,
-        bounds: { left: 0, top: 0, width, height, windowState: "normal" },
-      });
-      console.log(`[Facebook] 📐 Window resized to ${width}x${height} via CDP`);
-    } catch (err) {
-      console.debug("[Facebook] CDP resize failed (headless?), relying on --window-size arg:", err);
-    }
   }
 
   private async cleanup(): Promise<void> {

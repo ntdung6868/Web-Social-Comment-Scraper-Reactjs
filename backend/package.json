@@ -36,6 +36,8 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "playwright": "^1.41.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "rate-limit-redis": "^4.3.1",
     "resend": "^2.1.0",
     "socket.io": "^4.7.4",
