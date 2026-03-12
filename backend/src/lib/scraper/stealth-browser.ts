@@ -172,7 +172,8 @@ export async function launchStealthBrowser(options: StealthLaunchOptions): Promi
     timezoneId: "Asia/Ho_Chi_Minh",
     // Grant permissions a real user would have
     permissions: ["geolocation"],
-    deviceScaleFactor: profile.devicePixelRatio,
+    // Note: deviceScaleFactor is incompatible with viewport:null,
+    // so we set it via addInitScript instead.
   });
 
   // ── Comprehensive init scripts ──
