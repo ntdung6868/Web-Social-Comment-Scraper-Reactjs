@@ -361,7 +361,7 @@ export class RotatePuzzleStrategy implements CaptchaStrategy {
       await debug.write(debugPath);
       console.log(
         `[Captcha:Rotate] 🖼️ Debug image saved: ${debugPath} ` +
-        `(R=${radius}, outer=[${OUTER_RADII.join(",")}], inner=[${INNER_RADII.join(",")}], angle=${bestAngle}°)`,
+        `(R=${radius}, outer=[${OUTER_SMOOTH_RADII.join(",")}], inner=[${INNER_SMOOTH_RADII.join(",")}], angle=${bestAngle}°)`,
       );
     } catch (err) {
       // Debug image is non-critical — don't let it break the solve flow
