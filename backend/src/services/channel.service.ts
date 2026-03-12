@@ -29,6 +29,7 @@ import {
 } from "../lib/socket.js";
 import type { ProxyRotation } from "../types/enums.js";
 import ExcelJS from "exceljs";
+import { getChannelLimits, getSetting } from "../utils/settings.js";
 
 // ===========================================
 // Channel Service Class
@@ -72,7 +73,7 @@ export class ChannelService {
     const channelUsername = usernameMatch ? `@${usernameMatch[1]}` : data.channelUrl;
 
     // Apply plan limits
-    const effectiveMaxVideos = this.applyPlanLimits(user.planType, data.maxVideos);
+    const effectiveMaxVideos = await this.applyPlanLimits(user.planType, data.maxVideos);
 
     // Resolve cookies
     let cookieData: string | null = null;
@@ -82,11 +83,15 @@ export class ChannelService {
       userAgent = user.tiktokCookieUserAgent;
     }
 
-    // Resolve proxy
+    // Resolve proxy: user proxy > system proxy setting > env PROXY_URL
     let proxy: string | null = null;
     if (user.proxyEnabled && user.proxyList) {
       proxyManager.setProxies(user.proxyList, user.proxyRotation as ProxyRotation | undefined);
       proxy = proxyManager.getNext();
+    }
+    if (!proxy) {
+      const systemProxy = await getSetting("proxyUrl");
+      if (systemProxy) proxy = systemProxy;
     }
 
     // Create DB record
@@ -139,7 +144,7 @@ export class ChannelService {
     const user = await userRepository.findById(userId);
     if (!user) throw createError.notFound("User not found");
 
-    const maxExtract = this.getMaxExtractVideos(user.planType);
+    const maxExtract = await this.getMaxExtractVideos(user.planType);
     const videoIds = data.videoIds.slice(0, maxExtract);
 
     await addScriptExtractionJob({
@@ -262,22 +267,14 @@ export class ChannelService {
   // Plan Limits
   // ===========================================
 
-  private applyPlanLimits(planType: string, requested: number): number {
-    const limits: Record<string, number> = {
-      FREE: 20,
-      PERSONAL: 200,
-      PREMIUM: 500,
-    };
-    return Math.min(requested, limits[planType] ?? 20);
+  private async applyPlanLimits(planType: string, requested: number): Promise<number> {
+    const { maxVideos } = await getChannelLimits();
+    return Math.min(requested, maxVideos[planType] ?? 20);
   }
 
-  private getMaxExtractVideos(planType: string): number {
-    const limits: Record<string, number> = {
-      FREE: 5,
-      PERSONAL: 20,
-      PREMIUM: 20,
-    };
-    return limits[planType] ?? 5;
+  private async getMaxExtractVideos(planType: string): Promise<number> {
+    const { maxExtract } = await getChannelLimits();
+    return maxExtract[planType] ?? 5;
   }
 
   // ===========================================
@@ -314,6 +311,16 @@ export class ChannelService {
           });
 
           const videos = await scraper.crawlChannel(channelUrl);
+
+          // If 0 videos and no proxy configured → likely VPS IP blocked by TikTok
+          if (videos.length === 0 && !proxy) {
+            const errMsg =
+              "Không tìm thấy video. Server có thể bị TikTok chặn do IP datacenter. " +
+              "Vui lòng cấu hình PROXY_URL trong System Settings hoặc file .env để khắc phục.";
+            await channelRepository.updateCrawlJobStatus(crawlJobId, "FAILED", { errorMessage: errMsg });
+            emitChannelCrawlFailed(userId, { crawlJobId, error: errMsg, timestamp: new Date() });
+            return { crawlJobId, success: false, error: errMsg };
+          }
 
           emitChannelCrawlProgress(userId, {
             crawlJobId,

@@ -28,6 +28,7 @@ import {
   Divider,
   FormHelperText,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import {
   ExpandMore as ExpandMoreIcon,
   VideoLibrary as VideoLibraryIcon,
@@ -36,6 +37,9 @@ import {
   SmartToy as AIIcon,
   Article as ArticleIcon,
 } from "@mui/icons-material";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "@/stores/auth.store";
 import { channelService } from "@/services/channel.service";
 import { getSocket } from "@/lib/socket";
 import type {
@@ -66,6 +70,8 @@ interface LogEntry {
 
 export default function ChannelCrawlPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const isAdmin = useAuthStore((s) => s.user?.isAdmin ?? false);
 
   // Stepper
   const [step, setStep] = useState(0);
@@ -77,6 +83,7 @@ export default function ChannelCrawlPage() {
   const [urlError, setUrlError] = useState("");
   const [isCrawling, setIsCrawling] = useState(false);
   const [crawlJobId, setCrawlJobId] = useState<string | null>(null);
+  const crawlJobIdRef = useRef<string | null>(null);
   const [crawlProgress, setCrawlProgress] = useState(0);
   const [crawlMessage, setCrawlMessage] = useState("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -112,21 +119,21 @@ export default function ChannelCrawlPage() {
     if (!socket) return;
 
     const onCrawlProgress = (data: ChannelCrawlProgressEvent) => {
-      if (data.crawlJobId !== crawlJobId) return;
+      if (data.crawlJobId !== crawlJobIdRef.current) return;
       setCrawlMessage(data.message);
-      setCrawlProgress(Math.min(90, crawlProgress + 10));
+      setCrawlProgress((prev) => Math.min(90, prev + 10));
       addLog("progress", `[Crawl] ${data.message} (${data.videosFound} video)`);
     };
 
     const onCrawlCompleted = (data: ChannelCrawlCompletedEvent) => {
-      if (data.crawlJobId !== crawlJobId) return;
+      if (data.crawlJobId !== crawlJobIdRef.current) return;
       setCrawlProgress(100);
       setCrawlMessage(data.message);
       setIsCrawling(false);
       addLog("success", `✅ ${data.message}`);
-      // Fetch videos and advance step
-      if (crawlJobId) {
-        channelService.getVideos(crawlJobId).then((res) => {
+      const jobId = crawlJobIdRef.current;
+      if (jobId) {
+        channelService.getVideos(jobId).then((res) => {
           setVideos(res.data ?? []);
           setStep(1);
         });
@@ -134,14 +141,68 @@ export default function ChannelCrawlPage() {
     };
 
     const onCrawlFailed = (data: ChannelCrawlFailedEvent) => {
-      if (data.crawlJobId !== crawlJobId) return;
+      if (data.crawlJobId !== crawlJobIdRef.current) return;
       setIsCrawling(false);
-      setCrawlMessage(`Lỗi: ${data.error}`);
-      addLog("error", `❌ ${data.error}`);
+      const isCaptcha = data.error === "captcha_detected_msg";
+      const captchaMsg = t("scraper.captcha_detected_msg");
+      const errMsg = isCaptcha ? captchaMsg : data.error;
+      setCrawlMessage(errMsg);
+      addLog("error", `❌ ${errMsg}`);
+
+      if (isCaptcha) {
+        toast.custom(
+          (toastObj) => (
+            <div
+              style={{
+                background: "#1e1e1e",
+                color: "#fff",
+                borderLeft: "4px solid #f44336",
+                borderRadius: 8,
+                padding: "12px 16px",
+                maxWidth: 400,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                opacity: toastObj.visible ? 1 : 0,
+                transition: "opacity 0.3s",
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6, color: "#f44336" }}>
+                {t("scraper.captchaToastTitle")}
+              </div>
+              <div style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 10 }}>{captchaMsg}</div>
+              {isAdmin && (
+                <div style={{ fontSize: 12, color: "#aaa", marginBottom: 10 }}>
+                  {t("scraper.captcha_admin_note_desc")}
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  toast.dismiss(toastObj.id);
+                  navigate("/guide");
+                }}
+                style={{
+                  background: "#f44336",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                {t("scraper.captchaGoToGuide")}
+              </button>
+            </div>
+          ),
+          { duration: 12000 },
+        );
+      } else {
+        toast.error(errMsg, { duration: 6000 });
+      }
     };
 
     const onExtractProgress = (data: ChannelExtractProgressEvent) => {
-      if (data.crawlJobId !== crawlJobId) return;
+      if (data.crawlJobId !== crawlJobIdRef.current) return;
       const pct = Math.round((data.processed / data.total) * 100);
       setExtractProgress(pct);
       setExtractMessage(data.message);
@@ -149,14 +210,14 @@ export default function ChannelCrawlPage() {
     };
 
     const onExtractCompleted = (data: ChannelExtractCompletedEvent) => {
-      if (data.crawlJobId !== crawlJobId) return;
+      if (data.crawlJobId !== crawlJobIdRef.current) return;
       setExtractProgress(100);
       setExtractMessage(data.message);
       setIsExtracting(false);
       addLog("success", `✅ ${data.message}`);
-      // Fetch scripts and advance step
-      if (crawlJobId) {
-        channelService.getScripts(crawlJobId).then((res) => {
+      const jobId = crawlJobIdRef.current;
+      if (jobId) {
+        channelService.getScripts(jobId).then((res) => {
           setScripts(res.data ?? []);
           setStep(2);
         });
@@ -164,7 +225,7 @@ export default function ChannelCrawlPage() {
     };
 
     const onExtractFailed = (data: ChannelExtractFailedEvent) => {
-      if (data.crawlJobId !== crawlJobId) return;
+      if (data.crawlJobId !== crawlJobIdRef.current) return;
       setIsExtracting(false);
       setExtractMessage(`Lỗi: ${data.error}`);
       addLog("error", `❌ ${data.error}`);
@@ -185,7 +246,7 @@ export default function ChannelCrawlPage() {
       socket.off("channel:extract:completed", onExtractCompleted);
       socket.off("channel:extract:failed", onExtractFailed);
     };
-  }, [crawlJobId, crawlProgress, addLog]);
+  }, [addLog]);
 
   // ===========================================
   // Handlers
@@ -212,6 +273,7 @@ export default function ChannelCrawlPage() {
       const res = await channelService.startCrawl({ channelUrl, minViews, maxVideos });
       const jobId = res.data?.crawlJobId;
       if (jobId) {
+        crawlJobIdRef.current = jobId;
         setCrawlJobId(jobId);
         addLog("info", `📋 Job ID: ${jobId}`);
         setCrawlMessage("Đang crawl kênh...");
@@ -398,7 +460,7 @@ export default function ChannelCrawlPage() {
               variant="outlined"
               sx={{
                 p: 2,
-                backgroundColor: "grey.900",
+                backgroundColor: "#1a1a2e",
                 maxHeight: 200,
                 overflowY: "auto",
                 fontFamily: "monospace",
@@ -409,11 +471,21 @@ export default function ChannelCrawlPage() {
                 <Box
                   key={log.id}
                   sx={{
-                    color: log.type === "error" ? "error.light" : log.type === "success" ? "success.light" : log.type === "progress" ? "info.light" : "grey.300",
+                    display: "flex",
+                    gap: 1.5,
                     mb: 0.3,
                   }}
                 >
-                  <span style={{ color: "#666" }}>[{log.time}]</span> {log.message}
+                  <Box component="span" sx={{ color: "#666", whiteSpace: "nowrap" }}>[{log.time}]</Box>
+                  <Box
+                    component="span"
+                    sx={{
+                      color: log.type === "error" ? "error.light" : log.type === "success" ? "success.light" : log.type === "progress" ? "info.light" : "#c8c8d4",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {log.message}
+                  </Box>
                 </Box>
               ))}
               <div ref={logsEndRef} />
@@ -448,7 +520,16 @@ export default function ChannelCrawlPage() {
             <Box sx={{ maxHeight: 450, overflowY: "auto" }}>
               <Table size="small" stickyHeader>
                 <TableHead>
-                  <TableRow>
+                  <TableRow
+                    sx={{
+                      "& th": {
+                        fontWeight: 700,
+                        backgroundColor: (theme) => theme.palette.background.paper,
+                        borderBottom: "2px solid",
+                        borderColor: (theme) => alpha(theme.palette.primary.main, 0.2),
+                      },
+                    }}
+                  >
                     <TableCell padding="checkbox">
                       <Checkbox
                         indeterminate={selectedVideoIds.length > 0 && selectedVideoIds.length < Math.min(videos.length, 20)}
@@ -522,7 +603,7 @@ export default function ChannelCrawlPage() {
             >
               {isExtracting
                 ? t("channel.extracting", "Đang trích xuất...")
-                : t("channel.extractScripts", `Trích xuất kịch bản (${selectedVideoIds.length} video)`)}
+                : t("channel.extractScripts", { count: selectedVideoIds.length })}
             </Button>
           </Box>
         </Stack>

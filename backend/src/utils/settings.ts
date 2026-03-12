@@ -40,6 +40,20 @@ const DEFAULTS = {
   // Contact
   contactEmail: "",
   contactPhone: "",
+
+  // Proxy
+  proxyUrl: "",
+
+  // Gemini AI
+  geminiApiKey: "",
+
+  // Channel Crawl Limits
+  channelMaxVideosFree: "20",
+  channelMaxVideosPersonal: "200",
+  channelMaxVideosPremium: "500",
+  channelMaxExtractFree: "5",
+  channelMaxExtractPersonal: "20",
+  channelMaxExtractPremium: "20",
 } as const;
 
 export type SettingKey = keyof typeof DEFAULTS;
@@ -119,6 +133,27 @@ export async function getPlanPricing(): Promise<Record<string, { price: number; 
 export async function getContactInfo(): Promise<{ email: string; phone: string }> {
   const [email, phone] = await Promise.all([getSetting("contactEmail"), getSetting("contactPhone")]);
   return { email, phone };
+}
+
+/**
+ * Get channel crawl limits per plan
+ */
+export async function getChannelLimits(): Promise<{
+  maxVideos: Record<string, number>;
+  maxExtract: Record<string, number>;
+}> {
+  const [vFree, vPersonal, vPremium, eFree, ePersonal, ePremium] = await Promise.all([
+    getSettingNumber("channelMaxVideosFree"),
+    getSettingNumber("channelMaxVideosPersonal"),
+    getSettingNumber("channelMaxVideosPremium"),
+    getSettingNumber("channelMaxExtractFree"),
+    getSettingNumber("channelMaxExtractPersonal"),
+    getSettingNumber("channelMaxExtractPremium"),
+  ]);
+  return {
+    maxVideos: { FREE: vFree, PERSONAL: vPersonal, PREMIUM: vPremium },
+    maxExtract: { FREE: eFree, PERSONAL: ePersonal, PREMIUM: ePremium },
+  };
 }
 
 /**

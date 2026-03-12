@@ -207,7 +207,7 @@ export async function addChannelCrawlJob(data: ChannelCrawlJobData): Promise<str
 }
 
 export async function addScriptExtractionJob(data: ScriptExtractionJobData): Promise<string> {
-  const jobId = `${data.crawlJobId}:script`;
+  const jobId = `${data.crawlJobId}_script`;
 
   await scriptQueue.add("script-extraction", data, {
     jobId,

@@ -25,7 +25,12 @@ import {
   Info as InfoIcon,
   AttachMoney as PricingIcon,
   DeleteSweep as RetentionIcon,
+  SmartToy as AIIcon,
+  VideoLibrary as ChannelIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
+import { IconButton as MuiIconButton, InputAdornment } from "@mui/material";
 import { apiRequest } from "@/services/api";
 import { queryKeys } from "@/lib/query-client";
 import { LoadingSpinner } from "@/components/common";
@@ -41,7 +46,7 @@ interface SettingDef {
   key: string;
   label: string;
   description: string;
-  type: "toggle" | "number" | "text";
+  type: "toggle" | "number" | "text" | "secret";
   defaultValue: string;
   category: string;
   icon: React.ReactNode;
@@ -195,6 +200,84 @@ const SETTINGS_DEFS: SettingDef[] = [
     category: "Pricing",
     icon: <PricingIcon />,
   },
+  // ── Proxy ──
+  {
+    key: "proxyUrl",
+    label: "System Proxy URL",
+    description:
+      "Proxy dùng cho Channel Crawl khi server bị TikTok chặn (datacenter IP). " +
+      "Format: http://user:pass@host:port hoặc socks5://host:port. " +
+      "Dùng Webshare.io (free tier) hoặc residential proxy service.",
+    type: "text",
+    defaultValue: "",
+    category: "Proxy",
+    icon: <SecurityIcon />,
+  },
+  // ── Gemini AI ──
+  {
+    key: "geminiApiKey",
+    label: "Gemini API Key",
+    description: "Google Gemini API key for video script extraction. Takes priority over GEMINI_API_KEY env var. Get yours at aistudio.google.com.",
+    type: "secret",
+    defaultValue: "",
+    category: "AI (Gemini)",
+    icon: <AIIcon />,
+  },
+  // ── Channel Crawl Limits ──
+  {
+    key: "channelMaxVideosFree",
+    label: "Channel Max Videos — Free",
+    description: "Maximum videos crawlable per channel job for FREE plan users.",
+    type: "number",
+    defaultValue: "20",
+    category: "Channel Crawl",
+    icon: <ChannelIcon />,
+  },
+  {
+    key: "channelMaxVideosPersonal",
+    label: "Channel Max Videos — Personal",
+    description: "Maximum videos crawlable per channel job for PERSONAL plan users.",
+    type: "number",
+    defaultValue: "200",
+    category: "Channel Crawl",
+    icon: <ChannelIcon />,
+  },
+  {
+    key: "channelMaxVideosPremium",
+    label: "Channel Max Videos — Premium",
+    description: "Maximum videos crawlable per channel job for PREMIUM plan users.",
+    type: "number",
+    defaultValue: "500",
+    category: "Channel Crawl",
+    icon: <ChannelIcon />,
+  },
+  {
+    key: "channelMaxExtractFree",
+    label: "Channel Max Extract Videos — Free",
+    description: "Maximum videos to extract scripts from per job for FREE plan users.",
+    type: "number",
+    defaultValue: "5",
+    category: "Channel Crawl",
+    icon: <ChannelIcon />,
+  },
+  {
+    key: "channelMaxExtractPersonal",
+    label: "Channel Max Extract Videos — Personal",
+    description: "Maximum videos to extract scripts from per job for PERSONAL plan users.",
+    type: "number",
+    defaultValue: "20",
+    category: "Channel Crawl",
+    icon: <ChannelIcon />,
+  },
+  {
+    key: "channelMaxExtractPremium",
+    label: "Channel Max Extract Videos — Premium",
+    description: "Maximum videos to extract scripts from per job for PREMIUM plan users.",
+    type: "number",
+    defaultValue: "20",
+    category: "Channel Crawl",
+    icon: <ChannelIcon />,
+  },
   // ── Data Retention ──
   {
     key: "freeRetentionDays",
@@ -237,6 +320,7 @@ function SettingCard({
   onChange: (key: string, value: string) => void;
   saving: boolean;
 }) {
+  const [showSecret, setShowSecret] = useState(false);
   const isToggle = def.type === "toggle";
   const checked = value === "true";
 
@@ -308,6 +392,27 @@ function SettingCard({
                   sx={{ maxWidth: 400, mt: 0.5 }}
                   fullWidth
                   disabled={saving}
+                />
+              )}
+              {def.type === "secret" && (
+                <TextField
+                  size="small"
+                  type={showSecret ? "text" : "password"}
+                  value={value}
+                  onChange={(e) => onChange(def.key, e.target.value)}
+                  placeholder="Not set"
+                  sx={{ maxWidth: 400, mt: 0.5 }}
+                  fullWidth
+                  disabled={saving}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <MuiIconButton size="small" onClick={() => setShowSecret((v) => !v)} edge="end">
+                          {showSecret ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                        </MuiIconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               )}
             </Box>

@@ -7,6 +7,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import type { ScrapedComment } from "../../types/scraper.types.js";
 import { emitScrapeProgress } from "../socket.js";
+import { CaptchaSolver } from "../captcha/index.js";
 
 // ===========================================
 // Types
@@ -65,16 +66,6 @@ const TIKTOK_COMMENT_API_PATTERNS = [
   /webcast.*comment/,
 ];
 
-const CAPTCHA_SELECTORS = [
-  ".captcha-verify-container",
-  "#captcha-verify-container-main-page",
-  '[class*="captcha"]',
-  '[id*="captcha"]',
-  ".secsdk-captcha-drag-wrapper",
-  '[class*="Captcha"]',
-  'div[data-testid="captcha"]',
-];
-
 // ===========================================
 // TikTok Scraper Class
 // ===========================================
@@ -88,6 +79,7 @@ export class TikTokScraper {
   private apiComments: Map<string, ScrapedComment> = new Map();
   private isRunning = false;
   private abortController: AbortController;
+  private captchaSolver!: CaptchaSolver;
 
   constructor(config: ScrapeConfig) {
     this.config = {
@@ -95,6 +87,11 @@ export class TikTokScraper {
       ...config,
     };
     this.abortController = new AbortController();
+    this.captchaSolver = new CaptchaSolver({
+      platform: "tiktok",
+      headless: config.headless,
+      logPrefix: "[TikTok]",
+    });
   }
 
   /**
@@ -141,7 +138,7 @@ export class TikTokScraper {
       await this.navigateToUrl(url);
 
       // Check for captcha
-      await this.checkCaptcha();
+      await this.solveCaptchaOrThrow();
 
       this.emitProgress("loading", 20, "Đang mở bình luận...");
 
@@ -150,7 +147,7 @@ export class TikTokScraper {
       await this.randomSleep(800, 1500);
 
       // Check captcha again after interaction
-      await this.checkCaptcha();
+      await this.solveCaptchaOrThrow();
 
       this.emitProgress("scrolling", 25, "Đang cuộn để tải bình luận...");
 
@@ -390,35 +387,14 @@ export class TikTokScraper {
     }
   }
 
-  // ===========================================
-  // Captcha Detection (ported from Python _is_captcha_present / _wait_for_captcha_if_present)
-  // ===========================================
-
-  private async isCaptchaPresent(): Promise<boolean> {
-    if (!this.page) return false;
-
-    try {
-      for (const selector of CAPTCHA_SELECTORS) {
-        const element = await this.page.$(selector);
-        if (element) {
-          const isVisible = await element.isVisible().catch(() => false);
-          if (isVisible) return true;
-        }
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
-  private async checkCaptcha(): Promise<void> {
-    if (await this.isCaptchaPresent()) {
-      console.error("[TikTok] 🛑 CAPTCHA DETECTED — stopping immediately.");
-
-      // Emit the i18n key so the frontend translates it into the user's language
+  /**
+   * Attempt to solve captcha if present, throw on failure.
+   */
+  private async solveCaptchaOrThrow(): Promise<void> {
+    if (!this.page) return;
+    const result = await this.captchaSolver.solveIfPresent(this.page);
+    if (!result.solved) {
       this.emitProgress("error", 0, "captcha_detected_msg");
-
-      // Throw with the same key — scrape:failed event carries it as data.error
       throw new Error("captcha_detected_msg");
     }
   }
@@ -550,9 +526,7 @@ export class TikTokScraper {
 
     while (this.isRunning && !this.abortController.signal.aborted) {
       // Check captcha periodically
-      if (await this.isCaptchaPresent()) {
-        await this.checkCaptcha();
-      }
+      await this.solveCaptchaOrThrow();
 
       const hasMore = await this.burstScroll(15, 60);
       if (!hasMore) {

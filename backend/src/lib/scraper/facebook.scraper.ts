@@ -8,6 +8,7 @@ import { chromium, type Browser, type BrowserContext, type Page, type ElementHan
 import type { ScrapedComment } from "../../types/scraper.types.js";
 import { emitScrapeProgress } from "../socket.js";
 import { isJunkLine, extractFbUserId } from "../../utils/scraper.utils.js";
+import { CaptchaSolver } from "../captcha/index.js";
 
 // ===========================================
 // Types
@@ -37,14 +38,6 @@ const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-const CAPTCHA_SELECTORS = [
-  ".captcha-verify-container",
-  "#captcha-verify-container-main-page",
-  '[class*="captcha"]',
-  '[id*="captcha"]',
-  '[class*="Captcha"]',
-];
-
 // ===========================================
 // Facebook Scraper Class
 // ===========================================
@@ -57,10 +50,16 @@ export class FacebookScraper {
   private comments: Map<string, ScrapedComment> = new Map();
   private isRunning = false;
   private abortController: AbortController;
+  private captchaSolver!: CaptchaSolver;
 
   constructor(config: FacebookScraperConfig) {
     this.config = { ...config, maxComments: config.maxComments || 1000 };
     this.abortController = new AbortController();
+    this.captchaSolver = new CaptchaSolver({
+      platform: "facebook",
+      headless: config.headless,
+      logPrefix: "[Facebook]",
+    });
   }
 
   /**
@@ -351,50 +350,17 @@ export class FacebookScraper {
   }
 
   // ===========================================
-  // Captcha Detection (ported from Python)
+  // Captcha Detection
   // ===========================================
 
-  private async isCaptchaPresent(): Promise<boolean> {
-    if (!this.page) return false;
-
-    try {
-      for (const selector of CAPTCHA_SELECTORS) {
-        const element = await this.page.$(selector);
-        if (element) {
-          const isVisible = await element.isVisible().catch(() => false);
-          if (isVisible) return true;
-        }
-      }
-      return false;
-    } catch {
-      return false;
-    }
-  }
-
   private async checkCaptcha(): Promise<void> {
-    if (await this.isCaptchaPresent()) {
-      console.error("[Facebook] 🛑 PHÁT HIỆN CAPTCHA!");
-
+    if (!this.page) return;
+    const result = await this.captchaSolver.solveIfPresent(this.page);
+    if (!result.solved) {
       if (this.config.headless) {
         throw new Error("🔒 CAPTCHA FACEBOOK! Hãy lấy cookie từ trình duyệt thật hoặc tắt chế độ Headless.");
-      } else {
-        console.log("[Facebook] ⏳ Đang chờ bạn giải captcha...");
-        const maxWait = 120000;
-        let waited = 0;
-        while (waited < maxWait) {
-          if (!(await this.isCaptchaPresent())) {
-            console.log("[Facebook] ✅ Captcha đã được giải! Tiếp tục...");
-            await this.page!.waitForTimeout(2000);
-            return;
-          }
-          await this.page!.waitForTimeout(3000);
-          waited += 3000;
-          if (waited % 15000 === 0) {
-            console.log(`[Facebook] ⏳ Vẫn đang chờ captcha (${waited / 1000}s)...`);
-          }
-        }
-        throw new Error("Captcha không được giải trong 120s. Vui lòng thử lại!");
       }
+      throw new Error("Captcha không được giải trong 120s. Vui lòng thử lại!");
     }
   }
 

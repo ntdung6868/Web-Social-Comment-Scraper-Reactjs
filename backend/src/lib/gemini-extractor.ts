@@ -7,6 +7,7 @@ import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { env } from "../config/env.js";
+import { getSetting } from "../utils/settings.js";
 
 // ===========================================
 // Types
@@ -30,9 +31,17 @@ export class GeminiScriptExtractor {
     this.apiKey = env.gemini.apiKey;
   }
 
+  /** Resolve API key: DB setting takes priority over env var */
+  private async resolveApiKey(): Promise<string> {
+    const dbKey = await getSetting("geminiApiKey");
+    return dbKey || this.apiKey;
+  }
+
   async extractScript(videoUrl: string, videoId: string, fallbackDescription?: string): Promise<ScriptResult> {
+    const apiKey = await this.resolveApiKey();
     // Try Gemini API first
-    if (this.apiKey) {
+    if (apiKey) {
+      this.apiKey = apiKey;
       try {
         const tmpPath = await this.downloadVideo(videoUrl, videoId);
         try {
@@ -112,7 +121,7 @@ export class GeminiScriptExtractor {
 
     const { GoogleGenerativeAI } = await import("@google/generative-ai");
     const genAI = new GoogleGenerativeAI(this.apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const result = await model.generateContent([
       {
