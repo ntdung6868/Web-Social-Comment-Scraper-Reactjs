@@ -8,7 +8,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import type { ScrapedComment } from "../../types/scraper.types.js";
 import { emitScrapeProgress } from "../socket.js";
 import { CaptchaSolver } from "../captcha/index.js";
-import { launchStealthBrowser, thinkingPause, humanScrollJitter } from "./stealth-browser.js";
+import { launchStealthBrowser, thinkingPause, humanScrollJitter, warmUpSession } from "./stealth-browser.js";
 
 // ===========================================
 // Types
@@ -124,12 +124,17 @@ export class TikTokScraper {
       // Launch browser with 420px width (like Python reference)
       await this.launchBrowser();
 
-      this.emitProgress("loading", 10, "Đang truy cập trang...");
+      this.emitProgress("loading", 5, "Đang khởi tạo phiên duyệt web...");
 
       // Apply cookies first if available (navigate to tiktok.com -> apply -> navigate to URL)
       if (this.config.cookies.data) {
         await this.applyCookies();
       }
+
+      // Warm-up: browse TikTok homepage first to establish a normal session.
+      // This is the single most effective way to avoid CAPTCHA triggers.
+      this.emitProgress("loading", 10, "Đang truy cập trang...");
+      await warmUpSession(this.page!);
 
       // Navigate to video URL
       await this.navigateToUrl(url);
@@ -140,11 +145,26 @@ export class TikTokScraper {
       // Check for captcha
       await this.solveCaptchaOrThrow();
 
+      this.emitProgress("loading", 15, "Đang xem video...");
+
+      // Simulate watching the video for a few seconds before interacting.
+      // A real user would watch briefly before opening comments.
+      await this.randomSleep(2000, 4000);
+
+      // Move mouse around the video area (idle browsing behavior)
+      try {
+        const x = 150 + Math.floor(Math.random() * 200);
+        const y = 200 + Math.floor(Math.random() * 300);
+        await this.page!.mouse.move(x, y, { steps: 8 + Math.floor(Math.random() * 5) });
+      } catch {
+        // ignore
+      }
+
       this.emitProgress("loading", 20, "Đang mở bình luận...");
 
       // Click comment button to open comment panel
       await this.clickCommentButton();
-      await this.randomSleep(800, 1500);
+      await this.randomSleep(1000, 2000);
 
       // Check captcha again after interaction
       await thinkingPause(this.page!);
@@ -233,12 +253,13 @@ export class TikTokScraper {
     try {
       console.log("[TikTok] 🍪 Đang apply cookies...");
 
-      // Navigate to tiktok.com first to set domain (like Python reference)
+      // Navigate to tiktok.com first to set domain — required before addCookies
+      // (warm-up phase will do its own navigation afterwards)
       await this.page.goto("https://www.tiktok.com", {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });
-      await this.page.waitForTimeout(500);
+      await this.randomSleep(800, 1500);
 
       const cookies = JSON.parse(this.config.cookies.data);
       const cookieList = Array.isArray(cookies) ? cookies : cookies.cookies || [];
@@ -246,20 +267,31 @@ export class TikTokScraper {
       // Clear existing cookies first (like Python: driver.delete_all_cookies())
       await this.context.clearCookies();
 
-      // Format cookies EXACTLY like Python reference: only name, value, domain, path, secure
-      // Python _apply_cookies only passes these 5 fields — simpler = fewer errors
+      // Format cookies with all relevant fields for proper session restoration.
+      // Including sameSite, httpOnly, and expires helps TikTok recognize us as
+      // a real returning user instead of a bot with injected cookies.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const formattedCookies = cookieList
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((c: any) => c.name && c.value)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((c: any) => ({
-          name: String(c.name),
-          value: String(c.value),
-          domain: String(c.domain || ".tiktok.com"),
-          path: String(c.path || "/"),
-          secure: Boolean(c.secure),
-        }));
+        .map((c: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cookie: any = {
+            name: String(c.name),
+            value: String(c.value),
+            domain: String(c.domain || ".tiktok.com"),
+            path: String(c.path || "/"),
+            secure: Boolean(c.secure),
+            httpOnly: Boolean(c.httpOnly),
+            sameSite: TikTokScraper.normalizeSameSite(c.sameSite),
+          };
+          // Include expiration if available (browser extensions export as epoch seconds)
+          if (c.expirationDate && typeof c.expirationDate === "number") {
+            cookie.expires = c.expirationDate;
+          }
+          return cookie;
+        });
 
       if (formattedCookies.length > 0) {
         // Batch add — much faster than one-by-one
@@ -299,7 +331,8 @@ export class TikTokScraper {
       waitUntil: "load",
       timeout: 45000,
     });
-    await this.randomSleep(1500, 2500);
+    // Longer wait — a real user takes time for the page to render fully
+    await this.randomSleep(2500, 4500);
 
     // Log debug info
     try {
@@ -410,7 +443,7 @@ export class TikTokScraper {
   // Burst Scroll (ported from Python _tiktok_scroll_burst)
   // ===========================================
 
-  private async burstScroll(burstCount = 15, intervalMs = 60): Promise<boolean> {
+  private async burstScroll(burstCount = 6, intervalMs = 200): Promise<boolean> {
     if (!this.page) return false;
 
     try {
@@ -418,10 +451,12 @@ export class TikTokScraper {
       const beforeHeight = await this.page.evaluate(() => document.body.scrollHeight);
 
       for (let i = 0; i < burstCount; i++) {
-        await this.page.evaluate(() => window.scrollBy(0, 1200));
-        if (intervalMs > 0) {
-          await this.page.waitForTimeout(intervalMs);
-        }
+        // Random scroll distance (300-800px) — more human-like than fixed 1200px
+        const scrollAmount = 300 + Math.floor(Math.random() * 500);
+        await this.page.evaluate((dy) => window.scrollBy(0, dy), scrollAmount);
+        // Random interval (150-400ms) — humans don't scroll at fixed speed
+        const delay = intervalMs + Math.floor(Math.random() * 200);
+        await this.page.waitForTimeout(delay);
       }
 
       const afterTop = await this.page.evaluate(() => window.pageYOffset || document.documentElement.scrollTop || 0);
@@ -448,11 +483,19 @@ export class TikTokScraper {
     console.log("[TikTok] 📜 Đang cuộn liên tục đến cuối...");
     let noMoreScroll = 0;
 
+    let scrollRound = 0;
     while (this.isRunning && !this.abortController.signal.aborted) {
-      // Check captcha periodically
-      await this.solveCaptchaOrThrow();
+      scrollRound++;
 
-      const hasMore = await this.burstScroll(15, 60);
+      // Check captcha periodically (but not every single round to reduce overhead)
+      if (scrollRound % 3 === 1) {
+        await this.solveCaptchaOrThrow();
+      }
+
+      // Human-like pause between scroll bursts (500-1500ms)
+      await this.randomSleep(500, 1500);
+
+      const hasMore = await this.burstScroll(6, 200);
       if (!hasMore) {
         noMoreScroll++;
         console.log(`[TikTok] ⏳ Không có data mới, retry ${noMoreScroll}/3...`);

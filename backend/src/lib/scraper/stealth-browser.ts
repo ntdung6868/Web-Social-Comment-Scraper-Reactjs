@@ -26,40 +26,47 @@ interface UAProfile {
 }
 
 const UA_PROFILES: UAProfile[] = [
-  // Chrome 124 on macOS Sonoma
+  // Chrome 131 on macOS Sonoma
   {
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     platform: "MacIntel",
     devicePixelRatio: 2,
   },
-  // Chrome 123 on macOS Ventura
+  // Chrome 132 on macOS
   {
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
     platform: "MacIntel",
     devicePixelRatio: 2,
   },
-  // Chrome 124 on Windows 11
+  // Chrome 131 on Windows 11
   {
     userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     platform: "Win32",
     devicePixelRatio: 1,
   },
-  // Chrome 123 on Windows 10
+  // Chrome 132 on Windows 11
   {
     userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
     platform: "Win32",
     devicePixelRatio: 1,
   },
-  // Chrome 125 on macOS
+  // Chrome 133 on macOS
   {
     userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
     platform: "MacIntel",
     devicePixelRatio: 2,
+  },
+  // Chrome 133 on Windows 11
+  {
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    platform: "Win32",
+    devicePixelRatio: 1,
   },
 ];
 
@@ -94,8 +101,8 @@ export interface StealthBrowserResult {
 export async function launchStealthBrowser(options: StealthLaunchOptions): Promise<StealthBrowserResult> {
   const profile = pickRandom(UA_PROFILES);
   const userAgent = options.userAgentOverride || profile.userAgent;
-  const windowWidth = options.windowWidth ?? 500;
-  const windowHeight = options.windowHeight ?? 1000;
+  const windowWidth = options.windowWidth ?? 1280;
+  const windowHeight = options.windowHeight ?? 900;
 
   // ── Chrome flags ──
   const launchArgs = [
@@ -276,6 +283,43 @@ export async function launchStealthBrowser(options: StealthLaunchOptions): Promi
 export async function thinkingPause(page: Page, minMs = 500, maxMs = 1500): Promise<void> {
   const ms = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
   await page.waitForTimeout(ms);
+}
+
+/**
+ * Warm-up phase — visit TikTok homepage, scroll a bit, wait.
+ * Establishes a normal browsing session before hitting the target URL.
+ * This dramatically reduces CAPTCHA trigger rate.
+ */
+export async function warmUpSession(page: Page): Promise<void> {
+  console.log("[Stealth] 🔥 Warming up session on TikTok homepage...");
+
+  await page.goto("https://www.tiktok.com/foryou", {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
+
+  // Wait like a real user loading the page
+  await thinkingPause(page, 2000, 4000);
+
+  // Scroll down a few times like browsing the feed
+  const scrollCount = 2 + Math.floor(Math.random() * 3); // 2-4 scrolls
+  for (let i = 0; i < scrollCount; i++) {
+    const scrollAmount = 300 + Math.floor(Math.random() * 500);
+    await page.evaluate((dy) => window.scrollBy(0, dy), scrollAmount);
+    await thinkingPause(page, 800, 2000);
+  }
+
+  // Simulate mouse movement (idle user)
+  try {
+    const x = 200 + Math.floor(Math.random() * 300);
+    const y = 200 + Math.floor(Math.random() * 400);
+    await page.mouse.move(x, y, { steps: 5 + Math.floor(Math.random() * 10) });
+  } catch {
+    // ignore mouse move failures
+  }
+
+  await thinkingPause(page, 1000, 2000);
+  console.log("[Stealth] ✅ Warm-up complete");
 }
 
 /**
