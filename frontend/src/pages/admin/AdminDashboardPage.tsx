@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip, Stack,
+  Box, Grid, Card, CardContent, Typography, Skeleton, alpha, LinearProgress, Chip, Stack, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
 } from "@mui/material";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useTranslation } from "react-i18next";
 import {
   People as PeopleIcon,
@@ -209,9 +210,24 @@ export default function AdminDashboardPage() {
     refetchInterval: 10000,
   });
 
+  // List of who's online right now (username + plan + tab count).
+  // 10s refetch matches realtime above so the two panels stay in sync.
+  const { data: onlineData } = useQuery({
+    queryKey: ["admin", "online-users"],
+    queryFn: () =>
+      apiRequest.get<{
+        success: boolean;
+        data: {
+          users: Array<{ userId: string; username: string; planType: string; isAdmin: boolean; sockets: number }>;
+        };
+      }>("/admin/online-users"),
+    refetchInterval: 10000,
+  });
+
   const health = healthData?.data;
   const stats = dashboardData?.data;
   const realtime = realtimeData?.data;
+  const onlineUsers = onlineData?.data?.users ?? [];
   const loading = dashLoading;
 
   const healthColor = health?.status === "healthy" ? "#66bb6a" : health?.status === "degraded" ? "#ffa726" : "#f44336";
@@ -226,14 +242,35 @@ export default function AdminDashboardPage() {
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" fontWeight={700} gutterBottom>
-          {t("admin.dashboard")}
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          {t("admin.overview")}
-        </Typography>
-      </Box>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        spacing={2}
+        sx={{ mb: 4 }}
+      >
+        <Box>
+          <Typography variant="h4" fontWeight={700} gutterBottom>
+            {t("admin.dashboard")}
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {t("admin.overview")}
+          </Typography>
+        </Box>
+        {/* Bull-board sits on the same domain at /admin/queue and uses Basic
+            Auth — opening in a new tab keeps the SPA session intact. */}
+        <Button
+          variant="outlined"
+          startIcon={<QueueIcon />}
+          endIcon={<OpenInNewIcon fontSize="small" />}
+          href="/admin/queue/"
+          target="_blank"
+          rel="noopener"
+          sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, whiteSpace: "nowrap" }}
+        >
+          {t("admin.openQueueMonitor")}
+        </Button>
+      </Stack>
 
       {/* ── System Health ── */}
       <Card sx={{ mb: 4 }}>
@@ -398,6 +435,66 @@ export default function AdminDashboardPage() {
           />
         </Grid>
       </Grid>
+
+      {/* ── Online Users (who is currently connected) ── */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <PeopleIcon color="primary" />
+              <Typography variant="h6" fontWeight={600}>
+                {t("admin.onlineUsersTitle")}
+              </Typography>
+              <Chip label={onlineUsers.length} size="small" color="success" />
+            </Stack>
+          </Stack>
+
+          {onlineUsers.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+              {t("admin.onlineUsersEmpty")}
+            </Typography>
+          ) : (
+            <TableContainer component={Paper} variant="outlined" sx={{ bgcolor: "transparent" }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>{t("admin.username") || "Username"}</TableCell>
+                    <TableCell>{t("admin.plan") || "Plan"}</TableCell>
+                    <TableCell align="right">{t("admin.tabs")}</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {onlineUsers.map((u) => (
+                    <TableRow key={u.userId} hover>
+                      <TableCell>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Typography variant="body2" fontWeight={500}>
+                            {u.username}
+                          </Typography>
+                          {u.isAdmin && <Chip label="ADMIN" size="small" color="primary" sx={{ height: 18, fontSize: 10 }} />}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={u.planType}
+                          size="small"
+                          variant="outlined"
+                          color={u.planType === "FREE" ? "default" : "warning"}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" fontFamily="monospace">
+                          {u.sockets}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Users Section ── */}
       <SectionHeader title={t("admin.users")} icon={<PeopleIcon color="primary" />} />

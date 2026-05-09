@@ -339,6 +339,18 @@ export function getConnectedUserCount(): number {
 }
 
 /**
+ * Get list of currently-connected user IDs and their socket counts.
+ * Used by admin dashboard's "online users" panel.
+ */
+export function getConnectedUsersSummary(): Array<{ userId: string; sockets: number }> {
+  const out: Array<{ userId: string; sockets: number }> = [];
+  for (const [userId, set] of userSockets.entries()) {
+    out.push({ userId, sockets: set.size });
+  }
+  return out;
+}
+
+/**
  * Get all connected socket count
  */
 export function getConnectedSocketCount(): number {

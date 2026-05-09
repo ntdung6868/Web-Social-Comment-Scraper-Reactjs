@@ -45,6 +45,12 @@ router.get("/dashboard", adminController.getDashboard);
  */
 router.get("/realtime", adminController.getRealTimeStats);
 
+/**
+ * GET /api/admin/online-users
+ * Currently-connected users with username + plan + socket count.
+ */
+router.get("/online-users", adminController.getOnlineUsers);
+
 // ===========================================
 // User Management
 // ===========================================

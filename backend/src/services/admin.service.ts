@@ -11,7 +11,7 @@ import { createError } from "../middlewares/error.middleware.js";
 import { invalidateMaintenanceCache } from "../middlewares/maintenance.middleware.js";
 import { checkDatabaseHealth } from "../config/database.js";
 import { getQueueStats, getAllJobs, addScrapeJob, getWorkerConcurrency } from "../lib/queue.js";
-import { getConnectedUserCount, getConnectedSocketCount } from "../lib/socket.js";
+import { getConnectedUserCount, getConnectedSocketCount, getConnectedUsersSummary } from "../lib/socket.js";
 import { getRedisClient } from "../lib/redis.js";
 import { prisma } from "../config/database.js";
 import { hashPassword } from "../utils/password.js";
@@ -152,6 +152,47 @@ export class AdminService {
       queueStats: getQueueStats(),
       activeJobs: getAllJobs().filter((j) => j.status === "active" || j.status === "waiting"),
     };
+  }
+
+  /**
+   * List currently-connected users with their identity (username, plan, role)
+   * and number of open browser tabs / socket connections. Used by the
+   * admin dashboard's "Online users" panel.
+   */
+  async getOnlineUsers(): Promise<
+    Array<{
+      userId: string;
+      username: string;
+      planType: string;
+      isAdmin: boolean;
+      sockets: number;
+    }>
+  > {
+    const summary = getConnectedUsersSummary();
+    if (summary.length === 0) return [];
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: summary.map((s) => s.userId) } },
+      select: { id: true, username: true, planType: true, isAdmin: true },
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    return summary
+      .map((s) => {
+        const u = byId.get(s.userId);
+        // Skip orphaned sockets (user deleted while connected)
+        if (!u) return null;
+        return {
+          userId: u.id,
+          username: u.username,
+          planType: u.planType,
+          isAdmin: u.isAdmin,
+          sockets: s.sockets,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      // Admins first, then by socket count desc — admins are typically you
+      .sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin) || b.sockets - a.sockets);
   }
 
   // ===========================================

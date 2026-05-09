@@ -52,6 +52,15 @@ export const adminController = {
     sendSuccess(res, stats);
   }),
 
+  /**
+   * GET /api/v1/admin/online-users
+   * Currently-connected users with their identity + socket count.
+   */
+  getOnlineUsers: asyncHandler(async (_req: Request, res: Response): Promise<void> => {
+    const users = await adminService.getOnlineUsers();
+    sendSuccess(res, { users });
+  }),
+
   // ===========================================
   // User Management
   // ===========================================
