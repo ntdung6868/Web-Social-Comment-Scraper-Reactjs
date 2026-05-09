@@ -54,13 +54,19 @@ function createRedisConnection(): Redis {
 // BullMQ Queues
 // ===========================================
 
+// `attempts: 2` means BullMQ retries once if the WORKER PROCESS dies (OOM,
+// segfault, container restart, network blip in BullMQ ↔ Redis). This is
+// orthogonal to withRetry() in scraper.service which only catches in-process
+// retryable scrape errors (network/timeout/captcha) — that retry is gone if
+// the worker itself crashes. 60s backoff gives the worker time to recover.
 const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAME, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {
-    attempts: 1, // withRetry() in scraper.service handles retries at the app level
-    removeOnComplete: { count: 500, age: 3_600 }, // Keep last 500, max 1 h
-    removeOnFail: { count: 200, age: 86_400 }, // Keep last 200, max 24 h
+    attempts: 2,
+    backoff: { type: "exponential", delay: 60_000 },
+    removeOnComplete: { count: 500, age: 3_600 },
+    removeOnFail: { count: 200, age: 86_400 },
   },
 });
 
@@ -68,7 +74,8 @@ const freeQueue = new Queue<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {
-    attempts: 1,
+    attempts: 2,
+    backoff: { type: "exponential", delay: 60_000 },
     removeOnComplete: { count: 100, age: 3_600 },
     removeOnFail: { count: 100, age: 86_400 },
   },

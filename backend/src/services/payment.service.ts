@@ -139,9 +139,18 @@ export class PaymentService {
 
     console.log(`📋 [WEBHOOK] Order tìm thấy: status=${order.status}, amount=${order.amount}, planType=${order.planType}, userId=${order.userId}`);
 
-    // Verify transferred amount is sufficient
+    // Verify transferred amount is sufficient. We still return 200 to SePay
+    // (their docs require it to stop retries) but mark the order as
+    // UNDERPAID and log loudly so operators can refund or top up manually —
+    // previously this case silently looked like a healthy webhook.
     if (Number(transferAmount) < order.amount) {
-      console.log("❌ LỖI: Tiền gửi vào (", transferAmount, ") nhỏ hơn yêu cầu (", order.amount, ")");
+      console.error(
+        `[Payment] ⚠️ UNDERPAY on order ${orderCode}: received ${transferAmount} VND, ` +
+          `expected ${order.amount} VND (user ${order.userId}, plan ${order.planType})`,
+      );
+      await paymentRepository
+        .updateOrder(orderCode, { status: "UNDERPAID", paidAt: new Date() })
+        .catch((e) => console.warn(`[Payment] Could not mark order ${orderCode} UNDERPAID: ${e}`));
       return { success: true };
     }
 

@@ -1,110 +1,127 @@
 // ===========================================
 // Rate Limiting Middleware
 // ===========================================
-// Request rate limiting for API protection using Redis
+// Request rate limiting for API protection. Backed by Redis when available
+// so counters survive container restarts and are shared across worker instances.
 
 import rateLimit from "express-rate-limit";
+import RedisStore from "rate-limit-redis";
+import type { Store } from "express-rate-limit";
 import { env } from "../config/env.js";
 import { sendTooManyRequests } from "../utils/response.js";
 import { getRedisClient } from "../lib/redis.js";
 
-// Flag to track if Redis is available
-let redisAvailable = false;
+// ===========================================
+// Redis Store Factory
+// ===========================================
+// Each rate-limit window needs its own RedisStore instance (the package
+// keys data per-store). We share a single Redis client. Falls back to
+// the default in-memory store if Redis isn't configured / available.
 
-/**
- * Check if Redis is available
- */
-async function checkRedisAvailable(): Promise<boolean> {
-  if (!env.rateLimit.useRedis) return false;
+function makeStore(prefix: string): Store | undefined {
+  if (!env.rateLimit.useRedis) {
+    console.warn(
+      `[RateLimit] Redis backing disabled (RATE_LIMIT_USE_REDIS=false). ` +
+        `Counters reset on restart and don't share across instances. Window: ${prefix}`,
+    );
+    return undefined;
+  }
+
   try {
     const redis = getRedisClient();
-    await redis.ping();
-    return true;
-  } catch {
-    return false;
+    return new RedisStore({
+      // ioredis exposes `.call(cmd, ...args)`; rate-limit-redis expects a
+      // sendCommand that resolves to the result of a Redis command.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sendCommand: (...args: string[]) => (redis as any).call(...args),
+      prefix: `rl:${prefix}:`,
+    });
+  } catch (e) {
+    console.error(`[RateLimit] Failed to construct RedisStore for ${prefix} — falling back to in-memory:`, e);
+    return undefined;
   }
 }
 
+// ===========================================
+// Common keyGenerator
+// ===========================================
+
+const ipKey = (req: import("express").Request) =>
+  req.ip ?? req.socket.remoteAddress ?? "unknown";
+
+const userOrIpKey = (req: import("express").Request) =>
+  req.user?.userId.toString() ?? ipKey(req);
+
+// ===========================================
+// Limiters
+// ===========================================
+
 /**
- * General API rate limiter
+ * General API rate limiter (broad).
  */
 export const apiLimiter = rateLimit({
   windowMs: env.rateLimit.windowMs,
   max: env.rateLimit.maxRequests,
   standardHeaders: true,
   legacyHeaders: false,
-  // Explicitly use req.ip so trust-proxy: 1 correctly resolves the real
-  // client IP from X-Forwarded-For (set by OpenLiteSpeed reverse proxy).
-  keyGenerator: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
-  handler: (req, res) => {
-    sendTooManyRequests(res, "Too many requests, please try again later");
-  },
-  skip: async (req) => {
-    // Check Redis availability on first request
-    if (!redisAvailable && env.rateLimit.useRedis) {
-      redisAvailable = await checkRedisAvailable();
-    }
-    return req.path === "/health";
-  },
+  store: makeStore("api"),
+  keyGenerator: ipKey,
+  handler: (_req, res) => sendTooManyRequests(res, "Too many requests, please try again later"),
+  skip: (req) => req.path === "/health",
 });
 
 /**
- * Strict rate limiter for auth endpoints (login, register)
- * 20 requests per 15 minutes
+ * Strict rate limiter for auth endpoints (login, register).
+ * 20 requests per 15 minutes per IP.
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
-  handler: (req, res) => {
-    sendTooManyRequests(res, "Too many authentication attempts, please try again in 15 minutes");
-  },
+  store: makeStore("auth"),
+  keyGenerator: ipKey,
+  handler: (_req, res) =>
+    sendTooManyRequests(res, "Too many authentication attempts, please try again in 15 minutes"),
 });
 
 /**
- * Very strict rate limiter for sensitive operations (password reset)
- * 3 requests per hour
+ * Very strict rate limiter for sensitive operations (password reset).
+ * 3 requests per hour per IP.
  */
 export const sensitiveOpLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? req.socket.remoteAddress ?? "unknown",
-  handler: (req, res) => {
-    sendTooManyRequests(res, "Too many attempts, please try again in 1 hour");
-  },
+  store: makeStore("sensitive"),
+  keyGenerator: ipKey,
+  handler: (_req, res) => sendTooManyRequests(res, "Too many attempts, please try again in 1 hour"),
 });
 
 /**
- * Payment rate limiter — 10 payment link creations per hour per user
+ * Payment rate limiter — 10 payment link creations per hour per user.
  */
 export const paymentLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.userId.toString() ?? req.ip ?? "unknown",
-  handler: (req, res) => {
-    sendTooManyRequests(res, "Too many payment attempts, please try again in 1 hour");
-  },
+  store: makeStore("payment"),
+  keyGenerator: userOrIpKey,
+  handler: (_req, res) =>
+    sendTooManyRequests(res, "Too many payment attempts, please try again in 1 hour"),
 });
 
 /**
- * Scraping rate limiter
- * 20 scrapes per hour per user
+ * Scraping rate limiter — 20 scrapes per hour per user.
  */
 export const scrapeLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.user?.userId.toString() ?? req.ip ?? "unknown";
-  },
-  handler: (req, res) => {
-    sendTooManyRequests(res, "Scraping limit reached, please try again in 1 hour");
-  },
+  store: makeStore("scrape"),
+  keyGenerator: userOrIpKey,
+  handler: (_req, res) => sendTooManyRequests(res, "Scraping limit reached, please try again in 1 hour"),
 });

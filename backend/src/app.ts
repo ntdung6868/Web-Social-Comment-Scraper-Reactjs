@@ -43,8 +43,11 @@ export function createApp(): Application {
   // Body Parsing & Cookies
   // ===========================================
 
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+  // 1MB is plenty for cookie JSON (typical CookieForge export ~30KB) and
+  // any normal JSON body. Previously 10MB which made /cookies a memory-
+  // exhaustion target.
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
   app.use(cookieParser());
 
   // ===========================================

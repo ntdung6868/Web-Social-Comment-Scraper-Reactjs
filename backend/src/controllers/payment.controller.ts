@@ -33,12 +33,16 @@ export const paymentController = {
    * Security: verified via `Authorization: Apikey TOKEN` header.
    */
   webhook: asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    console.log("🔔 [WEBHOOK RUNG] Headers:", JSON.stringify(req.headers));
-    console.log("🔔 [WEBHOOK RUNG] Body:", JSON.stringify(req.body));
+    // Don't log full headers — they contain the Authorization token.
+    console.log("🔔 [Webhook] body:", JSON.stringify(req.body));
 
     if (req.headers.authorization !== `Apikey ${env.sepay.webhookToken}`) {
-      console.log("🔑 Auth Nhận được:", req.headers.authorization);
-      console.log("🔑 Auth Kì vọng: Apikey", process.env.SEPAY_WEBHOOK_TOKEN);
+      // Log only that auth failed — never the expected token. The previous
+      // version printed process.env.SEPAY_WEBHOOK_TOKEN which leaked the
+      // secret to anyone with log access.
+      const got = req.headers.authorization;
+      const gotPrefix = typeof got === "string" ? `${got.slice(0, 10)}…` : "(none)";
+      console.warn(`[Webhook] Auth rejected. Got prefix: ${gotPrefix}`);
       res.status(401).json({ error: "Unauthorized" });
       return;
     }

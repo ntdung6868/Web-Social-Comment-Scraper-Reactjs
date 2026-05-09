@@ -149,10 +149,11 @@ export class ScraperService {
 
     const jobId = await addScrapeJob(jobData);
 
-    // Use trial scrape if on free plan
-    if (user.planType === "FREE") {
-      await userRepository.useTrialScrape(userId);
-    }
+    // Trial decrement was previously here but ran BEFORE the scrape executed.
+    // Result: a FREE user whose scrape failed (captcha, network, browser
+    // crash) still lost a trial slot. Now the decrement runs in the job
+    // processor's success path (see registerJobProcessor), so users only
+    // pay for scrapes that actually returned data.
 
     return {
       historyId: history.id,
@@ -395,7 +396,7 @@ export class ScraperService {
     if (this.isProcessorRegistered) return;
 
     await registerProcessor(async (job: InMemoryJob): Promise<ScrapeJobResult> => {
-      const { historyId, userId, url, platform, cookies, sessionCookies, proxy, headless, maxComments } = job.data;
+      const { historyId, userId, url, platform, planType, cookies, sessionCookies, proxy, headless, maxComments } = job.data;
       const startTime = Date.now();
 
       try {
@@ -454,6 +455,17 @@ export class ScraperService {
 
         // Update history status
         await scraperRepository.updateHistoryStatus(historyId, "SUCCESS");
+
+        // Charge the FREE user one trial slot ONLY now that the scrape
+        // actually delivered data. Decrementing earlier (queue time) was
+        // unfair when scrapes failed for reasons outside the user's control.
+        // Idempotent across BullMQ retries because successful jobs aren't
+        // retried.
+        if (planType === "FREE" && savedCount > 0) {
+          await userRepository.useTrialScrape(userId).catch((e) => {
+            console.warn(`[ScraperService] Trial decrement failed for user ${userId}: ${e}`);
+          });
+        }
 
         const duration = Date.now() - startTime;
 

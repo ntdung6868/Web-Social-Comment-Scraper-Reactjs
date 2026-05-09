@@ -18,6 +18,26 @@ function getEnvVar(key: string, defaultValue?: string): string {
   return value;
 }
 
+/**
+ * Like getEnvVar but refuses to use the default in production. Caller passes
+ * a dev-only default that's safe to ship in source; in prod the env MUST be
+ * set or startup throws. Use this for secrets (JWT keys, webhook tokens).
+ */
+function getSecretEnvVar(key: string, devDefault: string): string {
+  const value = process.env[key];
+  if (value === undefined || value === "") {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        `Missing required secret in production: ${key}. ` +
+          `Refusing to start with the dev fallback because it would let anyone with ` +
+          `access to the source code forge tokens.`,
+      );
+    }
+    return devDefault;
+  }
+  return value;
+}
+
 // Helper function to get optional env variable
 function getOptionalEnvVar(key: string, defaultValue: string): string {
   return process.env[key] ?? defaultValue;
@@ -52,10 +72,11 @@ export const env = {
   // Database
   databaseUrl: getEnvVar("DATABASE_URL"),
 
-  // JWT
+  // JWT — secrets are required in production; throwing on missing prevents
+  // accidentally shipping the dev fallback (which is in our source code).
   jwt: {
-    accessSecret: getEnvVar("JWT_ACCESS_SECRET", "dev-access-secret-change-me"),
-    refreshSecret: getEnvVar("JWT_REFRESH_SECRET", "dev-refresh-secret-change-me"),
+    accessSecret: getSecretEnvVar("JWT_ACCESS_SECRET", "dev-access-secret-change-me"),
+    refreshSecret: getSecretEnvVar("JWT_REFRESH_SECRET", "dev-refresh-secret-change-me"),
     accessExpiresIn: getOptionalEnvVar("JWT_ACCESS_EXPIRES_IN", "15m"),
     refreshExpiresIn: getOptionalEnvVar("JWT_REFRESH_EXPIRES_IN", "7d"),
   },
