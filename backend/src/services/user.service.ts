@@ -270,6 +270,22 @@ export class UserService {
         cookieFile: data.filename,
         userAgent: data.userAgent,
       });
+
+      // Smart-detect: if the uploaded JSON contains TikTok's anti-bot verify
+      // token (`s_v_web_id`), it's a CookieForge v3 export — also persist as
+      // verified session so the scraper skips captcha. Otherwise clear any
+      // stale session (cookies were login-only).
+      const cookies = Array.isArray(parsedCookies)
+        ? parsedCookies
+        : (parsedCookies as { cookies?: unknown[] }).cookies ?? [];
+      const hasVerifyToken = Array.isArray(cookies)
+        && cookies.some((c) => typeof c === "object" && c !== null && (c as { name?: string }).name === "s_v_web_id");
+
+      if (hasVerifyToken) {
+        await userRepository.updateTiktokSession(userId, data.cookieData);
+      } else if (user.tiktokSessionCookies) {
+        await userRepository.clearTiktokSession(userId);
+      }
     } else {
       await userRepository.updateFacebookCookie(userId, {
         cookieData: data.cookieData,

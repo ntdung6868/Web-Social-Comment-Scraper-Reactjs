@@ -226,7 +226,8 @@ export class UserRepository {
   }
 
   /**
-   * Delete TikTok cookie
+   * Delete TikTok cookie (also clears verified-session — they're tied together
+   * as a single uploaded artifact since CookieForge v3).
    */
   async deleteTiktokCookie(userId: string): Promise<User> {
     return prisma.user.update({
@@ -238,6 +239,8 @@ export class UserRepository {
         tiktokCookieValidAt: null,
         tiktokCookieStatus: "UNKNOWN",
         useTiktokCookie: false,
+        tiktokSessionCookies: null,
+        tiktokSessionAt: null,
       },
     });
   }
