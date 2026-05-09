@@ -183,11 +183,16 @@ def click_comment_button(driver, log_func):
     return False
 
 
-def export_verified_session(driver, log_func):
+def export_verified_session(driver, log_func, out_path, is_refresh=False):
     """
-    Sau khi user đã giải captcha và "warm" session, dump toàn bộ cookies (đặc biệt
-    s_v_web_id, odin_tt, msToken — chữ ký anti-bot do TikTok cấp sau verify).
-    Lưu ra ~/Downloads/tiktok-verified-session-{timestamp}.json để upload lên web.
+    Dump driver cookies (đặc biệt s_v_web_id, odin_tt, msToken) ra file out_path.
+    Định dạng tương thích Playwright addCookies (expiry → expires, normalize sameSite).
+
+    Args:
+      driver: Selenium Chrome driver
+      log_func: callback log lên GUI
+      out_path: Path để ghi (caller cố định để 2 lần gọi ghi đè cùng 1 file)
+      is_refresh: True ở lần gọi cuối → log message khác cho rõ
     """
     try:
         # Check browser còn alive trước khi gọi get_cookies (tránh ConnectionError stack-trace dài)
@@ -202,8 +207,6 @@ def export_verified_session(driver, log_func):
             log_func("⚠️ Không có cookie để export")
             return None
 
-        # Selenium dùng `expiry` (epoch seconds), Playwright dùng `expires`.
-        # Chuẩn hoá về schema mà backend (Playwright addCookies) tiêu thụ trực tiếp.
         out = []
         has_verify_token = False
         for c in selenium_cookies:
@@ -231,19 +234,19 @@ def export_verified_session(driver, log_func):
             if c.get("name") == "s_v_web_id":
                 has_verify_token = True
 
-        if not has_verify_token:
+        if not has_verify_token and not is_refresh:
             log_func("⚠️ Cảnh báo: KHÔNG thấy `s_v_web_id` (token sau verify). Captcha có thể chưa qua đủ — file vẫn được xuất nhưng có thể không bypass captcha.")
 
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        downloads_dir = Path.home() / "Downloads"
-        downloads_dir.mkdir(parents=True, exist_ok=True)
-        out_path = downloads_dir / f"tiktok-verified-session-{timestamp}.json"
-
+        out_path = Path(out_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(out, f, indent=2, ensure_ascii=False)
 
-        log_func(f"💾 Đã xuất {len(out)} cookie verified-session → {out_path}")
-        log_func("📤 Vào Settings → upload file này để bypass captcha cho các lần scrape sau.")
+        if is_refresh:
+            log_func(f"🔄 Đã refresh msToken trong file ({len(out)} cookies)")
+        else:
+            log_func(f"💾 Đã xuất {len(out)} cookie verified-session → {out_path}")
+            log_func("📤 Vào Settings → upload file này để bypass captcha cho các lần scrape sau.")
         return str(out_path)
     except Exception as e:
         log_func(f"❌ Lỗi export verified-session: {e}")
@@ -283,6 +286,11 @@ def run_cookie_forge(cookie_path, log_callback, stop_event):
 
     log("🚀 Khởi động CookieForge (Core: Scraper.py Logic)...")
 
+    # Cố định path output cho cả run — early + final cùng ghi vào file này
+    # (final ghi đè early, user chỉ thấy 1 file).
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    session_path = Path.home() / "Downloads" / f"tiktok-verified-session-{timestamp}.json"
+
     driver = None
     try:
         # 1. Init
@@ -306,8 +314,8 @@ def run_cookie_forge(cookie_path, log_callback, stop_event):
 
         # 5a. EARLY EXPORT — chộp cookies NGAY sau khi captcha qua (hoặc không có).
         # Tránh trường hợp browser bị đóng/crash trong burst-scroll khiến mất hết.
-        log("\n💾 Snapshot verified-session lần 1 (sau captcha)...")
-        export_path_early = export_verified_session(driver, log)
+        log("\n💾 Snapshot verified-session (sau captcha)...")
+        export_path_early = export_verified_session(driver, log, session_path, is_refresh=False)
 
         # 5b. Trust Loop (Dùng thuật toán Burst Scroll của Scraper)
         log("\n⬇️  Bắt đầu Burst Scroll để nuôi Trust...")
@@ -343,17 +351,17 @@ def run_cookie_forge(cookie_path, log_callback, stop_event):
 
             random_sleep(2.0, 4.0, stop_event)
 
-        # 6. Final export — refresh msToken sau khi đã warm xong.
-        # Nếu browser đã chết (user đóng cửa sổ) thì silently fall back về export sớm.
-        log("\n📦 Đang xuất file verified-session (refresh msToken)...")
+        # 6. Final export — ghi đè cùng file với msToken mới rotate sau warm-up.
+        # Nếu browser đã chết (user đóng cửa sổ) thì silently giữ snapshot sớm.
+        log("\n🔄 Refresh msToken vào file verified-session...")
         try:
-            final_path = export_verified_session(driver, log)
+            final_path = export_verified_session(driver, log, session_path, is_refresh=True)
             if not final_path and export_path_early:
-                log(f"ℹ️ Final export thất bại — dùng snapshot sớm ở: {export_path_early}")
+                log(f"ℹ️ Refresh thất bại — file sớm vẫn dùng được: {export_path_early}")
         except Exception as e:
-            log(f"⚠️ Final export lỗi (browser có thể đã đóng): {e}")
+            log(f"⚠️ Refresh lỗi (browser có thể đã đóng): {e}")
             if export_path_early:
-                log(f"✅ Đã có snapshot sớm: {export_path_early}")
+                log(f"✅ Vẫn còn file: {export_path_early}")
 
         log("🎉 Quy trình hoàn tất! Cookie đã 'ấm'.")
 
