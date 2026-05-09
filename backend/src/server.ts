@@ -64,33 +64,53 @@ async function bootstrap(): Promise<void> {
     const shutdown = async (signal: string) => {
       console.log(`\n📤 Received ${signal}. Starting graceful shutdown...`);
 
-      // Stop cleanup job
+      // 1. Stop cron-style cleanup job so it can't kick off mid-shutdown
       stopCleanupJob();
 
-      // Close HTTP server
-      httpServer.close(async () => {
-        console.log("🔌 HTTP server closed");
-
-        // Close Redis connection
-        await closeRedis();
-
-        // Disconnect database
-        await disconnectDatabase();
-
-        console.log("👋 Shutdown complete");
-        process.exit(0);
+      // 2. Stop accepting new HTTP connections (existing keep-alives still drain)
+      const httpClosed = new Promise<void>((resolve) => {
+        httpServer.close(() => {
+          console.log("🔌 HTTP server closed");
+          resolve();
+        });
       });
 
-      // Force shutdown after 30 seconds
-      setTimeout(() => {
-        console.error("⚠️ Forced shutdown after timeout");
-        process.exit(1);
-      }, 30000);
+      // 3. Drain BullMQ workers — let active scrape jobs finish (or hit their
+      //    own internal timeouts), but cap so a hung scrape doesn't block
+      //    container shutdown longer than the orchestrator's grace period.
+      const { closeWorkers } = await import("./lib/queue.js");
+      const workersClosed = closeWorkers(25_000).catch((e) => {
+        console.warn("⚠️ Worker close errored:", e);
+      });
+
+      await Promise.all([httpClosed, workersClosed]);
+
+      // 4. Close infra clients
+      await closeRedis();
+      await disconnectDatabase();
+
+      console.log("👋 Shutdown complete");
+      process.exit(0);
     };
 
-    // Handle shutdown signals
-    process.on("SIGTERM", () => shutdown("SIGTERM"));
-    process.on("SIGINT", () => shutdown("SIGINT"));
+    // Hard ceiling — if anything above hangs, force-exit so the orchestrator
+    // doesn't kill -9 us (which would orphan Chromium / leave Redis state).
+    const installForceExit = () =>
+      setTimeout(() => {
+        console.error("⚠️ Forced shutdown after 35s timeout");
+        process.exit(1);
+      }, 35_000);
+
+    // Handle shutdown signals — install force-exit timer so orchestrator
+    // SIGKILL (which kills mid-flight Chromium) is avoided.
+    process.on("SIGTERM", () => {
+      installForceExit();
+      shutdown("SIGTERM");
+    });
+    process.on("SIGINT", () => {
+      installForceExit();
+      shutdown("SIGINT");
+    });
 
     // Handle uncaught errors
     process.on("uncaughtException", (error) => {

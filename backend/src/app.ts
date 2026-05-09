@@ -7,6 +7,7 @@ import express, { type Application, type Request, type Response } from "express"
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import pinoHttp from "pino-http";
 import { nanoid } from "nanoid";
 
@@ -41,6 +42,21 @@ export function createApp(): Application {
 
   // CORS
   app.use(corsMiddleware);
+
+  // Gzip/deflate response bodies. Skip when client already opted out
+  // (e.g. Server-Sent Events / file downloads we want streamed). Compression
+  // is CPU vs bandwidth — for our typical JSON payloads (history listings,
+  // dashboard stats) this is a net win, often 70-80% smaller. Threshold of
+  // 1KB skips tiny responses where compression overhead exceeds savings.
+  app.use(
+    compression({
+      threshold: 1024,
+      filter: (req, res) => {
+        if (req.headers["x-no-compression"]) return false;
+        return compression.filter(req, res);
+      },
+    }),
+  );
 
   // ===========================================
   // Body Parsing & Cookies

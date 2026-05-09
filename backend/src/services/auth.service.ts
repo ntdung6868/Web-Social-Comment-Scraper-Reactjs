@@ -289,9 +289,18 @@ export class AuthService {
 
     await authRepository.setResetToken(user.id, resetToken, expiresAt);
 
-    // TODO: Send email with reset link
-    // In production, integrate with Resend or another email service
-    console.log(`[Auth] Password reset token for ${email}: ${resetToken}`);
+    // Send email via Resend (no-op log when RESEND_API_KEY isn't set, so dev
+    // can still grab the link from the server log).
+    const { sendPasswordResetEmail } = await import("../lib/email.js");
+    const baseUrl = process.env.FRONTEND_URL ?? "https://crawlcomments.duckdns.org";
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
+    await sendPasswordResetEmail(email, resetUrl);
+
+    // Belt-and-suspenders dev hint when email isn't configured: also log the
+    // raw token so a developer can copy it from `docker logs`.
+    if (!process.env.RESEND_API_KEY) {
+      console.log(`[Auth] Password reset URL (RESEND not configured): ${resetUrl}`);
+    }
 
     return { sent: true };
   }

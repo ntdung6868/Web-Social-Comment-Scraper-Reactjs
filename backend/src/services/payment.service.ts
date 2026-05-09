@@ -179,6 +179,26 @@ export class PaymentService {
       "Plan upgraded successfully",
     );
 
+    // Best-effort confirmation email — never fail the webhook over a
+    // missing email address or a Resend outage.
+    try {
+      const buyer = await prisma.user.findUnique({
+        where: { id: order.userId },
+        select: { email: true },
+      });
+      if (buyer?.email) {
+        const { sendPaymentSuccessEmail } = await import("../lib/email.js");
+        await sendPaymentSuccessEmail(buyer.email, {
+          planType: order.planType,
+          amount: order.amount,
+          orderCode,
+          expiresAt: subscriptionEnd,
+        });
+      }
+    } catch (e) {
+      log.warn({ orderCode, err: e }, "Could not send payment confirmation email");
+    }
+
     // Notify user in real-time via Socket.io
     emitPaymentSuccess(order.userId, {
       orderCode,

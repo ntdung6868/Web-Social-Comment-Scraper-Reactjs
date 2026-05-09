@@ -147,6 +147,16 @@ model ScrapeHistory {
 
   @@index([userId])
   @@index([createdAt])
+  // Compound indexes for the two hot list queries:
+  //   1. user's history page — `where userId AND order by createdAt DESC`
+  //   2. user's history filtered by status — `where userId AND status AND order by createdAt DESC`
+  // MongoDB can't combine two single-column indexes for a sort + filter; the
+  // compound form turns a collection scan into an index scan as the table grows.
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, status, createdAt(sort: Desc)])
+  // Cleanup job filters by retention age + (optional) status — index helps
+  // the periodic delete-old-rows query stay snappy as data grows.
+  @@index([status, createdAt])
   @@map("scrape_histories")
 }
 

@@ -291,6 +291,29 @@ async function createWorkers(): Promise<void> {
   );
 }
 
+/**
+ * Graceful worker shutdown for SIGTERM/SIGINT. Waits up to `maxWaitMs` for
+ * in-flight scrape jobs to finish before forcibly closing. Browser instances
+ * inside the processor have their own try/finally cleanup, so a clean close
+ * here releases them without orphaning Chromium processes.
+ */
+export async function closeWorkers(maxWaitMs = 25_000): Promise<void> {
+  const workers = [premiumWorker, freeWorker].filter((w): w is Worker<ScrapeJobData, ScrapeJobResult> => w !== null);
+  if (workers.length === 0) return;
+
+  console.log(`[Queue] 🛑 Closing ${workers.length} worker(s) (drain up to ${maxWaitMs}ms)...`);
+  // worker.close(force=false) waits for active jobs to settle before returning
+  await Promise.race([
+    Promise.all(workers.map((w) => w.close(false))),
+    new Promise<void>((resolve) => setTimeout(resolve, maxWaitMs)),
+  ]);
+  // Force-close anything still active
+  await Promise.all(workers.map((w) => w.close(true).catch(() => undefined)));
+  premiumWorker = null;
+  freeWorker = null;
+  console.log("[Queue] ✅ Workers closed");
+}
+
 // ===========================================
 // Exported Queue API  (backward-compatible)
 // ===========================================
