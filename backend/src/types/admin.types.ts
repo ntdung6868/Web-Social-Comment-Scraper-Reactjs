@@ -63,7 +63,10 @@ export interface AdminDashboardStats {
   subscriptions: {
     free: number;
     pro: number;
-    expired: number;
+    /** FREE users with planStatus=EXPIRED (used up trials, conversion candidates). */
+    expiredFree: number;
+    /** PERSONAL/PREMIUM subscribers whose subscription lapsed (re-conversion target). */
+    expiredPaid: number;
   };
   scraping: {
     totalJobs: number;

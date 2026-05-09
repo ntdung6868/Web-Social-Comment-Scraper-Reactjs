@@ -357,7 +357,10 @@ export class AdminRepository {
     subscriptions: {
       free: number;
       pro: number;
-      expired: number;
+      // Mutually-exclusive expired buckets. Replaces the old single
+      // `expired` field that double-counted with `free`/`pro`.
+      expiredFree: number;
+      expiredPaid: number;
     };
     scraping: {
       totalJobs: number;
@@ -381,11 +384,24 @@ export class AdminRepository {
       }[];
     };
   }> {
+    // Time windows are computed in Asia/Ho_Chi_Minh (ICT, UTC+7) since the
+    // app is Vietnam-targeted. Server runs UTC, so previously "today" started
+    // at UTC midnight = ICT 07:00 — admin missed everything from 00:00–07:00 ICT.
+    // ICT has no DST so a fixed 7-hour offset is exact.
+    const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - 7);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const ictNowMs = now.getTime() + ICT_OFFSET_MS;
+    const ictNow = new Date(ictNowMs);
+    // Floor to ICT day, then convert back to UTC instant
+    const ictTodayFloor = Date.UTC(ictNow.getUTCFullYear(), ictNow.getUTCMonth(), ictNow.getUTCDate());
+    const todayStart = new Date(ictTodayFloor - ICT_OFFSET_MS);
+    const weekStart = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const ictMonthFloor = Date.UTC(ictNow.getUTCFullYear(), ictNow.getUTCMonth(), 1);
+    const monthStart = new Date(ictMonthFloor - ICT_OFFSET_MS);
+
+    // Average-completion-time uses last 30 days only — older data dilutes
+    // any signal about current scraper performance.
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     const [
       totalUsers,
@@ -395,7 +411,11 @@ export class AdminRepository {
       newThisWeek,
       freeUsers,
       proUsers,
-      expiredUsers,
+      // Mutually-exclusive expired buckets so admin sees the difference
+      // between "FREE user used up trials" and "Pro subscription lapsed"
+      // (the second is a re-conversion target; the first isn't).
+      expiredFreeUsers,
+      expiredPaidUsers,
       totalScrapes,
       successfulScrapes,
       failedScrapes,
@@ -413,19 +433,21 @@ export class AdminRepository {
       prisma.user.count({ where: { createdAt: { gte: weekStart } } }),
       prisma.user.count({ where: { planType: "FREE" } }),
       prisma.user.count({ where: { planType: { in: ["PERSONAL", "PREMIUM"] } } }),
-      prisma.user.count({ where: { planStatus: "EXPIRED" } }),
+      prisma.user.count({ where: { planStatus: "EXPIRED", planType: "FREE" } }),
+      prisma.user.count({ where: { planStatus: "EXPIRED", planType: { in: ["PERSONAL", "PREMIUM"] } } }),
       prisma.scrapeHistory.count(),
       prisma.scrapeHistory.count({ where: { status: "SUCCESS" } }),
       prisma.scrapeHistory.count({ where: { status: "FAILED" } }),
       prisma.scrapeHistory.aggregate({ _sum: { totalComments: true } }),
+      // Filter to last 30 days so avgCompletionTime reflects current behavior
       prisma.scrapeHistory.findMany({
         where: {
           status: { in: ["SUCCESS", "FAILED"] },
           updatedAt: { not: null },
+          createdAt: { gte: last30Days },
         },
         select: { createdAt: true, updatedAt: true },
       }),
-      // Revenue aggregates
       prisma.order.aggregate({ where: { status: "PAID" }, _sum: { amount: true } }),
       prisma.order.aggregate({ where: { status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
       prisma.order.aggregate({ where: { status: "PAID", paidAt: { gte: todayStart } }, _sum: { amount: true } }),
@@ -437,7 +459,7 @@ export class AdminRepository {
       }),
     ]);
 
-    // Calculate average completion time in seconds
+    // Average completion time in seconds (last 30 days)
     let avgCompletionTime = 0;
     if (completedScrapes.length > 0) {
       const totalMs = completedScrapes.reduce((sum, s) => {
@@ -458,7 +480,8 @@ export class AdminRepository {
       subscriptions: {
         free: freeUsers,
         pro: proUsers,
-        expired: expiredUsers,
+        expiredFree: expiredFreeUsers,
+        expiredPaid: expiredPaidUsers,
       },
       scraping: {
         totalJobs: totalScrapes,

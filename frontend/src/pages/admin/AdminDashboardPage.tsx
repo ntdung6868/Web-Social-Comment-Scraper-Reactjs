@@ -50,8 +50,9 @@ interface AdminDashboardStats {
   };
   subscriptions: {
     free: number;
-    pro: number; // paid users (PERSONAL + PREMIUM)
-    expired: number;
+    pro: number; // paid users (PERSONAL + PREMIUM), regardless of status
+    expiredFree: number; // FREE users with planStatus=EXPIRED
+    expiredPaid: number; // paid subscribers whose subscription lapsed
   };
   scraping: {
     totalJobs: number;
@@ -188,7 +189,8 @@ export default function AdminDashboardPage() {
   const { data: dashboardData, isLoading: dashLoading } = useQuery({
     queryKey: queryKeys.admin.dashboard(),
     queryFn: () => apiRequest.get<{ success: boolean; data: AdminDashboardStats }>("/admin/dashboard"),
-    refetchInterval: 5000,
+    // 30s for "heavy" stats (DB aggregates) — they don't change second-to-second
+    refetchInterval: 30000,
   });
 
   const { data: realtimeData } = useQuery({
@@ -202,7 +204,9 @@ export default function AdminDashboardPage() {
           queueStats: { waiting: number; active: number; completed: number; failed: number; delayed: number };
         };
       }>("/admin/realtime"),
-    refetchInterval: 3000,
+    // 10s for the cheap counters (queue depth, sockets) — was 3s which spammed
+    // the API enough to trip the global rate limit during admin sessions.
+    refetchInterval: 10000,
   });
 
   const health = healthData?.data;
@@ -212,10 +216,12 @@ export default function AdminDashboardPage() {
 
   const healthColor = health?.status === "healthy" ? "#66bb6a" : health?.status === "degraded" ? "#ffa726" : "#f44336";
 
-  const successRate =
-    stats && stats.scraping.totalJobs > 0
-      ? Math.round((stats.scraping.successfulJobs / stats.scraping.totalJobs) * 100)
-      : 0;
+  // Success rate over COMPLETED jobs only (success + failed). Including
+  // pending/running in the denominator dilutes the rate when there are jobs
+  // mid-flight — e.g. 5 pending + 5 success would have shown 50% even
+  // though the actual rate was 100%.
+  const completedJobs = (stats?.scraping.successfulJobs ?? 0) + (stats?.scraping.failedJobs ?? 0);
+  const successRate = completedJobs > 0 ? Math.round(((stats?.scraping.successfulJobs ?? 0) / completedJobs) * 100) : 0;
 
   return (
     <Box>
@@ -467,9 +473,21 @@ export default function AdminDashboardPage() {
         <Grid item xs={6} sm={4}>
           <StatCard
             title={t("admin.expired")}
-            value={stats?.subscriptions?.expired ?? 0}
+            // Pro-expired users are the re-conversion target; FREE-exhausted
+            // users (expiredFree) get their own card below to avoid mixing
+            // categories — admin can act on each differently.
+            value={stats?.subscriptions?.expiredPaid ?? 0}
             icon={<UptimeIcon sx={{ color: "#ef5350" }} />}
             color="#ef5350"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            title={t("admin.freeExhausted") || "FREE hết lượt"}
+            value={stats?.subscriptions?.expiredFree ?? 0}
+            icon={<PeopleIcon sx={{ color: "#94a3b8" }} />}
+            color="#94a3b8"
             loading={loading}
           />
         </Grid>
