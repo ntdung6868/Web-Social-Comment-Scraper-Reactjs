@@ -19,6 +19,9 @@ dist-ssr/
 .env
 .env.*
 !.env.example
+# Frontend production env: only contains public VITE_ vars (URLs), needed at
+# build time on the VPS so the bundle uses the right backend origin.
+!frontend/.env.production
 
 # =============================================
 # Database
