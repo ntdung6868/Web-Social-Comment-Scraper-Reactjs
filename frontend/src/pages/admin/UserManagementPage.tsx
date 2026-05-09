@@ -135,6 +135,20 @@ export default function UserManagementPage() {
     refetchInterval: 10000,
   });
 
+  // ── Online users (in-memory socket map) ──
+  // Refetched independently from the user list so the green-dot indicator
+  // updates within ~10s of someone connecting/disconnecting, regardless of
+  // whether the admin has paginated to a different page.
+  const { data: onlineData } = useQuery({
+    queryKey: ["admin", "online-users"],
+    queryFn: () =>
+      apiRequest.get<{ success: boolean; data: { users: Array<{ userId: string }> } }>(
+        "/admin/online-users",
+      ),
+    refetchInterval: 10000,
+  });
+  const onlineUserIds = new Set((onlineData?.data?.users ?? []).map((u) => u.userId));
+
   // ── Detail Query ──
   const {
     data: detailData,
@@ -373,15 +387,47 @@ export default function UserManagementPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {users.map((user: User) => (
+                  {users.map((user: User) => {
+                    // user.id is typed as number in the FE types but the
+                    // actual value is a Mongo ObjectId string at runtime.
+                    // Stringify for the Set lookup so the green dot renders.
+                    const isOnline = onlineUserIds.has(String(user.id));
+                    return (
                     <TableRow key={user.id} hover onClick={() => setDetailUserId(user.id)} sx={{ cursor: "pointer", transition: "background-color 0.2s ease" }}>
                       <TableCell>
-                        <Typography variant="body2" fontWeight={500}>
-                          {user.username}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {user.email}
-                        </Typography>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          {/* Online indicator: filled green dot with subtle glow when
+                              the user has at least one active WebSocket. Empty grey ring
+                              otherwise. ~10s latency on disconnect (Socket.io ping timeout). */}
+                          <Tooltip
+                            title={isOnline ? "Đang online" : "Offline"}
+                            arrow
+                            placement="top"
+                          >
+                            <Box
+                              component="span"
+                              sx={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: "50%",
+                                flexShrink: 0,
+                                bgcolor: isOnline ? "#22c55e" : "transparent",
+                                border: isOnline
+                                  ? "1px solid rgba(34, 197, 94, 0.7)"
+                                  : "1px solid rgba(148, 163, 184, 0.5)",
+                                boxShadow: isOnline ? "0 0 6px rgba(34, 197, 94, 0.55)" : "none",
+                              }}
+                            />
+                          </Tooltip>
+                          <Box>
+                            <Typography variant="body2" fontWeight={500}>
+                              {user.username}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {user.email}
+                            </Typography>
+                          </Box>
+                        </Stack>
                       </TableCell>
                       <TableCell>
                         <Chip
@@ -425,7 +471,8 @@ export default function UserManagementPage() {
                       </TableCell>
                       <TableCell>{language === "vi" ? formatDateVi(user.createdAt) : format(new Date(user.createdAt), "MMM dd, yyyy")}</TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
