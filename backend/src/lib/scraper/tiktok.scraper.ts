@@ -710,11 +710,21 @@ export class TikTokScraper {
   /**
    * Paginate through TikTok's comment API by reusing the signed URL captured from
    * the first comment-panel-open request. We replace `cursor` and call fetch() from
-   * inside the page context so TikTok's JS request interceptor re-signs `msToken`/
-   * `X-Bogus`/`X-Gnarly` automatically.
+   * inside the page context so TikTok's JS request interceptor re-signs msToken /
+   * X-Bogus / X-Gnarly automatically.
    *
-   * Returns true if pagination succeeded (got at least one page); false if it bailed
-   * (no captured URL, immediate failure) so caller can fall back to scroll path.
+   * Production-grade flow with explicit page-outcome states:
+   *   - Success           → page returned new uniques, advance cursor.
+   *   - SuspectedThrottle → empty/dup-only page but `total` says more exists.
+   *                         Backoff + retry (with humanScrollJitter to look human),
+   *                         up to MAX_THROTTLE_RETRIES; THEN give up gracefully.
+   *   - DefinitiveEnd     → has_more=false AND empty/zero-add, OR collected reaches
+   *                         95% of `total`, OR cursor stalled past `total`.
+   *   - HardError         → status_code != 0 / captcha → solve or bail.
+   *   - SoftError         → HTTP layer failure → 800ms retry, bail after 2.
+   *
+   * Returns true if at least one page was collected (worth using the partial result),
+   * false only when we never got past the first page.
    */
   private async paginateViaAPI(): Promise<boolean> {
     if (!this.page || !this.interceptedApiUrl) return false;
@@ -722,34 +732,35 @@ export class TikTokScraper {
     const baseUrl = new URL(this.interceptedApiUrl);
     const pageSize = parseInt(baseUrl.searchParams.get("count") || "20", 10);
     const maxComments = this.config.maxComments || 1000;
-    const total = parseInt(baseUrl.searchParams.get("total") || "0", 10);
+
+    // Tunables — increase any of these if TikTok throttles aggressively.
+    const MAX_THROTTLE_RETRIES = 5; // Backoff retries when TikTok serves dups/empty mid-stream
+    const SOFT_ERROR_BAIL = 3; // Consecutive HTTP failures before giving up
+    const COMPLETION_THRESHOLD = 0.95; // % of `total` considered "done enough"
 
     let cursor = 0;
     let pageNum = 0;
-    let consecutiveEmpty = 0;
-    let totalReported = total > 0 ? total : 0;
-    // Track stagnation: if N consecutive pages add zero new uniques to apiComments,
-    // we're past the real end of data even if TikTok keeps replying has_more=true
-    // and incrementing cursor.
+    let totalReported = 0; // Highest `total` value observed so far (monotonic up)
+    let knownTotalLocked = false; // Have we seen at least one valid `total`?
     let prevCollected = 0;
-    let stagnantPages = 0;
-    const MAX_STAGNANT = 3;
+    let throttleRetries = 0; // Consecutive throttle backoffs at current cursor
+    let softErrorCount = 0; // Consecutive HTTP-layer failures
+    const recentNewUniqueRatios: number[] = []; // For adaptive pacing
 
     console.log(`[TikTok] 🚀 Starting API pagination (count=${pageSize}, max=${maxComments})`);
 
     while (this.isRunning && !this.abortController.signal.aborted) {
+      // ── Hard cap: respect plan/user maxComments ──────────────────────────
       if (this.apiComments.size >= maxComments) {
         console.log(`[TikTok] ✅ Reached maxComments (${maxComments})`);
-        break;
+        return true;
       }
 
       pageNum++;
-
-      // Build URL with new cursor
       const url = new URL(this.interceptedApiUrl);
       url.searchParams.set("cursor", String(cursor));
 
-      // Call fetch from inside page context — TikTok JS auto-signs the request
+      // ── Fetch (signed by TikTok JS via page.evaluate) ────────────────────
       const result = await this.page
         .evaluate(async (apiUrl: string) => {
           try {
@@ -770,22 +781,27 @@ export class TikTokScraper {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = result as any;
 
+      // ── Soft error: HTTP/transport-layer failure ─────────────────────────
       if (!r.__ok) {
-        console.warn(`[TikTok] ⚠️ API page ${pageNum} failed: ${r.__reason} (status=${r.__status})`);
-        consecutiveEmpty++;
-        if (consecutiveEmpty >= 2) {
-          console.warn(`[TikTok] 🛑 Bailing out of API pagination after ${consecutiveEmpty} failures`);
-          // Captcha may have been triggered — let caller decide
+        softErrorCount++;
+        console.warn(
+          `[TikTok] ⚠️ Page ${pageNum} HTTP fail (${softErrorCount}/${SOFT_ERROR_BAIL}): ${r.__reason} (status=${r.__status})`,
+        );
+        if (softErrorCount >= SOFT_ERROR_BAIL) {
+          console.warn("[TikTok] 🛑 Too many HTTP failures — checking for captcha then bailing");
           await this.solveCaptchaOrThrow();
-          return pageNum > 1; // partial success only if we got at least one good page
+          return pageNum > 1;
         }
-        await this.page.waitForTimeout(800);
+        await this.page.waitForTimeout(800 + Math.floor(Math.random() * 400));
+        // Don't advance cursor — retry same page
+        pageNum--;
         continue;
       }
+      softErrorCount = 0;
 
-      // status_code !== 0 means TikTok rejected the request (rate-limit, captcha, etc.)
+      // ── Hard error: TikTok server-side rejection ─────────────────────────
       if (typeof r.status_code === "number" && r.status_code !== 0) {
-        console.warn(`[TikTok] ⚠️ API status_code=${r.status_code}: ${r.status_msg}`);
+        console.warn(`[TikTok] ⚠️ API status_code=${r.status_code}: ${r.status_msg ?? "(no msg)"}`);
         await this.solveCaptchaOrThrow();
         return pageNum > 1;
       }
@@ -793,68 +809,118 @@ export class TikTokScraper {
       const data = r as TikTokAPIResponse;
       const comments = data.comments || data.comment_list || [];
 
-      // Lock totalReported to the highest valid number we've seen. TikTok lies
-      // about `total` near the end of pagination (returns cursor+pageSize for
-      // empty pages), so monotonic-up is the only safe rule.
+      // Lock totalReported monotonically — TikTok lies near the end (resets to cursor+pageSize)
       if (typeof data.total === "number" && data.total > totalReported) {
         totalReported = data.total;
+        knownTotalLocked = true;
       }
 
+      const sizeBefore = this.apiComments.size;
       this.processAPIResponse(data);
-
       const collected = this.apiComments.size;
+      const newUniques = collected - sizeBefore;
+      const newUniqueRatio = comments.length > 0 ? newUniques / comments.length : 0;
+
       console.log(
-        `[TikTok] 📦 API page ${pageNum}: cursor=${cursor}->${data.cursor} (+${comments.length}, total collected=${collected}, has_more=${data.has_more})`,
+        `[TikTok] 📦 Page ${pageNum}: cursor=${cursor}->${data.cursor} ` +
+          `len=${comments.length} new=${newUniques} ` +
+          `(collected=${collected}${knownTotalLocked ? `/${totalReported}` : ""}, has_more=${data.has_more})`,
       );
 
-      // End-of-data signals (TikTok sometimes ignores has_more):
-      //   1. Empty comments array → past the end
-      //   2. N consecutive pages add no new uniques → past the end (dupes only)
-      if (comments.length === 0) {
-        console.log(`[TikTok] ✅ Empty page → end of comments`);
+      // ── Definitive end checks ────────────────────────────────────────────
+      const hasMoreFlag = data.has_more === true || (data.has_more as unknown) === 1;
+      const completionRatio = knownTotalLocked && totalReported > 0 ? collected / totalReported : 0;
+
+      if (knownTotalLocked && completionRatio >= COMPLETION_THRESHOLD) {
+        console.log(
+          `[TikTok] ✅ Reached ${(completionRatio * 100).toFixed(1)}% of total (${collected}/${totalReported}) → done`,
+        );
         return true;
       }
-      if (collected === prevCollected) {
-        stagnantPages++;
-        if (stagnantPages >= MAX_STAGNANT) {
-          console.log(`[TikTok] ✅ ${stagnantPages} stagnant pages (no new uniques) → end`);
+      if (!hasMoreFlag && comments.length === 0) {
+        console.log("[TikTok] ✅ has_more=false + empty page → confirmed end of comments");
+        return true;
+      }
+
+      // ── Suspected throttle: zero new uniques but data should exist ──────
+      const isStallNoNew = newUniques === 0 && (knownTotalLocked ? collected < totalReported : true);
+      const isEmptyButMore = comments.length === 0 && (hasMoreFlag || (knownTotalLocked && collected < totalReported));
+
+      if (isStallNoNew || isEmptyButMore) {
+        throttleRetries++;
+        if (throttleRetries > MAX_THROTTLE_RETRIES) {
+          console.warn(
+            `[TikTok] ⚠️ ${MAX_THROTTLE_RETRIES} backoffs at cursor=${cursor} — TikTok throttling. ` +
+              `Settling for partial result: ${collected}` +
+              (knownTotalLocked ? ` of ${totalReported} (${(completionRatio * 100).toFixed(1)}%)` : ""),
+          );
           return true;
         }
-      } else {
-        stagnantPages = 0;
+
+        // Exponential backoff with jitter, capped at 30s
+        const backoffMs = Math.min(30000, 2000 * Math.pow(1.6, throttleRetries - 1));
+        const jitter = Math.floor(Math.random() * 2000);
+        const wait = backoffMs + jitter;
+        console.warn(
+          `[TikTok] ⏸️ Suspected throttle (${isEmptyButMore ? "empty page" : "no new uniques"}, ` +
+            `retry ${throttleRetries}/${MAX_THROTTLE_RETRIES}) — backoff ${(wait / 1000).toFixed(1)}s`,
+        );
+
+        // Mimic human reading: scroll a little before retrying
+        try {
+          await humanScrollJitter(this.page);
+        } catch {
+          // ignore
+        }
+        await this.page.waitForTimeout(wait);
+
+        // Don't advance cursor — retry same page
+        pageNum--;
+        continue;
       }
+
+      // ── Success — page added new data ───────────────────────────────────
+      throttleRetries = 0;
       prevCollected = collected;
 
       // Update progress
-      const denom = totalReported > 0 ? totalReported : maxComments;
+      const denom = knownTotalLocked && totalReported > 0 ? totalReported : maxComments;
       const progress = 25 + Math.min(50, (collected / denom) * 50);
       this.emitProgress(
         "scrolling",
         progress,
-        totalReported > 0
+        knownTotalLocked
           ? `Đang tải qua API... ${collected}/${totalReported}`
           : `Đang tải qua API... ${collected} bình luận`,
       );
 
-      consecutiveEmpty = 0;
-
-      // Stop if API says no more (boolean false, number 0, or absent)
-      const hasMore = data.has_more === true || (data.has_more as unknown) === 1;
-      if (!hasMore) {
-        console.log(`[TikTok] ✅ API pagination done — has_more=${data.has_more}`);
-        return true;
-      }
-
-      // Advance cursor (prefer server-provided cursor)
+      // ── Advance cursor (prefer server-provided value) ────────────────────
       const nextCursor = typeof data.cursor === "number" ? data.cursor : cursor + pageSize;
       if (nextCursor <= cursor) {
-        console.log(`[TikTok] ✅ Cursor stalled at ${cursor} — assuming end`);
+        console.log(`[TikTok] ✅ Cursor stalled at ${cursor} — server says no more pages`);
         return true;
       }
       cursor = nextCursor;
 
-      // Light pacing — TikTok normally has a few hundred ms between calls
-      await this.page.waitForTimeout(250 + Math.floor(Math.random() * 350));
+      // ── Adaptive pacing: slow down as new-unique ratio drops ─────────────
+      // Track last 5 pages' ratios; high dup ratio → likely throttle building
+      recentNewUniqueRatios.push(newUniqueRatio);
+      if (recentNewUniqueRatios.length > 5) recentNewUniqueRatios.shift();
+      const avgRatio = recentNewUniqueRatios.reduce((s, x) => s + x, 0) / recentNewUniqueRatios.length;
+
+      let baseDelay = 250;
+      if (avgRatio < 0.5) baseDelay = 1500;
+      else if (avgRatio < 0.8) baseDelay = 600;
+      // Random pause every ~7 pages to look like a human reading
+      if (pageNum > 0 && pageNum % 7 === 0) baseDelay += 1500 + Math.floor(Math.random() * 1500);
+
+      const delay = baseDelay + Math.floor(Math.random() * 350);
+      // Avoid useless console noise unless delay is unusual
+      if (delay > 800) console.log(`[TikTok]    ⏱️ Delay ${delay}ms (avgNewRatio=${avgRatio.toFixed(2)})`);
+      await this.page.waitForTimeout(delay);
+
+      // Suppress unused-var warnings (kept for potential future use)
+      void prevCollected;
     }
 
     return true;
