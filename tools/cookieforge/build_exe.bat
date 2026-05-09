@@ -1,38 +1,40 @@
 @echo off
-title CookieForge Build
 cd /d "%~dp0"
 
-echo === CookieForge Build ===
-echo Folder: %CD%
+echo Dang build CookieForge v3 - Verified Session Exporter (.exe)...
 echo.
 
-python --version
-if errorlevel 1 (
-    echo [LOI] Khong tim thay python. Cai Python 3.10+ va TICK "Add to PATH".
-    pause
-    exit /b 1
-)
-
-echo Cai thu vien...
-python -m pip install --upgrade pip pyinstaller customtkinter tkinterdnd2 selenium webdriver-manager
-if errorlevel 1 (
-    echo [LOI] pip install that bai.
-    pause
-    exit /b 1
-)
-
+echo Dang cai dat thu vien can thiet...
+:: Cài đặt các thư viện cần thiết để ứng dụng chạy độc lập
+python -m pip install pyinstaller customtkinter tkinterdnd2 selenium webdriver-manager
 echo.
-echo Build CookieForge.exe...
-python -m PyInstaller --noconfirm --onefile --windowed --name CookieForge --collect-all customtkinter --collect-all tkinterdnd2 --collect-all selenium --collect-all webdriver_manager --hidden-import cookie_forge_core --hidden-import selenium.webdriver.chrome.webdriver --hidden-import selenium.webdriver.chrome.service --hidden-import selenium.webdriver.chrome.options --hidden-import selenium.webdriver.common.by --hidden-import selenium.webdriver.support.ui --hidden-import selenium.webdriver.support.expected_conditions cookie_forge_gui.py
 
-if errorlevel 1 (
-    echo [LOI] PyInstaller build that bai.
-    pause
-    exit /b 1
+echo Dang bat dau qua trinh dong goi...
+:: pyinstaller command
+:: --noconfirm: Xóa thư mục build cũ mà không hỏi
+:: --onefile: Đóng gói tất cả thành 1 file .exe duy nhất
+:: --windowed: Không hiện cửa số CMD đen khi mở app
+:: --collect-all: Đảm bảo đính kèm đầy đủ tài nguyên cua CustomTkinter, TkinterDnD2, va Selenium (lazy imports)
+pyinstaller --noconfirm --onefile --windowed ^
+  --name "CookieForge" ^
+  --collect-all customtkinter ^
+  --collect-all tkinterdnd2 ^
+  --collect-all selenium ^
+  --collect-all webdriver_manager ^
+  --hidden-import cookie_forge_core ^
+  --hidden-import tkinterdnd2 ^
+  --hidden-import selenium.webdriver.chrome.webdriver ^
+  --hidden-import selenium.webdriver.chrome.service ^
+  --hidden-import selenium.webdriver.chrome.options ^
+  cookie_forge_gui.py
+
+if %ERRORLEVEL% equ 0 (
+  echo.
+  echo [OK] Build xong. File exe nam trong: dist\CookieForge.exe
+) else (
+  echo.
+  echo [LOI] Build that bai. Kiem tra lai cac file Python hoac thu vien PyInstaller.
 )
 
-echo.
-echo === XONG ===
-echo File: %CD%\dist\CookieForge.exe
 echo.
 pause
