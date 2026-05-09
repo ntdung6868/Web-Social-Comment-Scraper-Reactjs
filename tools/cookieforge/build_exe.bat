@@ -1,32 +1,52 @@
 @echo off
-REM Build CookieForge cho Windows -> file CookieForge.exe (onefile)
-REM Cach dung: chay file nay tren Windows da cai Python 3.10+
-REM   build_exe.bat
+REM Build CookieForge cho Windows -> CookieForge.exe (onefile)
+REM Chay tren Windows da cai Python 3.10+
+REM Cach dung: double-click hoac chay trong cmd: build_exe.bat
 
-setlocal
+setlocal EnableExtensions
+chcp 65001 >nul 2>nul
 cd /d "%~dp0"
 
-set APP_NAME=CookieForge
+set "APP_NAME=CookieForge"
 
-echo Dung Python:
-where python
+echo ================================================
+echo   Build %APP_NAME%.exe
+echo ================================================
+echo.
+
+REM 1. Kiem tra Python co trong PATH
+where python >nul 2>nul
+if errorlevel 1 (
+  echo [LOI] Khong tim thay python trong PATH.
+  echo Cai Python 3.10+ tu https://www.python.org/downloads/
+  echo Khi cai nho TICK "Add Python to PATH" o man hinh dau tien.
+  goto :end_fail
+)
+
+echo [OK] Python:
 python --version
 echo.
 
-REM Cai cac thu vien can thiet
-echo Dang cai dat thu vien...
+REM 2. Cai dependencies
+echo Dang cai dat thu vien (lan dau co the lau ~3-5 phut)...
 python -m pip install --upgrade pip
+if errorlevel 1 (
+  echo [LOI] Khong upgrade duoc pip.
+  goto :end_fail
+)
+
 python -m pip install pyinstaller customtkinter tkinterdnd2 selenium webdriver-manager
 if errorlevel 1 (
-  echo Loi cai pip packages
-  exit /b 1
+  echo [LOI] Cai dependencies that bai. Thuong la do mang hoac proxy.
+  echo Thu chay lai voi proxy: set HTTPS_PROXY=http://your-proxy:port
+  goto :end_fail
 )
 echo.
 
-echo === Build %APP_NAME%.exe ===
-
+REM 3. Build .exe
 REM Selenium dung lazy imports cho webdriver - phai --collect-all de PyInstaller
 REM bundle het submodules; neu chi --hidden-import selenium se thieu chrome.webdriver.
+echo Dang build %APP_NAME%.exe (lan dau ~2-3 phut)...
 python -m PyInstaller --noconfirm ^
   --onefile ^
   --windowed ^
@@ -53,12 +73,33 @@ python -m PyInstaller --noconfirm ^
 
 if errorlevel 1 (
   echo.
-  echo ❌ PyInstaller build that bai
-  exit /b 1
+  echo [LOI] PyInstaller build that bai. Xem log o tren.
+  goto :end_fail
+)
+
+if not exist "dist\%APP_NAME%.exe" (
+  echo [LOI] Khong thay file dist\%APP_NAME%.exe sau khi build.
+  goto :end_fail
 )
 
 echo.
-echo Xong. File: dist\%APP_NAME%.exe
-echo Chay file .exe de mo CookieForge va xuat verified-session JSON ra Downloads.
+echo ================================================
+echo   THANH CONG
+echo ================================================
+echo File: %CD%\dist\%APP_NAME%.exe
+echo Double-click file do de mo CookieForge.
 echo.
+goto :end_ok
+
+:end_fail
+echo.
+echo Build that bai. Doc loi o tren, fix, roi chay lai.
+echo.
+pause
 endlocal
+exit /b 1
+
+:end_ok
+pause
+endlocal
+exit /b 0
