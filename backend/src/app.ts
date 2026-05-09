@@ -7,9 +7,12 @@ import express, { type Application, type Request, type Response } from "express"
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import pinoHttp from "pino-http";
+import { nanoid } from "nanoid";
 
 import { env, corsMiddleware } from "./config/index.js";
 import { errorHandler, notFoundHandler, apiLimiter, maintenanceGuard } from "./middlewares/index.js";
+import { logger } from "./lib/logger.js";
 
 // Import routes
 import { authRoutes, userRoutes, scraperRoutes, adminRoutes, paymentRoutes, channelRoutes } from "./routes/index.js";
@@ -54,10 +57,36 @@ export function createApp(): Application {
   // Logging
   // ===========================================
 
+  // pino-http: structured per-request logging + auto-attaches a unique
+  // request ID to req.id and req.log so service code can do
+  // `req.log.info({ orderCode }, "...")` and have it correlated with the
+  // access log line.
+  app.use(
+    pinoHttp({
+      logger,
+      // Use the X-Request-Id header if upstream sent one (e.g. nginx),
+      // otherwise generate a short ID we'll echo back in the response.
+      genReqId: (req, res) => {
+        const incoming = req.headers["x-request-id"];
+        const id = (Array.isArray(incoming) ? incoming[0] : incoming) || nanoid(10);
+        res.setHeader("X-Request-Id", id);
+        return id;
+      },
+      // Health checks are noisy and useless in production; drop them to
+      // trace to keep info+ logs tidy.
+      customLogLevel: (req, res, err) => {
+        if (err || (res.statusCode ?? 0) >= 500) return "error";
+        if ((res.statusCode ?? 0) >= 400) return "warn";
+        if (req.url === "/health" || req.url?.startsWith("/api/v1/health")) return "trace";
+        return "info";
+      },
+    }),
+  );
+
+  // Keep morgan only in dev for the colored one-liner that's easier to scan
+  // when actively debugging. Pino-http handles the structured prod logs.
   if (env.isDevelopment) {
     app.use(morgan("dev"));
-  } else {
-    app.use(morgan("combined"));
   }
 
   // ===========================================

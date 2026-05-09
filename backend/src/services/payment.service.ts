@@ -10,6 +10,9 @@ import { createError } from "../middlewares/error.middleware.js";
 import { paymentRepository } from "../repositories/payment.repository.js";
 import { getPlanPricing } from "../utils/settings.js";
 import { emitPaymentSuccess } from "../lib/socket.js";
+import { logger } from "../lib/logger.js";
+
+const log = logger.child({ module: "payment" });
 
 // 1 USD = 25,000 VND (fixed conversion)
 const USD_TO_VND = 25_000;
@@ -109,48 +112,47 @@ export class PaymentService {
     };
 
     if (!content) {
-      console.log("⚠️ [WEBHOOK] content rỗng, bỏ qua.");
+      log.warn("Webhook with empty content, ignored");
       return { success: true };
     }
 
     // Extract SEVQR order code from the bank transfer description (e.g. "SEVQR123456")
     const match = String(content).match(/SEVQR(\d+)/i);
     if (!match) {
-      console.log("⚠️ [WEBHOOK] Không tìm thấy mã SEVQR trong nội dung CK:", content);
+      log.warn({ content }, "Webhook content has no SEVQR code");
       return { success: true };
     }
 
-    const extractedCode = match[1];
-    console.log("📦 Mã tìm thấy trong nội dung CK:", extractedCode);
-
-    const orderCode = Number(extractedCode);
-    console.log("🔍 Đang tìm Transaction với mã:", extractedCode);
+    const orderCode = Number(match[1]);
     const order = await paymentRepository.findByOrderCode(orderCode);
 
     if (!order) {
-      console.log("❌ LỖI: Không tìm thấy Transaction hoặc Transaction đã được xử lý!");
+      log.warn({ orderCode }, "Webhook for unknown order");
       return { success: true };
     }
 
     if (order.status === "PAID") {
-      console.log(`❌ LỖI: Không tìm thấy Transaction hoặc Transaction đã được xử lý! (order ${orderCode} already PAID)`);
+      log.info({ orderCode }, "Webhook for already-paid order (idempotent reject)");
       return { success: true };
     }
 
-    console.log(`📋 [WEBHOOK] Order tìm thấy: status=${order.status}, amount=${order.amount}, planType=${order.planType}, userId=${order.userId}`);
+    log.info(
+      { orderCode, status: order.status, amount: order.amount, planType: order.planType, userId: order.userId },
+      "Webhook matched pending order",
+    );
 
     // Verify transferred amount is sufficient. We still return 200 to SePay
     // (their docs require it to stop retries) but mark the order as
     // UNDERPAID and log loudly so operators can refund or top up manually —
     // previously this case silently looked like a healthy webhook.
     if (Number(transferAmount) < order.amount) {
-      console.error(
-        `[Payment] ⚠️ UNDERPAY on order ${orderCode}: received ${transferAmount} VND, ` +
-          `expected ${order.amount} VND (user ${order.userId}, plan ${order.planType})`,
+      log.error(
+        { orderCode, transferAmount, expected: order.amount, userId: order.userId, planType: order.planType },
+        "UNDERPAY detected — order marked UNDERPAID for manual review",
       );
       await paymentRepository
         .updateOrder(orderCode, { status: "UNDERPAID", paidAt: new Date() })
-        .catch((e) => console.warn(`[Payment] Could not mark order ${orderCode} UNDERPAID: ${e}`));
+        .catch((e) => log.warn({ orderCode, err: e }, "Could not mark order UNDERPAID"));
       return { success: true };
     }
 
@@ -172,9 +174,9 @@ export class PaymentService {
       },
     });
 
-    console.log("✅ THÀNH CÔNG: Đã cộng VIP cho User!");
-    console.log(
-      `[Payment] ✅ Order ${orderCode}: user ${order.userId} upgraded to ${order.planType} until ${subscriptionEnd.toISOString()}`,
+    log.info(
+      { orderCode, userId: order.userId, planType: order.planType, subscriptionEnd: subscriptionEnd.toISOString() },
+      "Plan upgraded successfully",
     );
 
     // Notify user in real-time via Socket.io
