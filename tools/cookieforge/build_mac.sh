@@ -38,10 +38,21 @@ echo ""
 # Build .app bằng PyInstaller (onedir = .app bundle trên macOS).
 # Selenium dùng lazy imports cho webdriver — phải --collect-all để PyInstaller
 # bundle hết submodules; nếu chỉ --hidden-import selenium sẽ thiếu chrome.webdriver.
+# Tao icon.icns neu chua co
+if [ ! -f "icon.icns" ] && [ -f "make_icon.py" ] && [ -f "make_icns.sh" ]; then
+  echo "Tao icon.icns..."
+  $PYTHON make_icon.py
+  bash make_icns.sh
+fi
+
+ICON_ARG=""
+[ -f "icon.icns" ] && ICON_ARG="--icon=icon.icns"
+
 $PYTHON -m PyInstaller --noconfirm \
   --onedir \
   --windowed \
   --name "$APP_NAME" \
+  $ICON_ARG \
   --collect-all customtkinter \
   --collect-data customtkinter \
   --collect-all tkinterdnd2 \
