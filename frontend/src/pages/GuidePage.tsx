@@ -207,35 +207,14 @@ export default function GuidePage() {
             </Typography>
           </Alert>
 
-          {/* Method 1: Upload Cookie */}
+          {/* CookieForge — only method now */}
           <Box sx={{ mb: 3 }}>
             <Typography
               variant="subtitle2"
               fontWeight={700}
               sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
             >
-              <Chip label="1" size="small" color="primary" />
-              {t("guide.uploadLoggedInCookies")}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ pl: 4 }}>
-              {t("guide.uploadCookiesDescription")}
-            </Typography>
-            <Box sx={{ pl: 4, mt: 1 }}>
-              <Stack direction="row" spacing={1}>
-                <Chip label={t("guide.highlyEffective")} size="small" color="success" variant="outlined" />
-                <Chip label={t("guide.recommended")} size="small" color="primary" variant="outlined" />
-              </Stack>
-            </Box>
-          </Box>
-
-          {/* Method 2: CookieForge */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="subtitle2"
-              fontWeight={700}
-              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <Chip label="2" size="small" color="primary" />
+              <Chip label={t("guide.recommended")} size="small" color="success" variant="outlined" />
               {t("guide.useCookieForge")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ pl: 4, mb: 2 }}>
@@ -332,23 +311,11 @@ export default function GuidePage() {
                       sx={{ mt: 1.5, "& .MuiAlert-message": { fontSize: "0.75rem" } }}
                     >
                       <strong>{t("guide.macOSBlocked")}</strong>
-                      <Box component="ol" sx={{ pl: 2, mt: 0.5, mb: 0, "& li": { mb: 0.5 } }}>
-                        <li>
-                          <strong>{t("guide.recommended")}</strong> {t("guide.macOSSolution1")}
-                        </li>
-                        <li>
-                          {t("guide.macOSSolution2")}
-                        </li>
-                        <li>
-                          {t("guide.terminal")}:
-                          <CodeBlock code="sudo spctl --master-disable" t={t} />
-                        </li>
-                        <li>
-                          {t("guide.resignApp")}
-                          <CodeBlock code="sudo codesign --force --deep --sign - /path/to/App.app" t={t} />
-                          <CodeBlock code="sudo xattr -r -c /path/to/App.app" t={t} />
-                        </li>
-                      </Box>
+                      <Typography variant="caption" component="div" sx={{ mt: 0.5, mb: 0.5 }}>
+                        {t("guide.resignApp")}
+                      </Typography>
+                      <CodeBlock code="sudo codesign --force --deep --sign - /Applications/CookieForge.app" t={t} />
+                      <CodeBlock code="sudo xattr -r -c /Applications/CookieForge.app" t={t} />
                     </Alert>
                   </Box>
                 </Grid>
