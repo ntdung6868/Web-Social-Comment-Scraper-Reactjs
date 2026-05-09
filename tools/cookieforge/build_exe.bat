@@ -5,16 +5,45 @@ REM Cach dung: double-click hoac chay trong cmd: build_exe.bat
 
 setlocal EnableExtensions
 chcp 65001 >nul 2>nul
-cd /d "%~dp0"
 
 set "APP_NAME=CookieForge"
+set "SCRIPT_DIR=%~dp0"
+
+REM Bo dau \ cuoi cho de so sanh
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+cd /d "%SCRIPT_DIR%"
 
 echo ================================================
 echo   Build %APP_NAME%.exe
 echo ================================================
+echo Script dir: %SCRIPT_DIR%
+echo Working dir: %CD%
 echo.
 
-REM 1. Kiem tra Python co trong PATH
+REM 1. Bao loi neu .bat dang nam trong C:\Windows (PyInstaller se tu chiu)
+echo %CD% | findstr /I /R /C:"^C:\\Windows" >nul
+if not errorlevel 1 (
+  echo [LOI] File .bat dang nam trong C:\Windows.
+  echo PyInstaller tu choi build trong system folder.
+  echo Hay copy folder CookieForge ra ngoai, vi du:
+  echo   C:\Users\%USERNAME%\Downloads\CookieForge-main\
+  echo Sau do double-click build_exe.bat tu day.
+  goto :end_fail
+)
+
+REM 2. Kiem tra source files co day du
+if not exist "cookie_forge_gui.py" (
+  echo [LOI] Khong thay cookie_forge_gui.py trong %CD%
+  echo Bao dam file .bat va 2 file .py o cung 1 thu muc.
+  goto :end_fail
+)
+if not exist "cookie_forge_core.py" (
+  echo [LOI] Khong thay cookie_forge_core.py trong %CD%
+  goto :end_fail
+)
+
+REM 3. Kiem tra Python co trong PATH
 where python >nul 2>nul
 if errorlevel 1 (
   echo [LOI] Khong tim thay python trong PATH.
@@ -27,8 +56,8 @@ echo [OK] Python:
 python --version
 echo.
 
-REM 2. Cai dependencies
-echo Dang cai dat thu vien (lan dau co the lau ~3-5 phut)...
+REM 4. Cai dependencies
+echo Dang cai dat thu vien (lan dau ~3-5 phut)...
 python -m pip install --upgrade pip
 if errorlevel 1 (
   echo [LOI] Khong upgrade duoc pip.
@@ -37,20 +66,28 @@ if errorlevel 1 (
 
 python -m pip install pyinstaller customtkinter tkinterdnd2 selenium webdriver-manager
 if errorlevel 1 (
-  echo [LOI] Cai dependencies that bai. Thuong la do mang hoac proxy.
-  echo Thu chay lai voi proxy: set HTTPS_PROXY=http://your-proxy:port
+  echo [LOI] Cai dependencies that bai.
   goto :end_fail
 )
 echo.
 
-REM 3. Build .exe
-REM Selenium dung lazy imports cho webdriver - phai --collect-all de PyInstaller
-REM bundle het submodules; neu chi --hidden-import selenium se thieu chrome.webdriver.
+REM 5. Build .exe — ep duong dan tuyet doi cho --workpath/--distpath/--specpath
+REM de PyInstaller khong dung CWD ngam (tranh false-positive C:\Windows check).
+set "WORK_DIR=%SCRIPT_DIR%\build"
+set "DIST_DIR=%SCRIPT_DIR%\dist"
+
 echo Dang build %APP_NAME%.exe (lan dau ~2-3 phut)...
+echo Spec/work: %WORK_DIR%
+echo Output:    %DIST_DIR%
+echo.
+
 python -m PyInstaller --noconfirm ^
   --onefile ^
   --windowed ^
   --name "%APP_NAME%" ^
+  --workpath "%WORK_DIR%" ^
+  --distpath "%DIST_DIR%" ^
+  --specpath "%SCRIPT_DIR%" ^
   --collect-all customtkinter ^
   --collect-data customtkinter ^
   --collect-all tkinterdnd2 ^
@@ -73,12 +110,12 @@ python -m PyInstaller --noconfirm ^
 
 if errorlevel 1 (
   echo.
-  echo [LOI] PyInstaller build that bai. Xem log o tren.
+  echo [LOI] PyInstaller build that bai. Doc log o tren.
   goto :end_fail
 )
 
-if not exist "dist\%APP_NAME%.exe" (
-  echo [LOI] Khong thay file dist\%APP_NAME%.exe sau khi build.
+if not exist "%DIST_DIR%\%APP_NAME%.exe" (
+  echo [LOI] Khong thay file %DIST_DIR%\%APP_NAME%.exe sau khi build.
   goto :end_fail
 )
 
@@ -86,7 +123,7 @@ echo.
 echo ================================================
 echo   THANH CONG
 echo ================================================
-echo File: %CD%\dist\%APP_NAME%.exe
+echo File: %DIST_DIR%\%APP_NAME%.exe
 echo Double-click file do de mo CookieForge.
 echo.
 goto :end_ok
