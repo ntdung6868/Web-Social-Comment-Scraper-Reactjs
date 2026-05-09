@@ -14,6 +14,7 @@ import { nanoid } from "nanoid";
 import { env, corsMiddleware } from "./config/index.js";
 import { errorHandler, notFoundHandler, apiLimiter, maintenanceGuard } from "./middlewares/index.js";
 import { logger } from "./lib/logger.js";
+import { buildBullBoardRouter, bullBoardAuth } from "./lib/bull-board.js";
 
 // Import routes
 import { authRoutes, userRoutes, scraperRoutes, adminRoutes, paymentRoutes, channelRoutes } from "./routes/index.js";
@@ -195,6 +196,17 @@ export function createApp(): Application {
   app.use(`${apiPrefix}/admin`, adminRoutes);
   app.use(`${apiPrefix}/payments`, paymentRoutes);
   app.use(`${apiPrefix}/channel`, channelRoutes);
+
+  // ===========================================
+  // BullMQ Admin UI (HTTP Basic Auth, admin-only)
+  // ===========================================
+  // Realtime queue dashboard at /admin/queue. Set BULL_BOARD_USER and
+  // BULL_BOARD_PASS in env to enable; missing creds = 503 (fail-closed).
+  // Browser shows the native credential prompt when you open the URL.
+  const bullBoardPath = "/admin/queue";
+  const bullBoard = buildBullBoardRouter();
+  bullBoard.setBasePath(bullBoardPath);
+  app.use(bullBoardPath, bullBoardAuth, bullBoard.getRouter());
 
   // ===========================================
   // Error Handling

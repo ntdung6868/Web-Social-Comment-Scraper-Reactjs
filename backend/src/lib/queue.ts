@@ -59,7 +59,7 @@ function createRedisConnection(): Redis {
 // orthogonal to withRetry() in scraper.service which only catches in-process
 // retryable scrape errors (network/timeout/captcha) — that retry is gone if
 // the worker itself crashes. 60s backoff gives the worker time to recover.
-const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAME, {
+export const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAME, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {
@@ -70,7 +70,7 @@ const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAM
   },
 });
 
-const freeQueue = new Queue<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, {
+export const freeQueue = new Queue<ScrapeJobData, ScrapeJobResult>(FREE_QUEUE_NAME, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {

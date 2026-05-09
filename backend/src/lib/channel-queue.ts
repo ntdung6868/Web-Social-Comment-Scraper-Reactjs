@@ -60,7 +60,7 @@ function createRedisConnection(): Redis {
 // Queues
 // ===========================================
 
-const channelPremiumQueue = new Queue<ChannelCrawlJobData, ChannelJobResult>(CHANNEL_PREMIUM_QUEUE, {
+export const channelPremiumQueue = new Queue<ChannelCrawlJobData, ChannelJobResult>(CHANNEL_PREMIUM_QUEUE, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {
@@ -70,7 +70,7 @@ const channelPremiumQueue = new Queue<ChannelCrawlJobData, ChannelJobResult>(CHA
   },
 });
 
-const channelFreeQueue = new Queue<ChannelCrawlJobData, ChannelJobResult>(CHANNEL_FREE_QUEUE, {
+export const channelFreeQueue = new Queue<ChannelCrawlJobData, ChannelJobResult>(CHANNEL_FREE_QUEUE, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {
@@ -80,7 +80,7 @@ const channelFreeQueue = new Queue<ChannelCrawlJobData, ChannelJobResult>(CHANNE
   },
 });
 
-const scriptQueue = new Queue<ScriptExtractionJobData, ChannelJobResult>(SCRIPT_QUEUE, {
+export const scriptQueue = new Queue<ScriptExtractionJobData, ChannelJobResult>(SCRIPT_QUEUE, {
   connection: createRedisConnection(),
   prefix: QUEUE_PREFIX,
   defaultJobOptions: {

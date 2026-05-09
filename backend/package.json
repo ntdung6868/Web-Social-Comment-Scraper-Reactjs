@@ -21,6 +21,8 @@
     "postinstall": "npx prisma generate && npx playwright install chromium"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
     "@google/generative-ai": "^0.21.0",
     "@prisma/client": "^5.8.1",
     "@sentry/node": "^10.52.0",
