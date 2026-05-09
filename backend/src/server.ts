@@ -3,6 +3,11 @@
 // ===========================================
 // Application bootstrap and startup
 
+// IMPORTANT: Sentry init must run BEFORE any other import that might throw,
+// so it can capture early-startup errors. Keep this at the very top.
+import { initSentry } from "./lib/sentry.js";
+initSentry();
+
 import { createServer } from "http";
 import { createApp } from "./app.js";
 import { env, connectDatabase, disconnectDatabase } from "./config/index.js";

@@ -1,0 +1,106 @@
+name: Deploy to VPS
+
+# Manual deploy: go to Actions tab → "Deploy to VPS" → "Run workflow".
+# Auto-deploy on push to main is intentionally OFF — most pushes during
+# active dev shouldn't ship to prod. Flip `workflow_dispatch` → `push:`
+# below if you want CD on every merge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to deploy"
+        required: true
+        default: "both"
+        type: choice
+        options: [backend, frontend, both]
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event.inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node (for frontend build)
+        if: ${{ github.event.inputs.target != 'backend' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        if: ${{ github.event.inputs.target != 'backend' }}
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      # SSH key auth — add an Actions secret SSH_PRIVATE_KEY containing the
+      # private half of an SSH key whose public half is in /root/.ssh/authorized_keys
+      # on the VPS. SSH_HOST and SSH_USER come from secrets too.
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy frontend (rsync dist → nginx root)
+        if: ${{ github.event.inputs.target != 'backend' }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            ./frontend/dist/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/crawlcomments/current/
+
+      - name: Deploy backend (build image on VPS, replace container)
+        if: ${{ github.event.inputs.target != 'frontend' }}
+        env:
+          TAG: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
+            set -e
+            cd /opt/crawlcomments
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Build with the commit SHA as the tag for traceability
+            docker build -t crawlcomments-backend:${TAG} -f backend/Dockerfile .
+            docker tag crawlcomments-backend:${TAG} crawlcomments-backend:latest
+
+            # Replace running container
+            docker stop crawlcomments-backend || true
+            docker rm crawlcomments-backend || true
+            docker run -d --name crawlcomments-backend \
+              --network crawlcomments-net \
+              -p 127.0.0.1:5000:5000 \
+              --env-file /opt/crawlcomments/backend/.env \
+              --restart unless-stopped \
+              crawlcomments-backend:${TAG}
+
+            # Health check with retries
+            for i in 1 2 3 4 5; do
+              sleep 3
+              if docker exec crawlcomments-backend wget -qO- http://localhost:5000/health > /dev/null 2>&1; then
+                echo "✓ Backend healthy"
+                exit 0
+              fi
+            done
+            echo "✗ Backend not responding to /health after 15s"
+            docker logs --tail 50 crawlcomments-backend
+            exit 1
+          EOF
+
+      - name: Tag deploy in commit summary
+        if: success()
+        run: |
+          echo "## ✅ Deploy succeeded" >> $GITHUB_STEP_SUMMARY
+          echo "Target: \`${{ github.event.inputs.target }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
