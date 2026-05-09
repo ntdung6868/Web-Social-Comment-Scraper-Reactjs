@@ -204,6 +204,17 @@ export class UserRepository {
     });
   }
 
+  /** Drop saved verified-session cookies — next scrape will need to re-solve captcha. */
+  async clearTiktokSession(userId: string): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        tiktokSessionCookies: null,
+        tiktokSessionAt: null,
+      },
+    });
+  }
+
   /**
    * Toggle TikTok cookie usage
    */

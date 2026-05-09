@@ -10,6 +10,7 @@ import { sendSuccess } from "../utils/response.js";
 import type {
   UpdateProfileInput,
   UploadCookieInput,
+  UploadTiktokSessionInput,
   ToggleCookieInput,
   UpdateProxyInput,
   UpdateScraperSettingsInput,
@@ -128,6 +129,33 @@ export const userController = {
     const data = req.body as UploadCookieInput;
     const cookieInfo = await userService.uploadCookie(req.user.userId, data);
     sendSuccess(res, { cookie: cookieInfo }, `${data.platform} cookie uploaded successfully`);
+  }),
+
+  /**
+   * POST /users/cookies/tiktok-session
+   * Upload TikTok verified-session cookies (post-captcha snapshot from CookieForge).
+   */
+  uploadTiktokSession: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Authentication required" } });
+      return;
+    }
+    const data = req.body as UploadTiktokSessionInput;
+    const result = await userService.uploadTiktokSession(req.user.userId, data.cookieData);
+    sendSuccess(res, { count: result.count, at: result.at }, "TikTok verified session uploaded");
+  }),
+
+  /**
+   * DELETE /users/cookies/tiktok-session
+   * Drop saved TikTok verified-session cookies.
+   */
+  deleteTiktokSession: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Authentication required" } });
+      return;
+    }
+    await userService.clearTiktokSession(req.user.userId);
+    sendSuccess(res, null, "TikTok verified session cleared");
   }),
 
   /**

@@ -167,6 +167,11 @@ export class UserService {
       useTiktokCookie: user.useTiktokCookie,
       tiktokCookieCount: parseCookieCount(user.tiktokCookieData),
 
+      // TikTok verified-session (post-captcha)
+      hasTiktokSession: !!user.tiktokSessionCookies,
+      tiktokSessionAt: user.tiktokSessionAt,
+      tiktokSessionCount: parseCookieCount(user.tiktokSessionCookies),
+
       // Facebook Cookie
       facebookCookieFile: user.facebookCookieFile,
       hasFacebookCookie: !!user.facebookCookieData,
@@ -274,6 +279,49 @@ export class UserService {
     }
 
     return this.getCookieInfo(userId, data.platform);
+  }
+
+  /**
+   * Save the TikTok verified-session cookie snapshot exported by CookieForge v3.
+   * This bypasses captcha on subsequent scrapes.
+   */
+  async uploadTiktokSession(userId: string, cookieData: string): Promise<{ count: number; at: Date }> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw createError.notFound("User not found");
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cookieData);
+    } catch {
+      throw createError.badRequest("Invalid JSON");
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw createError.badRequest("Expected a non-empty array of cookies");
+    }
+
+    // Soft check: warn if no s_v_web_id (the post-verify token).
+    const hasVerifyToken = parsed.some(
+      (c) => typeof c === "object" && c !== null && (c as { name?: string }).name === "s_v_web_id",
+    );
+    if (!hasVerifyToken) {
+      // Don't fail — user may still want to upload; just don't expect captcha bypass.
+      console.warn(`[UserService] TikTok session upload missing s_v_web_id (user: ${userId})`);
+    }
+
+    await userRepository.updateTiktokSession(userId, cookieData);
+    const at = new Date();
+    return { count: parsed.length, at };
+  }
+
+  /** Drop saved TikTok verified session — captcha will appear again next run. */
+  async clearTiktokSession(userId: string): Promise<void> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw createError.notFound("User not found");
+    }
+    await userRepository.clearTiktokSession(userId);
   }
 
   /**

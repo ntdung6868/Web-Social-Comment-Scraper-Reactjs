@@ -31,6 +31,14 @@ export const userService = {
 
   deleteCookie: (platform: "tiktok" | "facebook") => apiRequest.delete<ApiResponse<null>>(`/users/cookies/${platform}`),
 
+  // TikTok verified-session (post-captcha snapshot from CookieForge)
+  uploadTiktokSession: (cookieData: string) =>
+    apiRequest.post<ApiResponse<{ count: number; at: string }>>("/users/cookies/tiktok-session", {
+      cookieData,
+    }),
+
+  deleteTiktokSession: () => apiRequest.delete<ApiResponse<null>>("/users/cookies/tiktok-session"),
+
   // Proxy
   getProxies: () =>
     apiRequest.get<ApiResponse<{ proxies: string[]; rotation: string; enabled: boolean }>>("/users/proxies"),

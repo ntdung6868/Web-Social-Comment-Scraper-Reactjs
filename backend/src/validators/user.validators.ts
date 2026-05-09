@@ -64,6 +64,34 @@ export const uploadCookieSchema = z.object({
 export type UploadCookieInput = z.infer<typeof uploadCookieSchema>;
 
 // ===========================================
+// TikTok Verified-Session Cookie Schema
+// ===========================================
+// Cookies snapshot taken AFTER user solved captcha (output of CookieForge v3).
+// Reused on subsequent scrapes so the bot is treated as already-verified.
+
+export const uploadTiktokSessionSchema = z.object({
+  cookieData: z
+    .string()
+    .min(1, "Session cookie data is required")
+    .refine(
+      (data) => {
+        try {
+          const parsed = JSON.parse(data);
+          if (!Array.isArray(parsed) || parsed.length === 0) return false;
+          return parsed.every(
+            (c: unknown) => typeof c === "object" && c !== null && "name" in c && "value" in c,
+          );
+        } catch {
+          return false;
+        }
+      },
+      { message: "Must be a non-empty JSON array of cookie objects" },
+    ),
+});
+
+export type UploadTiktokSessionInput = z.infer<typeof uploadTiktokSessionSchema>;
+
+// ===========================================
 // Toggle Cookie Schema
 // ===========================================
 

@@ -10,6 +10,7 @@ import { zodValidate } from "../validators/zod.middleware.js";
 import {
   updateProfileSchema,
   uploadCookieSchema,
+  uploadTiktokSessionSchema,
   toggleCookieSchema,
   updateProxySchema,
   toggleProxySchema,
@@ -68,6 +69,23 @@ router.get("/cookies/:platform", userController.getCookieInfo);
  * Upload cookie for a platform
  */
 router.post("/cookies", zodValidate(uploadCookieSchema), userController.uploadCookie);
+
+/**
+ * POST /api/users/cookies/tiktok-session
+ * Upload TikTok verified-session cookies (post-captcha snapshot from CookieForge).
+ * MUST be defined before the /:platform routes so the literal path matches.
+ */
+router.post(
+  "/cookies/tiktok-session",
+  zodValidate(uploadTiktokSessionSchema),
+  userController.uploadTiktokSession,
+);
+
+/**
+ * DELETE /api/users/cookies/tiktok-session
+ * Drop saved TikTok verified-session cookies.
+ */
+router.delete("/cookies/tiktok-session", userController.deleteTiktokSession);
 
 /**
  * PATCH /api/users/cookies/toggle

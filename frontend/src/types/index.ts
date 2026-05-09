@@ -71,6 +71,10 @@ export interface UserSettings {
   hasTiktokCookie: boolean;
   useTiktokCookie: boolean;
   tiktokCookieCount: number;
+  // TikTok verified anti-bot session (post-captcha snapshot from CookieForge)
+  hasTiktokSession: boolean;
+  tiktokSessionAt: string | null;
+  tiktokSessionCount: number;
   facebookCookieFile: string | null;
   hasFacebookCookie: boolean;
   useFacebookCookie: boolean;

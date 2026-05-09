@@ -76,8 +76,17 @@ export default function SettingsPage() {
     facebook: { count: 0, date: "", active: false, filename: "" },
   });
 
+  // TikTok verified-session (post-captcha snapshot) — managed separately
+  const [sessionInfo, setSessionInfo] = useState<{ active: boolean; count: number; at: string }>({
+    active: false,
+    count: 0,
+    at: "",
+  });
+  const [sessionLoading, setSessionLoading] = useState(false);
+
   const tiktokInputRef = useRef<HTMLInputElement>(null);
   const facebookInputRef = useRef<HTMLInputElement>(null);
+  const sessionInputRef = useRef<HTMLInputElement>(null);
 
   // State Settings
   const [settings, setSettings] = useState({
@@ -128,6 +137,12 @@ export default function SettingsPage() {
             date: new Date().toLocaleDateString(),
             filename: s.facebookCookieFile || "",
           },
+        });
+
+        setSessionInfo({
+          active: !!s.hasTiktokSession,
+          count: s.tiktokSessionCount || 0,
+          at: s.tiktokSessionAt ? new Date(s.tiktokSessionAt).toLocaleString() : "",
         });
       }
     } catch (error) {
@@ -243,6 +258,70 @@ export default function SettingsPage() {
     }
   };
 
+  // --- TIKTOK VERIFIED-SESSION HANDLERS ---
+  const handleSessionUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = "";
+
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      toast.error("File phải là .json");
+      return;
+    }
+
+    setSessionLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const jsonContent = e.target?.result as string;
+        let parsed: any;
+        try {
+          parsed = JSON.parse(jsonContent);
+        } catch {
+          toast.error("JSON không hợp lệ");
+          setSessionLoading(false);
+          return;
+        }
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          toast.error("File phải là mảng cookie không rỗng");
+          setSessionLoading(false);
+          return;
+        }
+        try {
+          const res = await userService.uploadTiktokSession(jsonContent);
+          const responseData = res.data as any;
+          const data = responseData.data || responseData;
+          setSessionInfo({
+            active: true,
+            count: data.count || parsed.length,
+            at: data.at ? new Date(data.at).toLocaleString() : new Date().toLocaleString(),
+          });
+          toast.success(`Đã lưu ${data.count || parsed.length} cookie verified-session`);
+        } catch (apiError: any) {
+          const msg = apiError.response?.data?.error?.message || apiError.message || "Upload thất bại";
+          toast.error(msg);
+        }
+      } finally {
+        setSessionLoading(false);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleSessionClear = async () => {
+    if (!confirm("Xoá session đã xác thực? Lần scrape sau sẽ phải giải captcha lại.")) return;
+    setSessionLoading(true);
+    try {
+      await userService.deleteTiktokSession();
+      setSessionInfo({ active: false, count: 0, at: "" });
+      toast.success("Đã xoá verified-session");
+    } catch {
+      toast.error("Xoá thất bại");
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
   // --- SAVE HANDLER ---
   const handleSave = async () => {
     setIsSaving(true);
@@ -332,6 +411,13 @@ export default function SettingsPage() {
         style={{ display: "none" }}
         accept=".json"
         onChange={(e) => handleFileUpload(e, "FACEBOOK")}
+      />
+      <input
+        type="file"
+        ref={sessionInputRef}
+        style={{ display: "none" }}
+        accept=".json"
+        onChange={handleSessionUpload}
       />
 
       <Card
@@ -630,6 +716,93 @@ export default function SettingsPage() {
                           }}
                         >
                           {t("settings.clearCookies")}
+                        </Button>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* TikTok Verified-Session Card (post-captcha cookies from CookieForge v3) */}
+              <Grid item xs={12}>
+                <Card
+                  variant="outlined"
+                  sx={{
+                    bgcolor: (theme) => theme.palette.mode === "dark" ? "background.paper" : "#ffffff",
+                    borderColor: (theme) => sessionInfo.active
+                      ? "rgba(46, 125, 50, 0.4)"
+                      : theme.palette.mode === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+                    borderWidth: sessionInfo.active ? 2 : 1,
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 2,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(46, 125, 50, 0.2)" : "rgba(46, 125, 50, 0.1)",
+                          }}
+                        >
+                          <CheckCircleIcon sx={{ color: "success.main", fontSize: 24 }} />
+                        </Box>
+                        <Box>
+                          <Typography variant="h6" fontWeight={600}>
+                            TikTok Verified Session
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Cookie sau khi giải captcha — bypass captcha cho lần scrape sau
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Chip
+                        icon={sessionInfo.active ? <CheckCircleIcon /> : <ErrorIcon />}
+                        label={sessionInfo.active ? `${sessionInfo.count} cookies` : "Chưa có"}
+                        size="small"
+                        color={sessionInfo.active ? "success" : "default"}
+                        variant={sessionInfo.active ? "filled" : "outlined"}
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </Stack>
+
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Dùng <b>CookieForge v3</b> để giải captcha và xuất file <code>tiktok-verified-session-*.json</code>,
+                      sau đó upload lên đây. Hệ thống tự refresh msToken sau mỗi lần scrape thành công.
+                    </Typography>
+
+                    {sessionInfo.active && sessionInfo.at && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+                        Cập nhật lần cuối: {sessionInfo.at}
+                      </Typography>
+                    )}
+
+                    <Stack direction="row" spacing={2}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        startIcon={sessionLoading ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
+                        onClick={() => sessionInputRef.current?.click()}
+                        disabled={sessionLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+                      >
+                        Upload session JSON
+                      </Button>
+                      {sessionInfo.active && (
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={handleSessionClear}
+                          disabled={sessionLoading}
+                          sx={{ textTransform: "none", borderRadius: 2 }}
+                        >
+                          Xoá session
                         </Button>
                       )}
                     </Stack>
