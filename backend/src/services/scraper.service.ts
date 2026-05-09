@@ -126,6 +126,10 @@ export class ScraperService {
       url: data.url,
     });
 
+    // Pass any saved verified-session cookies for TikTok so the scraper can
+    // skip captcha. These are refreshed on each successful run.
+    const sessionCookies = platform === "TIKTOK" ? user.tiktokSessionCookies ?? null : null;
+
     // Add job to queue
     const jobData: ScrapeJobData = {
       historyId: history.id,
@@ -137,6 +141,7 @@ export class ScraperService {
         data: cookieData,
         userAgent,
       },
+      sessionCookies,
       proxy,
       headless: user.headlessMode,
       maxComments: effectiveMaxComments,
@@ -390,7 +395,7 @@ export class ScraperService {
     if (this.isProcessorRegistered) return;
 
     await registerProcessor(async (job: InMemoryJob): Promise<ScrapeJobResult> => {
-      const { historyId, userId, url, platform, cookies, proxy, headless, maxComments } = job.data;
+      const { historyId, userId, url, platform, cookies, sessionCookies, proxy, headless, maxComments } = job.data;
       const startTime = Date.now();
 
       try {
@@ -413,6 +418,7 @@ export class ScraperService {
               userId,
               historyId,
               cookies,
+              sessionCookies,
               proxy,
               headless,
               maxComments,
@@ -430,6 +436,14 @@ export class ScraperService {
             },
           },
         );
+
+        // Persist updated session cookies (post-captcha or refreshed msToken)
+        // even on partial failure — they're still useful for the next attempt.
+        if (platform === "TIKTOK" && result.updatedSessionCookies) {
+          await userRepository.updateTiktokSession(userId, result.updatedSessionCookies).catch((e) => {
+            console.warn(`[ScraperService] Could not persist session cookies: ${e}`);
+          });
+        }
 
         if (!result.success) {
           throw new Error(result.error || "Scraping failed");

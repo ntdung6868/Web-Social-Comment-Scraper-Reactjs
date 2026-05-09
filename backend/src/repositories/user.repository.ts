@@ -190,6 +190,21 @@ export class UserRepository {
   }
 
   /**
+   * Persist the verified-session cookie snapshot taken after TikTok captcha
+   * was solved (or refreshed during a successful scrape). Reused on the next
+   * run to bypass captcha entirely.
+   */
+  async updateTiktokSession(userId: string, sessionCookies: string): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        tiktokSessionCookies: sessionCookies,
+        tiktokSessionAt: new Date(),
+      },
+    });
+  }
+
+  /**
    * Toggle TikTok cookie usage
    */
   async toggleTiktokCookie(userId: string, enabled: boolean): Promise<User> {

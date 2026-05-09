@@ -29,6 +29,8 @@ export interface ScrapeResult {
   comments: ScrapedComment[];
   totalComments: number;
   error?: string;
+  /** Session-cookie persistence (only used by TikTok; always undefined here). */
+  updatedSessionCookies?: string;
 }
 
 // ===========================================

@@ -51,6 +51,12 @@ model User {
   tiktokCookieStatus    String    @default("UNKNOWN") @map("tiktok_cookie_status")
   useTiktokCookie       Boolean   @default(false) @map("use_tiktok_cookie")
 
+  // TikTok verified anti-bot session — full context.cookies() snapshot taken
+  // after captcha was solved. Reused on subsequent scrapes to bypass captcha.
+  // Refreshed after each successful run (msToken rotates).
+  tiktokSessionCookies  String?   @map("tiktok_session_cookies")
+  tiktokSessionAt       DateTime? @map("tiktok_session_at")
+
   // Facebook Cookie
   facebookCookieFile      String?   @map("facebook_cookie_file")
   facebookCookieData      String?   @map("facebook_cookie_data")

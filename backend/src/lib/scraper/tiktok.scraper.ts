@@ -40,6 +40,12 @@ export interface ScrapeConfig {
   userId: string;
   historyId: string;
   cookies: { data: string | null; userAgent: string | null };
+  /**
+   * Previously-saved verified-session cookies (JSON of context.cookies()
+   * dumped after a successful captcha solve). When present, applied on top
+   * of login cookies and warmup is skipped — bypasses captcha on the next run.
+   */
+  sessionCookies?: string | null;
   proxy: string | null;
   headless: boolean;
   maxComments?: number;
@@ -50,6 +56,12 @@ export interface ScrapeResult {
   comments: ScrapedComment[];
   totalComments: number;
   error?: string;
+  /**
+   * If captcha was solved during this run (or scrape succeeded with a fresh
+   * session), this holds the latest context.cookies() as JSON. Caller should
+   * persist it so the next scrape can reuse it.
+   */
+  updatedSessionCookies?: string;
 }
 
 // ===========================================
@@ -72,11 +84,19 @@ export class TikTokScraper {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private config: ScrapeConfig;
-  // API interception map (cid -> comment) as bonus data source
+  // API interception map (cid -> comment) — primary data source via API pagination
   private apiComments: Map<string, ScrapedComment> = new Map();
+  // Signed URL captured from TikTok's first /api/comment/list/ call. Reused for pagination.
+  private interceptedApiUrl: string | null = null;
   private isRunning = false;
   private abortController: AbortController;
   private captchaSolver!: CaptchaSolver;
+  /** Latest context.cookies() snapshot taken after a successful captcha solve
+   *  or successful API page. Returned to the caller for persistence. */
+  private updatedSessionCookies: string | undefined = undefined;
+  /** Tracks whether saved session cookies were applied at start. If true, we
+   *  can skip warmup since the session is already verified by TikTok. */
+  private hasVerifiedSession = false;
 
   constructor(config: ScrapeConfig) {
     this.config = {
@@ -131,10 +151,22 @@ export class TikTokScraper {
         await this.applyCookies();
       }
 
-      // Warm-up: browse TikTok homepage first to establish a normal session.
-      // This is the single most effective way to avoid CAPTCHA triggers.
-      this.emitProgress("loading", 10, "Đang truy cập trang...");
-      await warmUpSession(this.page!);
+      // Apply verified-session cookies (post-captcha) on top of login cookies.
+      // These contain `s_v_web_id`, `odin_tt`, fresh `msToken` — TikTok treats
+      // the session as already-verified and won't trigger captcha.
+      if (this.config.sessionCookies) {
+        await this.applySessionCookies();
+      }
+
+      // Warm-up only when the session is NOT pre-verified. With saved cookies,
+      // warmup is unnecessary (and adds time) — TikTok already trusts us.
+      if (!this.hasVerifiedSession) {
+        this.emitProgress("loading", 10, "Đang truy cập trang...");
+        await warmUpSession(this.page!);
+      } else {
+        console.log("[TikTok] ⚡ Skipping warmup — using verified session cookies");
+        this.emitProgress("loading", 10, "Phiên đã xác thực, bỏ qua warmup...");
+      }
 
       // Navigate to video URL
       await this.navigateToUrl(url);
@@ -170,41 +202,61 @@ export class TikTokScraper {
       await thinkingPause(this.page!);
       await this.solveCaptchaOrThrow();
 
-      this.emitProgress("scrolling", 25, "Đang cuộn để tải bình luận...");
+      this.emitProgress("scrolling", 25, "Đang tải bình luận...");
 
-      // Scroll to load all comments (burst scroll like Python reference)
-      await this.scrollToLoadComments();
+      // Wait briefly for the first signed API URL to be captured by the response
+      // listener (TikTok fires it automatically when comment panel opens).
+      const apiUrlReady = await this.waitForInterceptedApiUrl(5000);
 
-      this.emitProgress("extracting", 75, "Đang trích xuất bình luận...");
+      let allComments: ScrapedComment[];
 
-      // Human-like scroll jitter before extraction (mimic reading)
-      await humanScrollJitter(this.page!);
+      if (apiUrlReady) {
+        // FAST PATH — paginate via the signed API URL
+        const apiOk = await this.paginateViaAPI();
 
-      // Extract comments from DOM (primary method - like Python reference)
-      const domComments = await this.extractCommentsFromDOM();
-
-      // Merge API-intercepted comments with DOM-extracted comments
-      const allComments = this.mergeComments(domComments);
+        if (apiOk && this.apiComments.size > 0) {
+          allComments = Array.from(this.apiComments.values());
+          this.emitProgress("extracting", 85, `Đã tải ${allComments.length} bình luận qua API`);
+        } else {
+          // API path empty — fall back to scroll + DOM
+          console.log("[TikTok] ⚠️ API pagination yielded no data — falling back to scroll");
+          allComments = await this.runScrollFallback();
+        }
+      } else {
+        // No signed URL captured — fall back to scroll + DOM
+        console.log("[TikTok] ⚠️ Did not capture signed API URL — falling back to scroll");
+        allComments = await this.runScrollFallback();
+      }
 
       this.emitProgress("saving", 95, `Hoàn thành! Tìm thấy ${allComments.length} bình luận`);
       console.log(`[TikTok] 🎉 Đã scrape được ${allComments.length} comment`);
+
+      // Final snapshot — refresh saved session with the latest msToken/odin_tt
+      // so the next run starts with a freshly-rotated state.
+      if (allComments.length > 0) {
+        await this.snapshotSessionCookies();
+      }
 
       return {
         success: true,
         comments: allComments,
         totalComments: allComments.length,
+        updatedSessionCookies: this.updatedSessionCookies,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Lỗi không xác định";
       console.error(`[TikTok] ❌ Error: ${errorMessage}`);
 
-      // Return whatever we have collected so far
+      // Return whatever we have collected so far. If a captcha was solved
+      // earlier in the run, hand the post-verification cookies back even on
+      // failure so the next attempt can skip the captcha.
       const partialComments = Array.from(this.apiComments.values());
       return {
         success: partialComments.length > 0,
         comments: partialComments,
         totalComments: partialComments.length,
         error: partialComments.length > 0 ? undefined : errorMessage,
+        updatedSessionCookies: this.updatedSessionCookies,
       };
     } finally {
       await this.cleanup();
@@ -233,6 +285,8 @@ export class TikTokScraper {
       headless: this.config.headless,
       proxy: this.config.proxy,
       userAgentOverride: this.config.cookies.userAgent,
+      windowWidth: 500,
+      windowHeight: 1000,
     });
 
     this.browser = browser;
@@ -317,6 +371,62 @@ export class TikTokScraper {
     }
   }
 
+  /**
+   * Apply previously-saved verified-session cookies (post-captcha snapshot).
+   * Must run AFTER applyCookies() — these add session tokens (s_v_web_id,
+   * odin_tt, msToken) on top of the user's login cookies.
+   */
+  private async applySessionCookies(): Promise<void> {
+    if (!this.context || !this.config.sessionCookies) return;
+
+    try {
+      const parsed = JSON.parse(this.config.sessionCookies);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const formatted = parsed
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((c: any) => c && c.name && c.value)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const cookie: any = {
+            name: String(c.name),
+            value: String(c.value),
+            domain: String(c.domain || ".tiktok.com"),
+            path: String(c.path || "/"),
+            secure: Boolean(c.secure),
+            httpOnly: Boolean(c.httpOnly),
+            sameSite: TikTokScraper.normalizeSameSite(c.sameSite),
+          };
+          if (typeof c.expires === "number" && c.expires > 0) cookie.expires = c.expires;
+          return cookie;
+        });
+
+      if (formatted.length > 0) {
+        await this.context.addCookies(formatted);
+        this.hasVerifiedSession = true;
+        console.log(`[TikTok] 🔐 Loaded ${formatted.length} verified-session cookies (skipping captcha)`);
+      }
+    } catch (e) {
+      console.warn("[TikTok] ⚠️ Could not load session cookies:", e);
+    }
+  }
+
+  /**
+   * Snapshot current context.cookies() as JSON for persistence by the caller.
+   * Called after captcha solve and after successful API page (to refresh msToken).
+   */
+  private async snapshotSessionCookies(): Promise<void> {
+    if (!this.context) return;
+    try {
+      const cookies = await this.context.cookies();
+      this.updatedSessionCookies = JSON.stringify(cookies);
+    } catch (e) {
+      console.warn("[TikTok] ⚠️ Could not snapshot cookies:", e);
+    }
+  }
+
   // ===========================================
   // Navigation
   // ===========================================
@@ -346,6 +456,8 @@ export class TikTokScraper {
 
   /**
    * Attempt to solve captcha if present, throw on failure.
+   * On a successful solve (attempts > 0), snapshot context.cookies() so the
+   * caller can persist the post-verification session for later runs.
    */
   private async solveCaptchaOrThrow(): Promise<void> {
     if (!this.page) return;
@@ -353,6 +465,10 @@ export class TikTokScraper {
     if (!result.solved) {
       this.emitProgress("error", 0, "captcha_detected_msg");
       throw new Error("captcha_detected_msg");
+    }
+    if (result.attempts > 0) {
+      await this.snapshotSessionCookies();
+      console.log("[TikTok] 💾 Snapshotted verified session cookies (post-captcha)");
     }
   }
 
@@ -534,8 +650,19 @@ export class TikTokScraper {
 
     this.page.on("response", async (response) => {
       const url = response.url();
-      const isCommentApi = TIKTOK_COMMENT_API_PATTERNS.some((p) => p.test(url));
 
+      // Capture the first signed /api/comment/list/ URL — we'll reuse it for fast pagination.
+      // Skip /reply/ endpoint (different shape, we only want top-level for now).
+      if (
+        !this.interceptedApiUrl &&
+        /\/api\/comment\/list\/\?/.test(url) &&
+        !url.includes("/reply/")
+      ) {
+        this.interceptedApiUrl = url;
+        console.log(`[TikTok] 🎯 Captured signed API URL for pagination`);
+      }
+
+      const isCommentApi = TIKTOK_COMMENT_API_PATTERNS.some((p) => p.test(url));
       if (isCommentApi && response.status() === 200) {
         try {
           const data = (await response.json()) as TikTokAPIResponse;
@@ -545,6 +672,192 @@ export class TikTokScraper {
         }
       }
     });
+  }
+
+  /**
+   * Poll until the response listener captures TikTok's signed comment-list URL,
+   * or timeout. Returns true if captured.
+   */
+  private async waitForInterceptedApiUrl(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this.interceptedApiUrl) return true;
+      if (!this.page) return false;
+      await this.page.waitForTimeout(150);
+    }
+    return Boolean(this.interceptedApiUrl);
+  }
+
+  /**
+   * Legacy scroll + DOM path. Used when the signed API URL was not captured
+   * (e.g., TikTok served a different layout) or the API call failed.
+   */
+  private async runScrollFallback(): Promise<ScrapedComment[]> {
+    this.emitProgress("scrolling", 25, "Đang cuộn để tải bình luận...");
+    await this.scrollToLoadComments();
+
+    this.emitProgress("extracting", 75, "Đang trích xuất bình luận...");
+    await humanScrollJitter(this.page!);
+
+    const domComments = await this.extractCommentsFromDOM();
+    return this.mergeComments(domComments);
+  }
+
+  // ===========================================
+  // API Pagination (fast path — replaces scrolling)
+  // ===========================================
+
+  /**
+   * Paginate through TikTok's comment API by reusing the signed URL captured from
+   * the first comment-panel-open request. We replace `cursor` and call fetch() from
+   * inside the page context so TikTok's JS request interceptor re-signs `msToken`/
+   * `X-Bogus`/`X-Gnarly` automatically.
+   *
+   * Returns true if pagination succeeded (got at least one page); false if it bailed
+   * (no captured URL, immediate failure) so caller can fall back to scroll path.
+   */
+  private async paginateViaAPI(): Promise<boolean> {
+    if (!this.page || !this.interceptedApiUrl) return false;
+
+    const baseUrl = new URL(this.interceptedApiUrl);
+    const pageSize = parseInt(baseUrl.searchParams.get("count") || "20", 10);
+    const maxComments = this.config.maxComments || 1000;
+    const total = parseInt(baseUrl.searchParams.get("total") || "0", 10);
+
+    let cursor = 0;
+    let pageNum = 0;
+    let consecutiveEmpty = 0;
+    let totalReported = total > 0 ? total : 0;
+    // Track stagnation: if N consecutive pages add zero new uniques to apiComments,
+    // we're past the real end of data even if TikTok keeps replying has_more=true
+    // and incrementing cursor.
+    let prevCollected = 0;
+    let stagnantPages = 0;
+    const MAX_STAGNANT = 3;
+
+    console.log(`[TikTok] 🚀 Starting API pagination (count=${pageSize}, max=${maxComments})`);
+
+    while (this.isRunning && !this.abortController.signal.aborted) {
+      if (this.apiComments.size >= maxComments) {
+        console.log(`[TikTok] ✅ Reached maxComments (${maxComments})`);
+        break;
+      }
+
+      pageNum++;
+
+      // Build URL with new cursor
+      const url = new URL(this.interceptedApiUrl);
+      url.searchParams.set("cursor", String(cursor));
+
+      // Call fetch from inside page context — TikTok JS auto-signs the request
+      const result = await this.page
+        .evaluate(async (apiUrl: string) => {
+          try {
+            const res = await fetch(apiUrl, { credentials: "include" });
+            const text = await res.text();
+            if (!text) return { __ok: false, __reason: "empty body", __status: res.status };
+            try {
+              return { __ok: true, __status: res.status, ...JSON.parse(text) };
+            } catch {
+              return { __ok: false, __reason: "non-json", __status: res.status, __preview: text.slice(0, 200) };
+            }
+          } catch (e) {
+            return { __ok: false, __reason: e instanceof Error ? e.message : String(e) };
+          }
+        }, url.toString())
+        .catch((e: unknown) => ({ __ok: false, __reason: e instanceof Error ? e.message : String(e) }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = result as any;
+
+      if (!r.__ok) {
+        console.warn(`[TikTok] ⚠️ API page ${pageNum} failed: ${r.__reason} (status=${r.__status})`);
+        consecutiveEmpty++;
+        if (consecutiveEmpty >= 2) {
+          console.warn(`[TikTok] 🛑 Bailing out of API pagination after ${consecutiveEmpty} failures`);
+          // Captcha may have been triggered — let caller decide
+          await this.solveCaptchaOrThrow();
+          return pageNum > 1; // partial success only if we got at least one good page
+        }
+        await this.page.waitForTimeout(800);
+        continue;
+      }
+
+      // status_code !== 0 means TikTok rejected the request (rate-limit, captcha, etc.)
+      if (typeof r.status_code === "number" && r.status_code !== 0) {
+        console.warn(`[TikTok] ⚠️ API status_code=${r.status_code}: ${r.status_msg}`);
+        await this.solveCaptchaOrThrow();
+        return pageNum > 1;
+      }
+
+      const data = r as TikTokAPIResponse;
+      const comments = data.comments || data.comment_list || [];
+
+      // Lock totalReported to the highest valid number we've seen. TikTok lies
+      // about `total` near the end of pagination (returns cursor+pageSize for
+      // empty pages), so monotonic-up is the only safe rule.
+      if (typeof data.total === "number" && data.total > totalReported) {
+        totalReported = data.total;
+      }
+
+      this.processAPIResponse(data);
+
+      const collected = this.apiComments.size;
+      console.log(
+        `[TikTok] 📦 API page ${pageNum}: cursor=${cursor}->${data.cursor} (+${comments.length}, total collected=${collected}, has_more=${data.has_more})`,
+      );
+
+      // End-of-data signals (TikTok sometimes ignores has_more):
+      //   1. Empty comments array → past the end
+      //   2. N consecutive pages add no new uniques → past the end (dupes only)
+      if (comments.length === 0) {
+        console.log(`[TikTok] ✅ Empty page → end of comments`);
+        return true;
+      }
+      if (collected === prevCollected) {
+        stagnantPages++;
+        if (stagnantPages >= MAX_STAGNANT) {
+          console.log(`[TikTok] ✅ ${stagnantPages} stagnant pages (no new uniques) → end`);
+          return true;
+        }
+      } else {
+        stagnantPages = 0;
+      }
+      prevCollected = collected;
+
+      // Update progress
+      const denom = totalReported > 0 ? totalReported : maxComments;
+      const progress = 25 + Math.min(50, (collected / denom) * 50);
+      this.emitProgress(
+        "scrolling",
+        progress,
+        totalReported > 0
+          ? `Đang tải qua API... ${collected}/${totalReported}`
+          : `Đang tải qua API... ${collected} bình luận`,
+      );
+
+      consecutiveEmpty = 0;
+
+      // Stop if API says no more (boolean false, number 0, or absent)
+      const hasMore = data.has_more === true || (data.has_more as unknown) === 1;
+      if (!hasMore) {
+        console.log(`[TikTok] ✅ API pagination done — has_more=${data.has_more}`);
+        return true;
+      }
+
+      // Advance cursor (prefer server-provided cursor)
+      const nextCursor = typeof data.cursor === "number" ? data.cursor : cursor + pageSize;
+      if (nextCursor <= cursor) {
+        console.log(`[TikTok] ✅ Cursor stalled at ${cursor} — assuming end`);
+        return true;
+      }
+      cursor = nextCursor;
+
+      // Light pacing — TikTok normally has a few hundred ms between calls
+      await this.page.waitForTimeout(250 + Math.floor(Math.random() * 350));
+    }
+
+    return true;
   }
 
   private processAPIResponse(data: TikTokAPIResponse): void {

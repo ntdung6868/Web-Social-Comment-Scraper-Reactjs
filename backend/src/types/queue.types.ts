@@ -18,6 +18,13 @@ export interface ScrapeJobData {
     data: string | null;
     userAgent: string | null;
   };
+  /**
+   * Verified anti-bot session cookies from a previous post-captcha solve.
+   * JSON-serialized array of Playwright cookie objects. When present, the
+   * scraper applies these on top of login cookies and skips warmup —
+   * dramatically reducing captcha trigger rate on TikTok.
+   */
+  sessionCookies?: string | null;
   proxy: string | null;
   headless: boolean;
   maxComments?: number;
