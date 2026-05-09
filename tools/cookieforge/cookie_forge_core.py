@@ -3,6 +3,8 @@ import json
 import os
 import random
 import shutil
+import tempfile
+import atexit
 from datetime import datetime
 from pathlib import Path
 from selenium import webdriver
@@ -12,6 +14,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import WebDriverException, TimeoutException
 
 # --- CÁC HÀM HỖ TRỢ TỪ SCRAPER.PY ---
 
@@ -28,10 +31,20 @@ def random_sleep(min_sec=2.0, max_sec=3.5, stop_event=None):
         time.sleep(t)
 
 def setup_driver():
-    """Khởi tạo Driver với cấu hình Anti-Detect từ scraper.py"""
+    """Khởi tạo Driver với cấu hình Anti-Detect.
+
+    Mỗi lần gọi tạo user-data-dir TẠM RIÊNG (`/tmp/cookieforge_xxx`) — tránh
+    conflict với Chrome đang chạy hoặc với run trước → fix lỗi
+    "invalid session id: session deleted" khi chạy lặp.
+    """
     chrome_options = Options()
 
-    # [MỚI] Tắt tiếng trình duyệt
+    # User-data-dir riêng cho mỗi run, dọn khi process exit
+    user_data_dir = tempfile.mkdtemp(prefix="cookieforge_profile_")
+    chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
+    atexit.register(lambda: shutil.rmtree(user_data_dir, ignore_errors=True))
+
+    # Tắt tiếng trình duyệt
     chrome_options.add_argument("--mute-audio")
 
     # 1. Tắt automation flags (Critical)
@@ -40,17 +53,21 @@ def setup_driver():
     chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
 
-    # 2. Cấu hình Performance & Docker compat (từ scraper.py)
+    # 2. Cấu hình Performance & Docker compat
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--disable-infobars')
     chrome_options.add_argument('--force-color-profile=srgb')
+    # Chống treo do tab bị throttle
+    chrome_options.add_argument('--disable-background-timer-throttling')
+    chrome_options.add_argument('--disable-renderer-backgrounding')
 
-    # 3. User-Agent giả lập Chrome trên macOS
+    # 3. User-Agent — bám sát Chrome stable mới (Chrome 130+)
+    # UA cũ Chrome/120 có thể bị TikTok flag là "stale browser"
     chrome_options.add_argument(
         'user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36'
     )
 
     # 4. Setup Binary & Driver
@@ -64,7 +81,11 @@ def setup_driver():
 
     driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    # 5. [QUAN TRỌNG] Resize window 420px (Logic từ scraper.py cho TikTok)
+    # Timeout dài hơn cho TikTok (default 300s thường quá ngắn cho cold load)
+    driver.set_page_load_timeout(60)
+    driver.set_script_timeout(30)
+
+    # 5. Resize window 420px (TikTok mobile-like layout)
     try:
         driver.maximize_window()
         time.sleep(0.3)
@@ -72,17 +93,43 @@ def setup_driver():
         driver.set_window_rect(x=0, y=0, width=420, height=h)
     except: pass
 
-    # 6. [SIÊU QUAN TRỌNG] CDP Command để ẩn dấu vết webdriver (Mạnh hơn JS thường)
-    # Đây là kỹ thuật "thần thánh" từ file scraper.py giúp vượt qua màn hình trắng
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-        '''
-    })
+    # 6. CDP Command để ẩn dấu vết webdriver (mạnh hơn JS thường)
+    try:
+        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+            'source': '''
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                })
+            '''
+        })
+    except Exception:
+        # Không critical — bỏ qua nếu CDP fail (Chrome version cũ)
+        pass
 
     return driver
+
+
+def safe_navigate(driver, url, log_func, max_attempts=3):
+    """Navigate với retry. Chrome 147+ đôi khi crash renderer trong lần đầu — retry hồi phục."""
+    last_err = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            driver.get(url)
+            return True
+        except (WebDriverException, TimeoutException) as e:
+            last_err = e
+            err_msg = str(e)[:120]
+            log_func(f"⚠️ Navigate lần {attempt}/{max_attempts} fail: {err_msg}")
+
+            # Nếu session đã chết hẳn, không retry được — caller phải tạo driver mới
+            if "invalid session id" in err_msg or "session deleted" in err_msg:
+                raise
+
+            if attempt < max_attempts:
+                time.sleep(2)
+    if last_err:
+        raise last_err
+    return False
 
 def is_captcha_present(driver):
     """Kiểm tra captcha (Logic từ scraper.py)"""
@@ -243,7 +290,8 @@ def export_verified_session(driver, log_func, out_path, is_refresh=False):
             json.dump(out, f, indent=2, ensure_ascii=False)
 
         if is_refresh:
-            log_func(f"🔄 Đã refresh msToken trong file ({len(out)} cookies)")
+            log_func(f"🔄 Đã refresh msToken ({len(out)} cookies)")
+            log_func(f"📁 File: {out_path}")
         else:
             log_func(f"💾 Đã xuất {len(out)} cookie verified-session → {out_path}")
             log_func("📤 Vào Settings → upload file này để bypass captcha cho các lần scrape sau.")
@@ -293,17 +341,26 @@ def run_cookie_forge(cookie_path, log_callback, stop_event):
 
     driver = None
     try:
-        # 1. Init
-        driver = setup_driver()
+        # 1. Init — retry 1 lần nếu Chrome crash ngay khi tạo session (Chrome 147 hay bị)
+        for init_attempt in range(2):
+            try:
+                driver = setup_driver()
+                break
+            except WebDriverException as e:
+                if init_attempt == 0:
+                    log(f"⚠️ Lần 1 tạo driver fail ({str(e)[:80]}) — thử lại...")
+                    time.sleep(2)
+                else:
+                    raise
 
         # 2. Cookies
         if cookie_path:
             log("🍪 Đang xử lý cookie...")
             apply_cookies(driver, cookie_path, log)
 
-        # 3. Go to Video
+        # 3. Go to Video — dùng safe_navigate, retry nếu Chrome renderer chập chờn
         log("🌍 Truy cập video...")
-        driver.get(target_url)
+        safe_navigate(driver, target_url, log)
         random_sleep(2.5, 4.0, stop_event)
 
         # 4. Interact
