@@ -375,21 +375,6 @@ export default function GuidePage() {
             </Box>
           </Box>
 
-          {/* Method 3: Spacing */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="subtitle2"
-              fontWeight={700}
-              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <Chip label="3" size="small" color="primary" />
-              {t("guide.spaceOutScraping")}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ pl: 4 }}>
-              {t("guide.spaceOutDescription")}
-            </Typography>
-          </Box>
-
           <Divider sx={{ my: 2 }} />
 
           {/* Tips */}
