@@ -146,10 +146,11 @@ export async function launchStealthBrowser(options: StealthLaunchOptions): Promi
     `--window-size=${windowWidth},${windowHeight}`,
   ];
 
-  // VPS RAM optimizations — only on Linux (crashes Chromium on macOS)
-  if (process.platform === "linux") {
-    launchArgs.push("--no-zygote", "--single-process");
-  }
+  // NOTE: previously added `--no-zygote` and `--single-process` on Linux to
+  // save RAM, but Chromium ≥120 crashes browserContext.newPage in single-
+  // process mode ("Cannot use V8 Proxy resolver in single process mode").
+  // Other memory-saving flags above (--memory-pressure-off, --disable-dev-
+  // shm-usage, --js-flags=--max-old-space-size=512) are sufficient.
 
   // Use full Chromium with --headless=new (not the headless shell which is fingerprinted)
   if (options.headless) {
