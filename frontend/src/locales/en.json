@@ -718,6 +718,7 @@
     "maxVideos": "Max Videos",
     "startCrawl": "Start Crawl",
     "crawling": "Crawling...",
+    "maintenanceMessage": "Channel Crawl is temporarily under maintenance. Please try again later.",
     "selectVideos": "Select videos for script extraction",
     "selectedCount": "Selected {{count}}/{{max}} videos (max 20)",
     "videosFound": "videos found",

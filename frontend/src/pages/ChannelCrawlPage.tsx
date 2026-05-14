@@ -64,6 +64,8 @@ interface LogEntry {
   time: string;
 }
 
+const CHANNEL_CRAWL_MAINTENANCE = true;
+
 // ===========================================
 // Main Page Component
 // ===========================================
@@ -258,6 +260,20 @@ export default function ChannelCrawlPage() {
   };
 
   const handleStartCrawl = async () => {
+    if (CHANNEL_CRAWL_MAINTENANCE) {
+      const message = t(
+        "channel.maintenanceMessage",
+        "Channel Crawl đang bảo trì tạm thời. Vui lòng quay lại sau.",
+      );
+      setUrlError("");
+      setIsCrawling(false);
+      setCrawlProgress(0);
+      setCrawlMessage(message);
+      addLog("info", `ℹ️ ${message}`);
+      toast(message, { icon: "🛠️", duration: 5000 });
+      return;
+    }
+
     if (!validateUrl(channelUrl)) {
       setUrlError(t("channel.invalidChannelUrl", "URL kênh TikTok không hợp lệ (vd: https://www.tiktok.com/@username)"));
       return;
@@ -398,6 +414,11 @@ export default function ChannelCrawlPage() {
                 {t("channel.crawlSettings", "Cài đặt crawl")}
               </Typography>
               <Stack spacing={2}>
+                {CHANNEL_CRAWL_MAINTENANCE && (
+                  <Alert severity="warning">
+                    {t("channel.maintenanceMessage", "Channel Crawl đang bảo trì tạm thời. Vui lòng quay lại sau.")}
+                  </Alert>
+                )}
                 <Box>
                   <TextField
                     fullWidth
@@ -434,7 +455,7 @@ export default function ChannelCrawlPage() {
                   variant="contained"
                   size="large"
                   onClick={handleStartCrawl}
-                  disabled={isCrawling || !channelUrl}
+                  disabled={isCrawling}
                   startIcon={isCrawling ? <CircularProgress size={16} color="inherit" /> : <VideoLibraryIcon />}
                 >
                   {isCrawling ? t("channel.crawling", "Đang crawl...") : t("channel.startCrawl", "Bắt đầu crawl")}

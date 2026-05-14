@@ -718,6 +718,7 @@
     "maxVideos": "Max videos",
     "startCrawl": "Bắt đầu crawl",
     "crawling": "Đang crawl...",
+    "maintenanceMessage": "Channel Crawl đang bảo trì tạm thời. Vui lòng quay lại sau.",
     "selectVideos": "Chọn video để trích xuất kịch bản",
     "selectedCount": "Đã chọn {{count}}/{{max}} video (tối đa 20)",
     "videosFound": "video tìm thấy",
