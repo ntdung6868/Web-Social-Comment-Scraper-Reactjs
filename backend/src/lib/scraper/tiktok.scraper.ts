@@ -81,8 +81,8 @@ const TIKTOK_COMMENT_API_PATTERNS = [
 const TIKTOK_API_ONLY = true;
 const API_UNAVAILABLE_MESSAGE =
   "Không lấy được API bình luận từ TikTok. Vui lòng thử lại, cập nhật cookie, hoặc vào Hướng dẫn để xử lý phiên TikTok.";
-const TIKTOK_SESSION_REJECTED_MESSAGE =
-  "TikTok từ chối phiên/cookie hiện tại. Vui lòng xuất lại CookieForge bằng cùng mạng/proxy đang scrape, hoặc cập nhật cookie TikTok rồi thử lại.";
+const TIKTOK_PAGE_BLOCKED_MESSAGE =
+  "Không mở được trang video TikTok từ VPS. TikTok có thể đang chặn IP máy chủ; vui lòng thử lại link gốc hoặc bật proxy trong Settings.";
 
 // ===========================================
 // TikTok Scraper Class
@@ -193,9 +193,10 @@ export class TikTokScraper {
         this.emitProgress("loading", 10, "Đang mở video để lấy API bình luận...");
       }
 
-      // Navigate to canonical video URL. Tracking query params (_r, _t, etc.)
-      // are not needed for the API and can trigger TikTok HTTP failures.
-      await this.navigateToUrl(TikTokScraper.normalizeTikTokUrl(url));
+      // Use the exact URL submitted by the user first. TikTok sometimes treats
+      // the share query params as part of the web navigation context; only fall
+      // back to the canonical URL if the original URL fails to load.
+      await this.navigateToUrl(url, TikTokScraper.normalizeTikTokUrl(url));
 
       // Thinking pause before captcha check (human doesn't act instantly)
       await thinkingPause(this.page!);
@@ -460,42 +461,50 @@ export class TikTokScraper {
   // Navigation
   // ===========================================
 
-  private async navigateToUrl(url: string): Promise<void> {
+  private async navigateToUrl(url: string, fallbackUrl?: string): Promise<void> {
     if (!this.page) throw new Error("Page not initialized");
 
     console.log("[TikTok] 🌍 Đang truy cập trang...");
-    try {
-      const response = await this.page.goto(url, {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
-      });
-      const status = response?.status();
-      if (typeof status === "number" && status >= 400) {
-        console.warn(`[TikTok] ⚠️ TikTok returned HTTP ${status} for video page`);
-        const message = `${TIKTOK_SESSION_REJECTED_MESSAGE} (HTTP ${status})`;
-        this.emitProgress("error", 0, message);
-        throw new Error(message);
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (msg === "captcha_detected_msg") throw error;
-      if (msg.includes("ERR_HTTP_RESPONSE_CODE_FAILURE")) {
-        console.warn("[TikTok] ⚠️ TikTok rejected the video page request; treating as rejected session");
-        this.emitProgress("error", 0, TIKTOK_SESSION_REJECTED_MESSAGE);
-        throw new Error(TIKTOK_SESSION_REJECTED_MESSAGE);
-      }
-      throw error;
-    }
-    await this.page.waitForTimeout(800);
 
-    // Log debug info
-    try {
-      const title = await this.page.title();
-      console.log(`[TikTok] 📄 Page title: ${title}`);
-      console.log(`[TikTok] 📍 URL: ${this.page.url()}`);
-    } catch {
-      // ignore
+    const candidates = [url, fallbackUrl].filter((candidate, index, all): candidate is string => {
+      return Boolean(candidate) && all.indexOf(candidate) === index;
+    });
+    let lastError: string | undefined;
+
+    for (const candidate of candidates) {
+      try {
+        const response = await this.page.goto(candidate, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        const status = response?.status();
+        if (typeof status === "number" && status >= 400) {
+          console.warn(`[TikTok] ⚠️ TikTok returned HTTP ${status} for video page; continuing to inspect page`);
+        }
+
+        await this.page.waitForTimeout(800);
+
+        // Log debug info
+        try {
+          const title = await this.page.title();
+          console.log(`[TikTok] 📄 Page title: ${title}`);
+          console.log(`[TikTok] 📍 URL: ${this.page.url()}`);
+        } catch {
+          // ignore
+        }
+
+        return;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg === "captcha_detected_msg") throw error;
+        lastError = msg;
+        console.warn(`[TikTok] ⚠️ Could not open TikTok video URL: ${msg}`);
+      }
     }
+
+    const message = lastError ? `${TIKTOK_PAGE_BLOCKED_MESSAGE} (${lastError})` : TIKTOK_PAGE_BLOCKED_MESSAGE;
+    this.emitProgress("error", 0, message);
+    throw new Error(message);
   }
 
   /**
