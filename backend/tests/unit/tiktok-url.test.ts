@@ -68,3 +68,23 @@ describe("TikTokScraper.normalizeSameSite", () => {
     expect(TikTokScraper.normalizeSameSite("")).toBe("Lax");
   });
 });
+
+describe("TikTokScraper.normalizeTikTokUrl", () => {
+  it("strips tracking query params from canonical video/photo URLs", () => {
+    expect(
+      TikTokScraper.normalizeTikTokUrl(
+        "https://www.tiktok.com/@keelin_.01/video/7588859111421349128?_r=1&_t=ZS-96CtRRfaKQe",
+      ),
+    ).toBe("https://www.tiktok.com/@keelin_.01/video/7588859111421349128");
+
+    expect(TikTokScraper.normalizeTikTokUrl("https://www.tiktok.com/@user/photo/123?foo=bar#hash")).toBe(
+      "https://www.tiktok.com/@user/photo/123",
+    );
+  });
+
+  it("leaves short links unchanged", () => {
+    expect(TikTokScraper.normalizeTikTokUrl("https://www.tiktok.com/t/ZS-96CtRRfaKQe")).toBe(
+      "https://www.tiktok.com/t/ZS-96CtRRfaKQe",
+    );
+  });
+});

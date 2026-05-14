@@ -15,15 +15,15 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
   baseDelay: 1000,
   maxDelay: 30000,
   shouldRetry: (error) => {
-    // Retry on network errors or rate limiting
+    // Retry on network errors or rate limiting. CAPTCHA should fail fast so
+    // the UI can tell the user to follow the guide.
     const message = error.message.toLowerCase();
     return (
       message.includes("timeout") ||
       message.includes("network") ||
       message.includes("rate limit") ||
       message.includes("429") ||
-      message.includes("503") ||
-      message.includes("captcha")
+      message.includes("503")
     );
   },
 };

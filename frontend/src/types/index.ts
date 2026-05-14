@@ -149,7 +149,7 @@ export interface ScrapeStartedEvent {
 
 export interface ScrapeProgress {
   historyId: string;
-  phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving";
+  phase: "initializing" | "loading" | "scrolling" | "extracting" | "saving" | "error";
   progress: number;
   commentsFound: number;
   message: string;

@@ -432,13 +432,14 @@ export class ScraperService {
             baseDelay: 5000,
             shouldRetry: (error) => {
               const msg = error.message.toLowerCase();
-              // Retry on network/timeout errors, not on invalid URLs
-              return msg.includes("timeout") || msg.includes("network") || msg.includes("captcha");
+              // Retry transient network/timeout errors. CAPTCHA is user-actionable,
+              // so fail immediately and let the frontend show the guide CTA.
+              return msg.includes("timeout") || msg.includes("network");
             },
           },
         );
 
-        // Persist updated session cookies (post-captcha or refreshed msToken)
+        // Persist updated session cookies (refreshed msToken)
         // even on partial failure — they're still useful for the next attempt.
         if (platform === "TIKTOK" && result.updatedSessionCookies) {
           await userRepository.updateTiktokSession(userId, result.updatedSessionCookies).catch((e) => {

@@ -115,25 +115,13 @@ export class TikTokChannelScraper {
       const msg = error instanceof Error ? error.message : "Unknown error";
       console.error(`[ChannelScraper] ❌ Error: ${msg}`);
 
-      if (this.interceptedVideos.size > 0) {
-        return this.mapToChannelVideoData();
+      if (msg === "captcha_detected_msg") {
+        console.log("[ChannelScraper] ⚠️ Captcha detected — stopping so frontend can show guide CTA");
+        throw error;
       }
 
-      // Captcha on browser (datacenter IP) — try HTTP fallback before giving up
-      if (msg === "captcha_detected_msg") {
-        console.log("[ChannelScraper] ⚠️ Captcha on browser — trying HTTP API fallback...");
-        try {
-          const username = this.extractUsername(channelUrl);
-          const fallbackVideos = await this.crawlChannelViaApi(username);
-          if (fallbackVideos.length > 0) {
-            console.log(`[ChannelScraper] ✅ HTTP fallback got ${fallbackVideos.length} videos despite captcha`);
-            return fallbackVideos;
-          }
-        } catch (e) {
-          console.error("[ChannelScraper] ❌ HTTP fallback also failed:", e instanceof Error ? e.message : e);
-        }
-        // Both browser captcha + HTTP fallback failed → re-throw captcha error so frontend shows captcha toast
-
+      if (this.interceptedVideos.size > 0) {
+        return this.mapToChannelVideoData();
       }
 
       throw error;

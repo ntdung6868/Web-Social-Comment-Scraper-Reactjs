@@ -57,7 +57,7 @@ function createRedisConnection(): Redis {
 // `attempts: 2` means BullMQ retries once if the WORKER PROCESS dies (OOM,
 // segfault, container restart, network blip in BullMQ ↔ Redis). This is
 // orthogonal to withRetry() in scraper.service which only catches in-process
-// retryable scrape errors (network/timeout/captcha) — that retry is gone if
+// retryable scrape errors (network/timeout) — that retry is gone if
 // the worker itself crashes. 60s backoff gives the worker time to recover.
 export const premiumQueue = new Queue<ScrapeJobData, ScrapeJobResult>(PREMIUM_QUEUE_NAME, {
   connection: createRedisConnection(),

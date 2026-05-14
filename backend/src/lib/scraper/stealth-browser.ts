@@ -103,6 +103,13 @@ export async function launchStealthBrowser(options: StealthLaunchOptions): Promi
   const userAgent = options.userAgentOverride || profile.userAgent;
   const windowWidth = options.windowWidth ?? 1280;
   const windowHeight = options.windowHeight ?? 900;
+  const hasLinuxDisplay =
+    process.platform !== "linux" || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+  const effectiveHeadless = options.headless || !hasLinuxDisplay;
+
+  if (!options.headless && !hasLinuxDisplay) {
+    console.warn("[Stealth] Headed browser requested but no DISPLAY/WAYLAND_DISPLAY is available; forcing headless mode.");
+  }
 
   // ── Chrome flags ──
   const launchArgs = [
@@ -153,7 +160,7 @@ export async function launchStealthBrowser(options: StealthLaunchOptions): Promi
   // shm-usage, --js-flags=--max-old-space-size=512) are sufficient.
 
   // Use full Chromium with --headless=new (not the headless shell which is fingerprinted)
-  if (options.headless) {
+  if (effectiveHeadless) {
     launchArgs.push("--headless=new");
   }
 

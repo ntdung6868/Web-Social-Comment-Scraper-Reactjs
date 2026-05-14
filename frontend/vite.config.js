@@ -20,6 +20,31 @@ export default defineConfig({
             "@layouts": resolve(__dirname, "./src/layouts"),
         },
     },
+    build: {
+        // Split vendor packages into named chunks. Routes are already lazy
+        // (src/routes.tsx) so only the chunks needed for the current route
+        // load on first paint. Vendor chunks stay cached across app deploys
+        // because their hash only changes when the dep itself changes —
+        // shipping app code no longer invalidates ~250KB of MUI.
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    "react-vendor": ["react", "react-dom", "react-router-dom"],
+                    "mui-vendor": [
+                        "@mui/material",
+                        "@mui/icons-material",
+                        "@emotion/react",
+                        "@emotion/styled",
+                    ],
+                    "query-vendor": ["@tanstack/react-query", "@tanstack/react-query-devtools", "axios"],
+                    "form-vendor": ["react-hook-form", "@hookform/resolvers", "zod"],
+                    "i18n-vendor": ["i18next", "react-i18next"],
+                    "date-vendor": ["date-fns"],
+                },
+            },
+        },
+        chunkSizeWarningLimit: 600,
+    },
     server: {
         port: 5173,
         proxy: {

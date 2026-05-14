@@ -281,7 +281,7 @@ export class FacebookScraper {
       if (this.config.headless) {
         throw new Error("🔒 CAPTCHA FACEBOOK! Hãy lấy cookie từ trình duyệt thật hoặc tắt chế độ Headless.");
       }
-      throw new Error("Captcha không được giải trong 120s. Vui lòng thử lại!");
+      throw new Error("🔒 CAPTCHA FACEBOOK! Vui lòng xử lý thủ công trong trình duyệt thật rồi cập nhật cookie.");
     }
   }
 

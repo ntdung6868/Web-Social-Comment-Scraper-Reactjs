@@ -175,9 +175,10 @@ export default function ScraperPage() {
         updateProgress(data);
         // Translate known i18n keys emitted by the backend (e.g. captcha detection)
         const displayMessage = data.message === CAPTCHA_KEY ? t(`scraper.${CAPTCHA_KEY}`) : data.message;
+        const isError = data.message === CAPTCHA_KEY || data.phase === "error";
         addLog(
-          data.message === CAPTCHA_KEY ? "error" : "progress",
-          `${data.message === CAPTCHA_KEY ? "🔒" : "📊"} #${data.historyId} — ${displayMessage}${data.message === CAPTCHA_KEY ? "" : ` (${data.commentsFound} comments, ${data.progress}%)`}`,
+          isError ? "error" : "progress",
+          `${data.message === CAPTCHA_KEY ? "🔒" : isError ? "❌" : "📊"} #${data.historyId} — ${displayMessage}${isError ? "" : ` (${data.commentsFound} comments, ${data.progress}%)`}`,
         );
       },
       [updateProgress, addLog, t],
